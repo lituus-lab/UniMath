@@ -111,6 +111,7 @@ full `[-1, 1]` enclosure when one is enclosed.
 """
 
 nbCode:
+  import UniMath
   import std/math
   let ia = initInterval(1.0, 2.0)
   let ib = initInterval(3.0, 4.0)
@@ -225,6 +226,7 @@ integers, where the Nim core raises `ValueError` (the C ABI returns `NaN`).
 """
 
 nbCode:
+  import UniMath
   import std/math
   import UniMath/special/gamma
   proc spSqrt(v: float64): float64 {.noSideEffect.} = math.sqrt(v)
@@ -264,6 +266,8 @@ This module holds the shared infrastructure: power-of-two scaling, the cached
 """
 
 nbCode:
+  import UniMath
+  import std/math
   echo "scaleByPow2(1.0, 2) = ", toFloat64(scaleByPow2(initBigFloat(1.0), 2))
   echo "floorBigFloat(2.7) = ", toFloat64(floorBigFloat(initBigFloat(2.7)))
   echo "roundBigFloat(2.5) = ", toFloat64(roundBigFloat(initBigFloat(2.5)))
@@ -332,6 +336,7 @@ reduction), so the `1.0` cases stay inside the convergence disk.
 """
 
 nbCode:
+  import UniMath
   import UniMath/math_router
   let mrOne = toFixed[int64, 32](1.0)
   let mrHalf = toFixed[int64, 32](0.5)
@@ -360,6 +365,7 @@ rounding mode, or Fixed -> exact BigFloat), `toBigInt` (truncation toward zero),
 """
 
 nbCode:
+  import UniMath
   import UniMath/conversions
   let cvF = toFixed[int64, 32](2.5)
   echo "Fixed 2.5 -> Rational = ", toFloat64(conversions.toRational(cvF))
