@@ -45,6 +45,12 @@ nbCode:
   echo "b mod 7 = ", toDecimal(b mod initBigInt(7))
 
 nbText: """
+### References
+
+- Wikipedia: [Arbitrary-precision arithmetic](https://en.wikipedia.org/wiki/Arbitrary-precision_arithmetic)
+"""
+
+nbText: """
 ## Fixed
 
 Q-format fixed-point: a `Fixed[T, FracBits]` is an integer scaled by
@@ -60,6 +66,13 @@ nbCode:
   echo "x * y = ", toFloat64(x * y)
   echo "x / y = ", toFloat64(x / y)
   echo "floor(3.75) = ", toFloat64(floor(toFixed[int64, 32](3.75)))
+
+nbText: """
+### References
+
+- Wikipedia: [Fixed-point arithmetic](https://en.wikipedia.org/wiki/Fixed-point_arithmetic)
+- Wikipedia: [Q (number format)](https://en.wikipedia.org/wiki/Q_(number_format))
+"""
 
 nbText: """
 ## BigFloat
@@ -83,6 +96,14 @@ nbCode:
                                              rmNearest)) >= 0
 
 nbText: """
+### References
+
+- Wikipedia: [Floating-point arithmetic](https://en.wikipedia.org/wiki/Floating-point_arithmetic)
+- Wikipedia: [IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) — the rounding-mode
+  contract `rmNearest`/`rmUp`/`rmDown` follow.
+"""
+
+nbText: """
 ## Rational
 
 Exact fractions `Rational[T]` over any integer-like `T` (built-in integers and
@@ -99,6 +120,12 @@ nbCode:
   echo "1/2 / 1/3 = ", toFloat64(ra / rb)
   let red = initRational(initBigInt(4), initBigInt(8))
   echo "4/8 reduces: num=", toDecimal(red.num), " den=", toDecimal(red.den)
+
+nbText: """
+### References
+
+- Wikipedia: [Rational number](https://en.wikipedia.org/wiki/Rational_number)
+"""
 
 nbText: """
 ## Interval
@@ -125,6 +152,12 @@ nbCode:
   echo "sin([0, pi]) = [", isin.lower, ", ", isin.upper, "]"
 
 nbText: """
+### References
+
+- Wikipedia: [Interval arithmetic](https://en.wikipedia.org/wiki/Interval_arithmetic)
+"""
+
+nbText: """
 ## EFT
 
 Error-free transforms, re-exported from the `UniAccurate` engine: `twoSum` and
@@ -139,6 +172,19 @@ nbCode:
   echo "twoSum(1, 2) = (", s, ", ", e, ")"
   let ex = growExpansion([1.0, 2.0], 3.0)
   echo "estimate([1,2] grown by 3) = ", estimate(ex)
+
+nbText: """
+### References
+
+- Wikipedia: [2Sum](https://en.wikipedia.org/wiki/2Sum) — the `twoSum`
+  error-free transform (Møller–Knuth).
+- Wikipedia: [Kahan summation algorithm](https://en.wikipedia.org/wiki/Kahan_summation_algorithm) —
+  the same compensated-summation family.
+- Shewchuk, J.R. "Adaptive Precision Floating-Point Arithmetic and Fast Robust
+  Geometric Predicates," *Discrete & Computational Geometry* 18, 305–363
+  (1997) — the expansion arithmetic (`growExpansion`,
+  `fastExpansionSumZeroElim`, `scaleExpansionZeroElim`).
+"""
 
 nbText: """
 ## Roots
@@ -158,6 +204,13 @@ nbCode:
   echo "sqrtNewtonGeneric(BigFloat 2.0) = ", toFloat64(nsBf)
 
 nbText: """
+### References
+
+- Wikipedia: [Integer square root](https://en.wikipedia.org/wiki/Integer_square_root)
+- Wikipedia: [Newton's method](https://en.wikipedia.org/wiki/Newton%27s_method)
+"""
+
+nbText: """
 ## Exponential
 
 Taylor series for `exp(x)` and `ln(1+x)`, plus a generic `ln(z)` built on the
@@ -171,6 +224,14 @@ nbCode:
   echo "lnGeneric(2.0) = ", lnGeneric(2.0)
   let bfLn = lnGeneric(initBigFloat(2.0, 128))
   echo "lnGeneric(BigFloat 2.0) = ", toFloat64(bfLn)
+
+nbText: """
+### References
+
+- Wikipedia: [Taylor series](https://en.wikipedia.org/wiki/Taylor_series)
+- Wikipedia: [Inverse hyperbolic functions](https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions) —
+  the area-hyperbolic-tangent series `ln(z)` is built on.
+"""
 
 nbText: """
 ## Trigonometry
@@ -195,6 +256,16 @@ nbCode:
   echo "tanChebyshev(0.5) = ", toFloat64(tanChebyshev(cdAngle))
 
 nbText: """
+### References
+
+- Wikipedia: [Taylor series](https://en.wikipedia.org/wiki/Taylor_series)
+- Wikipedia: [CORDIC](https://en.wikipedia.org/wiki/CORDIC)
+- Wikipedia: [Lookup table](https://en.wikipedia.org/wiki/Lookup_table)
+- Wikipedia: [Minimax approximation algorithm](https://en.wikipedia.org/wiki/Minimax_approximation_algorithm) —
+  the Chebyshev minimax `tan`.
+"""
+
+nbText: """
 ## Hyperbolic
 
 Fixed-point CORDIC hyperbolic mode: `sinh`/`cosh`/`tanh`/`exp` via
@@ -212,6 +283,14 @@ nbCode:
   echo "sinhCordic(1.0) = ", toFloat64(sinhCordic(hbOne))
   echo "coshCordic(1.0) = ", toFloat64(coshCordic(hbOne))
   echo "tanhCordic(1.0) = ", toFloat64(tanhCordic(hbOne))
+
+nbText: """
+### References
+
+- Wikipedia: [CORDIC](https://en.wikipedia.org/wiki/CORDIC) — hyperbolic
+  rotation mode (Walther's extension).
+- Wikipedia: [Hyperbolic functions](https://en.wikipedia.org/wiki/Hyperbolic_functions)
+"""
 
 nbText: """
 ## Special
@@ -239,6 +318,17 @@ nbCode:
   echo "J0(0.5) = ", besselJ0(0.5, 15)
 
 nbText: """
+### References
+
+- Wikipedia: [Chebyshev polynomials](https://en.wikipedia.org/wiki/Chebyshev_polynomials)
+- Wikipedia: [Legendre polynomials](https://en.wikipedia.org/wiki/Legendre_polynomials)
+- Wikipedia: [Hermite polynomials](https://en.wikipedia.org/wiki/Hermite_polynomials)
+- Wikipedia: [Error function](https://en.wikipedia.org/wiki/Error_function)
+- Wikipedia: [Lanczos approximation](https://en.wikipedia.org/wiki/Lanczos_approximation)
+- Wikipedia: [Bessel function](https://en.wikipedia.org/wiki/Bessel_function)
+"""
+
+nbText: """
 ## Constants
 
 `pi` and `e` at the precision of the backend: `BigFloat` computes them
@@ -253,6 +343,13 @@ nbCode:
   echo "eBigFloat(256) = ", toFloat64(eBigFloat(256))
   echo "piFixed Q32 = ", toFloat64(piFixed[int64, 32]())
   echo "eFixed Q32 = ", toFloat64(eFixed[int64, 32]())
+
+nbText: """
+### References
+
+- Wikipedia: [Machin-like formula](https://en.wikipedia.org/wiki/Machin-like_formula)
+- Wikipedia: [E (mathematical constant)](https://en.wikipedia.org/wiki/E_(mathematical_constant))
+"""
 
 nbText: """
 ## Reduction
@@ -273,6 +370,13 @@ nbCode:
   echo "roundBigFloat(2.5) = ", toFloat64(roundBigFloat(initBigFloat(2.5)))
   echo "reduceModTwoPi(2pi+0.5) = ", toFloat64(reduceModTwoPi(initBigFloat(2.0 *
       PI + 0.5)))
+
+nbText: """
+### References
+
+- Wikipedia: [Trigonometric functions](https://en.wikipedia.org/wiki/Trigonometric_functions) —
+  periodicity is why the Taylor cores need reduction before evaluating.
+"""
 
 nbText: """
 ## float_math
@@ -323,6 +427,13 @@ nbCode:
       1)), initRational(initBigInt(3), initBigInt(1))))
   echo "pow(2,1/2) = ", toFloat64(pow(initRational(initBigInt(2), initBigInt(
       1)), initRational(initBigInt(1), initBigInt(2)), 10))
+
+nbText: """
+### References
+
+- Wikipedia: [Milü](https://en.wikipedia.org/wiki/Mil%C3%BC) — the `355/113`
+  convergent used for `pi`.
+"""
 
 nbText: """
 ## math_router
