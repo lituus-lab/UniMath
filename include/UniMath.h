@@ -1,0 +1,290 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 lituus-lab
+#ifndef UNIMATH_H
+#define UNIMATH_H
+
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define UNIMATH_VERSION_MAJOR 0
+#define UNIMATH_VERSION_MINOR 1
+#define UNIMATH_VERSION_PATCH 0
+#define UNIMATH_VERSION "0.1.0"
+
+#define UNIMATH_VERSION_AT_LEAST(ma, mi, pa) \
+  ((UNIMATH_VERSION_MAJOR > (ma)) || \
+   (UNIMATH_VERSION_MAJOR == (ma) && UNIMATH_VERSION_MINOR > (mi)) || \
+   (UNIMATH_VERSION_MAJOR == (ma) && UNIMATH_VERSION_MINOR == (mi) && \
+    UNIMATH_VERSION_PATCH >= (pa)))
+
+/* Error codes returned by some entry points and decoded by
+ * unimath_get_error_string. The ABI never raises across the boundary. */
+#define UNIMATH_OK            0
+#define UNIMATH_ERR_DIV_BY_ZERO 1
+#define UNIMATH_ERR_OVERFLOW    2
+#define UNIMATH_ERR_INVALID     3
+#define UNIMATH_ERR_OOM         4
+
+/* Opaque handle to a heap-allocated, GC-pinned BigInt. Owned by the caller
+ * until unimath_bigint_destroy. NULL marks an error / empty result. */
+typedef void *unimath_bigint;
+
+/* Static version string; do not free. */
+const char *unimath_version(void);
+
+/* Lifecycle. Call unimath_init() once before any other entry point so the
+ * Nim/ARC runtime is up (handles persist Nim heap objects across the
+ * boundary). Idempotent; returns 1 on success. unimath_cleanup() is a no-op
+ * (handles are freed per-call by *_destroy). */
+int unimath_init(void);
+void unimath_cleanup(void);
+
+const char *unimath_get_error_string(int error_code);
+
+/* ---- BigInt ---- */
+unimath_bigint unimath_bigint_from_i64(long long v);
+unimath_bigint unimath_bigint_from_decimal(const char *s);
+
+/* Write the NUL-terminated decimal into buf. Returns chars written
+ * (excluding NUL), or -1 on a nil handle / nil buffer / buffer too small. */
+int unimath_bigint_to_decimal(unimath_bigint h, char *buf, size_t size);
+
+unimath_bigint unimath_bigint_add(unimath_bigint a, unimath_bigint b);
+unimath_bigint unimath_bigint_sub(unimath_bigint a, unimath_bigint b);
+unimath_bigint unimath_bigint_mul(unimath_bigint a, unimath_bigint b);
+unimath_bigint unimath_bigint_div(unimath_bigint a, unimath_bigint b);
+unimath_bigint unimath_bigint_mod(unimath_bigint a, unimath_bigint b);
+unimath_bigint unimath_bigint_neg(unimath_bigint a);
+unimath_bigint unimath_bigint_abs(unimath_bigint a);
+
+/* -1 / 0 / 1; 0 if either handle is nil. */
+int unimath_bigint_cmp(unimath_bigint a, unimath_bigint b);
+
+/* Best-effort int64, clamped to the int64 range. If out_ok is non-NULL,
+ * *out_ok is 0 when the value was out of range (clamped) or the handle nil. */
+long long unimath_bigint_to_i64(unimath_bigint h, int *out_ok);
+
+void unimath_bigint_destroy(unimath_bigint h);
+
+/* ---- Fixed (raw int64 Q-format; frac_bits = fractional width) ----
+ * Values are raw `data` integers scaled by 2^frac_bits. The ABI never raises:
+ * out-of-range results clamp to the int64 range; division by zero returns 0. */
+long long unimath_fixed_from_int(long long val, int frac_bits);
+long long unimath_fixed_to_int(long long q, int frac_bits);
+long long unimath_fixed_add(long long a, long long b);
+long long unimath_fixed_sub(long long a, long long b);
+long long unimath_fixed_mul(long long a, long long b, int frac_bits);
+long long unimath_fixed_div(long long a, long long b, int frac_bits);
+
+/* ---- BigFloat (handle = pinned ref BigFloat; default 256-bit precision) ----
+ * The ABI never raises: NULL on nil handle / Inf/NaN input / division by zero;
+ * to_f64 returns ±Inf/±0 on overflow/underflow. */
+typedef void *unimath_bigfloat;
+
+unimath_bigfloat unimath_bigfloat_from_f64(double v);
+unimath_bigfloat unimath_bigfloat_from_i64(long long v);
+double unimath_bigfloat_to_f64(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_add(unimath_bigfloat a, unimath_bigfloat b);
+unimath_bigfloat unimath_bigfloat_sub(unimath_bigfloat a, unimath_bigfloat b);
+unimath_bigfloat unimath_bigfloat_mul(unimath_bigfloat a, unimath_bigfloat b);
+unimath_bigfloat unimath_bigfloat_div(unimath_bigfloat a, unimath_bigfloat b);
+
+/* -1 / 0 / 1; 0 if either handle is nil. */
+int unimath_bigfloat_cmp(unimath_bigfloat a, unimath_bigfloat b);
+
+void unimath_bigfloat_destroy(unimath_bigfloat h);
+
+/* ---- Rational (handle = pinned ref Rational[BigInt]; unbounded exact) ----
+ * The ABI never raises: NULL on nil handle / zero denominator / division by
+ * zero; to_f64 returns 0.0 on a nil handle. */
+typedef void *unimath_rational;
+
+unimath_rational unimath_rational_from_i64(long long num, long long den);
+unimath_rational unimath_rational_from_bigint(unimath_bigint num,
+                                               unimath_bigint den);
+double unimath_rational_to_f64(unimath_rational h);
+/* Numerator / denominator as new pinned BigInt handles (caller owns them). */
+unimath_bigint unimath_rational_num(unimath_rational h);
+unimath_bigint unimath_rational_den(unimath_rational h);
+unimath_rational unimath_rational_add(unimath_rational a, unimath_rational b);
+unimath_rational unimath_rational_sub(unimath_rational a, unimath_rational b);
+unimath_rational unimath_rational_mul(unimath_rational a, unimath_rational b);
+unimath_rational unimath_rational_div(unimath_rational a, unimath_rational b);
+unimath_rational unimath_rational_neg(unimath_rational a);
+unimath_rational unimath_rational_abs(unimath_rational a);
+
+/* -1 / 0 / 1; 0 if either handle is nil. */
+int unimath_rational_cmp(unimath_rational a, unimath_rational b);
+
+void unimath_rational_destroy(unimath_rational h);
+
+/* ---- Interval (value type: two doubles, returned by value) ----
+ * The ABI never raises: domain errors clamp the input to the valid domain; a
+ * wholly out-of-domain input (sqrt of a negative interval, ln of a non-positive
+ * interval) returns the NaN interval (lo == hi == NaN) as a sentinel; division
+ * by an interval containing zero is unbounded -> (-Inf, Inf). */
+typedef struct unimath_interval {
+  double lo;
+  double hi;
+} unimath_interval;
+
+unimath_interval unimath_interval_from_f64(double lo, double hi);
+double unimath_interval_lo(unimath_interval a);
+double unimath_interval_hi(unimath_interval a);
+unimath_interval unimath_interval_add(unimath_interval a, unimath_interval b);
+unimath_interval unimath_interval_sub(unimath_interval a, unimath_interval b);
+unimath_interval unimath_interval_mul(unimath_interval a, unimath_interval b);
+unimath_interval unimath_interval_div(unimath_interval a, unimath_interval b);
+unimath_interval unimath_interval_sqrt(unimath_interval a);
+unimath_interval unimath_interval_exp(unimath_interval a);
+unimath_interval unimath_interval_ln(unimath_interval a);
+unimath_interval unimath_interval_sin(unimath_interval a);
+unimath_interval unimath_interval_cos(unimath_interval a);
+
+/* ---- Roots ----
+ * Integer square root (raw int64) and Newton-Raphson square root (float64,
+ * BigFloat handle). The ABI never raises: a negative input clamps to 0
+ * (isqrt) / NaN (float64 sqrt) / NULL (BigFloat sqrt). */
+long long unimath_isqrt_i64(long long n);
+double unimath_sqrt_newton_f64(double x);
+unimath_bigfloat unimath_sqrt_newton_bigfloat(unimath_bigfloat h);
+
+/* ---- Exponential ----
+ * Taylor exp, Taylor ln(1+x), and the generic ln(z), over float64 and BigFloat.
+ * The ABI never raises: a nil BigFloat handle returns NULL; an out-of-domain
+ * log (lnTaylor with x <= -1, lnGeneric with z <= 0) returns NaN / NULL. */
+double unimath_exp_taylor_f64(double x);
+double unimath_ln_taylor_f64(double x);
+double unimath_ln_generic_f64(double z);
+unimath_bigfloat unimath_exp_taylor_bigfloat(unimath_bigfloat h);
+unimath_bigfloat unimath_ln_generic_bigfloat(unimath_bigfloat h);
+
+/* ---- Trigonometry ----
+ * Generic Taylor sin/cos/atan over float64, and the fixed-point CORDIC/LUT/
+ * Chebyshev cores over Q32.32 (32 fractional bits). The fixed-point procs take
+ * the raw Q-format long long: angles are mod-reduced to [0, 2pi) first,
+ * coordinates are clamped so the CORDIC gain cannot overflow. The ABI never
+ * raises. */
+double unimath_taylor_sin_f64(double x);
+double unimath_taylor_cos_f64(double x);
+double unimath_taylor_atan_f64(double x);
+long long unimath_cordic_sin(long long q);
+long long unimath_cordic_cos(long long q);
+long long unimath_cordic_atan2(long long y, long long x);
+long long unimath_lut_sin(long long q);
+long long unimath_lut_cos(long long q);
+long long unimath_chebyshev_tan(long long q);
+
+/* ---- Hyperbolic ----
+ * Fixed-point CORDIC sinh/cosh/tanh/exp over Q32.32. Hyperbolic CORDIC
+ * converges only for |z| <= ~1.1182 (no range reduction — not periodic); the
+ * ABI clamps the angle to that domain first, so it never raises. Use the
+ * BigFloat exp/sinh/cosh for larger arguments. */
+long long unimath_cordic_sinh(long long q);
+long long unimath_cordic_cosh(long long q);
+long long unimath_cordic_tanh(long long q);
+long long unimath_cordic_exp(long long q);
+
+/* ---- Special ----
+ * Orthogonal polynomials (Chebyshev T/U, Legendre, Hermite), the error
+ * function, Gamma, factorial, and Bessel J0 — all float64. `gamma` returns
+ * NaN at the non-positive-integer poles (the core raises there); `factorial`
+ * returns 0 for n < 0. */
+double unimath_chebyshev_t(int n, double x);
+double unimath_chebyshev_u(int n, double x);
+double unimath_legendre(int n, double x);
+double unimath_hermite(int n, double x);
+double unimath_erf(double x);
+double unimath_gamma(double x);
+double unimath_factorial(int n);
+double unimath_bessel_j0(double x);
+
+/* ---- Constants ----
+ * `pi`/`e` as 256-bit BigFloat handles (destroy with `unimath_bigfloat_destroy`)
+ * and as raw Q32.32 words. */
+unimath_bigfloat unimath_pi_bigfloat(void);
+unimath_bigfloat unimath_e_bigfloat(void);
+long long unimath_pi_fixed(void);
+long long unimath_e_fixed(void);
+
+/* ---- Reduction ----
+ * BigFloat trig stage-1 range reduction `r = x - round(x/2pi)·2pi` into
+ * `[-pi, pi]`. Returns a new handle (destroy with `unimath_bigfloat_destroy`);
+ * NULL in -> NULL out (never raises). */
+unimath_bigfloat unimath_bigfloat_reduce(unimath_bigfloat h);
+
+/* ---- float_math ----
+ * Range-reduced BigFloat transcendentals. Each returns a new handle (destroy
+ * with `unimath_bigfloat_destroy`); NULL in -> NULL out. Domain errors map to
+ * NULL (never raises): ln/pow of a non-positive base, sqrt of a negative, tan
+ * at a cos-zero singularity. */
+unimath_bigfloat unimath_bigfloat_sin(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_cos(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_tan(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_exp(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_ln(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_sqrt(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_arctan(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_arctan2(unimath_bigfloat y, unimath_bigfloat x);
+unimath_bigfloat unimath_bigfloat_pow_int(unimath_bigfloat h, int n);
+unimath_bigfloat unimath_bigfloat_pow(unimath_bigfloat h, unimath_bigfloat e);
+
+/* ---- rational_math ----
+ * Rational[BigInt] transcendentals (exact per term, truncated). Each returns a
+ * new handle (destroy with `unimath_rational_destroy`); NULL in -> NULL out.
+ * Domain errors map to NULL (never raises): ln/pow of a non-positive base, sqrt
+ * of a negative, tan at a cos-zero singularity. */
+unimath_rational unimath_rational_sin(unimath_rational h);
+unimath_rational unimath_rational_cos(unimath_rational h);
+unimath_rational unimath_rational_tan(unimath_rational h);
+unimath_rational unimath_rational_exp(unimath_rational h);
+unimath_rational unimath_rational_ln(unimath_rational h);
+unimath_rational unimath_rational_sqrt(unimath_rational h);
+unimath_rational unimath_rational_atan(unimath_rational h);
+unimath_rational unimath_rational_atan2(unimath_rational y, unimath_rational x);
+unimath_rational unimath_rational_pow(unimath_rational h, unimath_rational e);
+
+/* ---- math_router ----
+ * Fixed[int64, 32] (Q32.32) transcendentals via the auto-dispatch cores
+ * (CORDIC / Chebyshev / Newton / Taylor). The raw Q32.32 word is the `data`
+ * field of `Fixed[int64, 32]`. Never raises: a domain error or an out-of-
+ * convergence argument (hyperbolic/`exp` CORDIC needs `|z| <= ~1.1182`) clamps
+ * to `0`. `pow` needs `base > 0`; `ln` needs `q > 0`; `sqrt` needs `q >= 0`. */
+long long unimath_fixed_sin(long long q);
+long long unimath_fixed_cos(long long q);
+long long unimath_fixed_tan(long long q);
+long long unimath_fixed_exp(long long q);
+long long unimath_fixed_ln(long long q);
+long long unimath_fixed_sqrt(long long q);
+long long unimath_fixed_atan(long long q);
+long long unimath_fixed_atan2(long long y, long long x);
+long long unimath_fixed_sinh(long long q);
+long long unimath_fixed_cosh(long long q);
+long long unimath_fixed_tanh(long long q);
+long long unimath_fixed_pow(long long base, long long exponent);
+
+/* ---- conversions ----
+ * The cross-type matrix across the handle / value surfaces. The ABI never
+ * raises: NULL in -> NULL / 0 / NaN-interval out; a representation overflow
+ * (fixed target) or a NaN/Inf source (rational target) clamps to 0 / NULL.
+ * `unimath_rational_from_fixed` and `unimath_fixed_from_rational` take a raw
+ * Q-format word plus its `frac_bits` (the fixed value is `q / 2^frac_bits`).
+ * Interval procs return the value type by value. */
+unimath_rational unimath_rational_from_f64(double v);
+unimath_rational unimath_rational_from_fixed(long long q, int frac_bits);
+unimath_bigfloat unimath_bigfloat_from_rational(unimath_rational h);
+unimath_bigint unimath_bigint_from_bigfloat(unimath_bigfloat h);
+unimath_bigint unimath_bigint_from_rational(unimath_rational h);
+long long unimath_fixed_from_rational(unimath_rational h, int frac_bits);
+unimath_interval unimath_interval_from_bigfloat(unimath_bigfloat h);
+unimath_interval unimath_interval_from_rational(unimath_rational h);
+unimath_interval unimath_interval_from_bigint(unimath_bigint h);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* UNIMATH_H */
