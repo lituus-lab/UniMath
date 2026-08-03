@@ -1,0 +1,284 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  dco:
+    name: DCO sign-off
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Every commit must carry a Signed-off-by trailer
+        run: |
+          set -e
+          range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          bad=0
+          for c in $(git rev-list --no-merges "$range"); do
+            if ! git log -1 --format='%B' "$c" | grep -qE '^Signed-off-by: .+ <.+@.+>'; then
+              echo "Missing Signed-off-by on commit $c"
+              git log -1 --oneline "$c"
+              bad=1
+            fi
+          done
+          exit $bad
+
+  spdx:
+    name: SPDX headers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Mirrors tools/hooks/spdx_check.sh: every tracked Nim/C/Python source must
+      # carry an SPDX-License-Identifier header in its first 5 lines.
+      - name: Every Nim/C/Python source carries an SPDX header
+        run: bash tools/hooks/spdx_check.sh
+
+  test:
+    name: Nim (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - run: nimble install -y
+      - run: nimble testCi
+      - run: nimble testCiRelease
+
+  cabi:
+    name: C ABI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - run: nimble install -y
+      # gcc arrives with Nim's MinGW, GNU make does not ship on the runner image.
+      - name: Install GNU make (Windows)
+        if: runner.os == 'Windows'
+        run: choco install make --no-progress
+      - run: nimble ctest
+      - name: Upload Library
+        uses: actions/upload-artifact@v4
+        with:
+          name: libUniMath-${{ matrix.os }}
+          # The header ships with the lib: a C ABI artifact without it is not
+          # consumable. Paths stay repo-relative so the zip keeps include/ intact.
+          path: |
+            include/UniMath.h
+            libUniMath.so
+            libUniMath.dll
+            libUniMath.dylib
+            libUniMath.a
+            libUniMath.lib
+  python:
+    name: Python (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - run: nimble install -y
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -U setuptools wheel Cython pytest
+      # CPython is MSVC-built here, so the lib it links must be too: put cl.exe on
+      # PATH for `nimble pyLib`, which routes to clibMsvc on Windows.
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - run: nimble pyLib
+      - run: cd py && python3 setup.py build_ext --inplace
+      - run: cd py && python3 -m pytest -q
+      - run: cd py && python3 setup.py bdist_wheel
+      - name: Repair Wheel (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pip install auditwheel
+          auditwheel repair py/dist/*.whl -w py/dist/repaired/
+      - name: Repair Wheel (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          pip install delocate
+          delocate-wheel py/dist/*.whl -w py/dist/repaired/
+      - name: Repair Wheel (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pip install delvewheel
+          delvewheel repair py/dist/*.whl -w py/dist/repaired/
+      - name: Upload Python Wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: unimath-wheel-${{ matrix.os }}
+          path: py/dist/repaired/*.whl
+
+  consume-cabi:
+    name: Consume C artifact (${{ matrix.os }})
+    needs: cabi
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      # No setup-nim-action on purpose: proves the published header and lib work
+      # on a machine without Nim, using only the test source from the checkout.
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: libUniMath-${{ matrix.os }}
+          path: artifact
+      - name: Compile and run a consumer against the artifact
+        shell: bash
+        run: |
+          set -eu
+          # Assert the shipped layout first: a missing piece names itself here,
+          # rather than surfacing as an obscure compiler error.
+          test -f artifact/include/UniMath.h
+          test -f artifact/libUniMath.a
+          CC=cc; BIN=consumer
+          if [ "$RUNNER_OS" = Windows ]; then CC=gcc; BIN=consumer.exe; fi
+          "$CC" -Iartifact/include -O2 -Wall -Wextra -std=c11 -o "$BIN" \
+            tests/c/test_unimath.c artifact/libUniMath.a
+          "./$BIN"
+
+  consume-wheel:
+    name: Consume wheel (${{ matrix.os }})
+    needs: python
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      # Neither Nim nor libUniMath exists here: whatever the extension needs
+      # at runtime must have travelled inside the wheel.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: unimath-wheel-${{ matrix.os }}
+          path: dist
+      - name: Install the wheel and test the installed package
+        shell: bash
+        run: |
+          set -eu
+          python -m pip install -U pip pytest
+          # --only-binary rules out a silent fallback to building from source.
+          python -m pip install --only-binary :all: dist/*.whl
+          # Run outside the checkout so `import unimath` can only resolve to
+          # the installed wheel, never to py/unimath next door.
+          work="$RUNNER_TEMP/wheel-check"
+          mkdir -p "$work"
+          cp py/tests/test_smoke.py "$work/"
+          cd "$work"
+          python -m pytest -q
+      - name: Execute the quickstart notebook against the installed wheel
+        shell: bash
+        run: |
+          set -eu
+          python -m pip install nbconvert ipykernel
+          # Same neutral directory, same reason. GitHub renders the committed
+          # outputs, so executing them here keeps the notebook honest.
+          work="$RUNNER_TEMP/wheel-check"
+          cp py/notebooks/quickstart.ipynb "$work/"
+          cd "$work"
+          jupyter nbconvert --execute --to notebook --stdout quickstart.ipynb > /dev/null
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - run: nimble lint
+      - run: nimble checkVGraph
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - run: nimble install -y
+      - run: nimble docsDeps
+      # nimib runs the book's code against this build: a stale book fails here.
+      - run: nimble docs
+      - name: Upload Docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs
+          path: pages/
+
+  pages:
+    name: Publish Pages
+    needs: docs
+    # Pages serves private repos only on a paid plan. Skipped when this repo is
+    # private; switches itself on for a public one.
+    if: ${{ !github.event.repository.private && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: docs
+          path: pages
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  coverage:
+    name: Coverage
+    # Linux only: Apple's gcov is a clang stub emitting no .gcda, so the report
+    # would come out empty on macOS. No lcov version pin needed — the task
+    # suppresses no error, so 1.x and 2.x agree.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - run: sudo apt-get update && sudo apt-get install -y lcov
+      - run: nimble install -y
+      - run: nimble coverage
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: |
+            coverage/
+            lcov.info
