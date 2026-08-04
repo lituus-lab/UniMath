@@ -56,6 +56,14 @@ def test_inverse_trig(mr):
     assert mr.asin(2.0) == 0.0
 
 
+def test_inverse_hyperbolic(mr):
+    assert abs(mr.asinh(1.0) - math.asinh(1.0)) < 2e-2
+    assert abs(mr.acosh(1.5) - math.acosh(1.5)) < 2e-2
+    assert abs(mr.atanh(0.5) - math.atanh(0.5)) < 2e-2
+    assert mr.acosh(0.5) == 0.0
+    assert mr.atanh(2.0) == 0.0
+
+
 def test_domain_clamps_to_zero(mr):
     # The C ABI never raises: ln(<=0), sqrt(<0), and out-of-convergence exp
     # (|z| > ~1.1182) clamp to 0.0.

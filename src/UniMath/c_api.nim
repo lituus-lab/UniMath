@@ -1091,6 +1091,23 @@ proc unimath_fixed_acos(q: int64): int64 =
   try: acos(fxOf(q)).data
   except CatchableError, Defect: 0
 
+proc unimath_fixed_asinh(q: int64): int64 =
+  ## `asinh(q)` (Q32.32) via `ln(q + sqrt(q^2+1))`. Clamps to 0 on a defect.
+  try: asinh(fxOf(q)).data
+  except CatchableError, Defect: 0
+
+proc unimath_fixed_acosh(q: int64): int64 =
+  ## `acosh(q)` (Q32.32) via `ln(q + sqrt(q^2-1))`, domain `q >= 1`.
+  ## Out-of-domain or out-of-convergence clamps to 0.
+  try: acosh(fxOf(q)).data
+  except CatchableError, Defect: 0
+
+proc unimath_fixed_atanh(q: int64): int64 =
+  ## `atanh(q)` (Q32.32) via `(1/2)*ln((1+q)/(1-q))`, domain `|q| < 1`.
+  ## Out-of-domain or out-of-convergence clamps to 0.
+  try: atanh(fxOf(q)).data
+  except CatchableError, Defect: 0
+
 proc unimath_fixed_factorial(n: cint): int64 =
   ## `n!` (Q32.32), exact within range. 0 for `n < 0` (undefined).
   try: gamma.factorial[Fixed[int64, 32]](n.int).data

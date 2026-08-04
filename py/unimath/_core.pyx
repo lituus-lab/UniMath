@@ -193,6 +193,9 @@ cdef extern from "UniMath.h":
     long long unimath_fixed_pow(long long base, long long exponent)
     long long unimath_fixed_asin(long long q)
     long long unimath_fixed_acos(long long q)
+    long long unimath_fixed_asinh(long long q)
+    long long unimath_fixed_acosh(long long q)
+    long long unimath_fixed_atanh(long long q)
     long long unimath_fixed_factorial(int n)
     long long unimath_fixed_erf(long long q)
     long long unimath_fixed_bessel_j0(long long q)
@@ -1541,6 +1544,17 @@ cdef class MathRouter:
     def acos(self, x):
         """Domain |x| <= 1; clamps to 0.0 out of domain (never raises)."""
         return self._unary(<double>x, unimath_fixed_acos)
+
+    def asinh(self, x):
+        return self._unary(<double>x, unimath_fixed_asinh)
+
+    def acosh(self, x):
+        """Domain x >= 1; clamps to 0.0 out of domain (never raises)."""
+        return self._unary(<double>x, unimath_fixed_acosh)
+
+    def atanh(self, x):
+        """Domain |x| < 1; clamps to 0.0 out of domain (never raises)."""
+        return self._unary(<double>x, unimath_fixed_atanh)
 
     def factorial(self, n):
         """n! for non-negative n, exact within range. 0.0 for n < 0."""

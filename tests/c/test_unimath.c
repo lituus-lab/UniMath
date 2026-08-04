@@ -709,6 +709,11 @@ int main(void) {
   check_dbl_tol("fixed_asin(0.5)", FROM_Q32(unimath_fixed_asin(TO_Q32(0.5))), asin(0.5), 2e-2);
   check_dbl_tol("fixed_acos(0.5)", FROM_Q32(unimath_fixed_acos(TO_Q32(0.5))), acos(0.5), 2e-2);
   check_int("fixed_asin(2.0) out-of-domain clamps", unimath_fixed_asin(TO_Q32(2.0)), 0);
+  check_dbl_tol("fixed_asinh(1.0)", FROM_Q32(unimath_fixed_asinh(TO_Q32(1.0))), asinh(1.0), 2e-2);
+  check_dbl_tol("fixed_acosh(1.5)", FROM_Q32(unimath_fixed_acosh(TO_Q32(1.5))), acosh(1.5), 2e-2);
+  check_dbl_tol("fixed_atanh(0.5)", FROM_Q32(unimath_fixed_atanh(TO_Q32(0.5))), atanh(0.5), 2e-2);
+  check_int("fixed_acosh(0.5) out-of-domain clamps", unimath_fixed_acosh(TO_Q32(0.5)), 0);
+  check_int("fixed_atanh(2.0) out-of-domain clamps", unimath_fixed_atanh(TO_Q32(2.0)), 0);
   check_dbl_tol("fixed_factorial(5)", FROM_Q32(unimath_fixed_factorial(5)), 120.0, 1e-3);
   check_dbl_tol("fixed_erf(0.5)", FROM_Q32(unimath_fixed_erf(TO_Q32(0.5))), erf(0.5), 2e-2);
   check_dbl_tol("fixed_bessel_j0(0.5)", FROM_Q32(unimath_fixed_bessel_j0(TO_Q32(0.5))), 0.93846980724081297, 2e-2);
