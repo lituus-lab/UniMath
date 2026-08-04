@@ -103,8 +103,17 @@ task bench, "Perf + precision-parity benchmarks (release; not in the default gat
   exec "nim c -r -d:release --path:src -o:build/bench_arithmetic bench/bench_arithmetic.nim"
   exec "nim c -r -d:release --path:src -o:build/bench_transcendentals bench/bench_transcendentals.nim"
 
-task benchReadme, "bench, plus splice a headline table into README.md for this machine":
+task benchReadme, "bench (+ benchSpeed if libmpfr/libgmp are available), splice into README.md":
   exec "nimble bench"
+  let (_, pkgCode) = gorgeEx("pkg-config --exists mpfr gmp")
+  if pkgCode == 0:
+    # Build only (no `make run`), then execute directly so the captured file
+    # is the C binary's own stdout, not nimble/make's build chatter too.
+    exec "nimble clibStatic"
+    exec "make -C bench bench_speed"
+    exec "./bench/bench_speed > bench/.md_speed.txt"
+  else:
+    echo "benchReadme: no libmpfr/libgmp -- skipping the GMP/MPFR comparison"
   exec "nim c -r --path:src bench/export_readme.nim"
 
 # Nim takes `-o:` literally and appends no platform extension.

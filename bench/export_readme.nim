@@ -58,6 +58,16 @@ proc main() =
       stderr.writeLine("[readme] missing " & path & " -- run `nimble bench` first")
       quit(1)
     body &= "**" & title & "**\n\n" & readFile(path) & "\n"
+  # Optional: nimble benchSpeed (needs libmpfr/libgmp, Linux/macOS only) --
+  # raw captured stdout, verbatim, since it's already a fixed-width printf
+  # table and reformatting it risks misreading a column.
+  const speedPath = "bench/.md_speed.txt"
+  if fileExists(speedPath):
+    body &= "**UniMath vs GMP/MPFR** (`nimble benchSpeed`)\n\n```\n" &
+      readFile(speedPath).strip() & "\n```\n\n"
+  else:
+    stderr.writeLine("[readme] no " & speedPath &
+      " -- run `nimble benchSpeed > bench/.md_speed.txt` too if libmpfr/libgmp are available")
   spliceReadme(machineSlug(), body)
 
 when isMainModule:
