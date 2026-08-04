@@ -706,6 +706,12 @@ int main(void) {
     long long r = unimath_fixed_pow(base, exponent);
     check_dbl_tol("fixed_pow(1.5,1)", FROM_Q32(r), 1.5, 2e-2);
   }
+  check_dbl_tol("fixed_asin(0.5)", FROM_Q32(unimath_fixed_asin(TO_Q32(0.5))), asin(0.5), 2e-2);
+  check_dbl_tol("fixed_acos(0.5)", FROM_Q32(unimath_fixed_acos(TO_Q32(0.5))), acos(0.5), 2e-2);
+  check_int("fixed_asin(2.0) out-of-domain clamps", unimath_fixed_asin(TO_Q32(2.0)), 0);
+  check_dbl_tol("fixed_factorial(5)", FROM_Q32(unimath_fixed_factorial(5)), 120.0, 1e-3);
+  check_dbl_tol("fixed_erf(0.5)", FROM_Q32(unimath_fixed_erf(TO_Q32(0.5))), erf(0.5), 2e-2);
+  check_dbl_tol("fixed_bessel_j0(0.5)", FROM_Q32(unimath_fixed_bessel_j0(TO_Q32(0.5))), 0.93846980724081297, 2e-2);
   /* Domain / out-of-convergence clamp to 0 (never raises). */
   if (unimath_fixed_ln(0) != 0) {
     printf("FAIL fixed_ln(0) should clamp to 0\n"); failures++;

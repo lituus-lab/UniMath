@@ -320,6 +320,11 @@ long long unimath_fixed_sinh(long long q);
 long long unimath_fixed_cosh(long long q);
 long long unimath_fixed_tanh(long long q);
 long long unimath_fixed_pow(long long base, long long exponent);
+long long unimath_fixed_asin(long long q);
+long long unimath_fixed_acos(long long q);
+long long unimath_fixed_factorial(int n);
+long long unimath_fixed_erf(long long q);
+long long unimath_fixed_bessel_j0(long long q);
 
 /* ---- conversions ----
  * The cross-type matrix across the handle / value surfaces. The ABI never

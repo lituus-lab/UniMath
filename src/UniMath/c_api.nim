@@ -1079,6 +1079,33 @@ proc unimath_fixed_pow(base, exponent: int64): int64 =
   try: pow(fxOf(base), fxOf(exponent)).data
   except CatchableError, Defect: 0
 
+proc unimath_fixed_asin(q: int64): int64 =
+  ## `asin(q)` (Q32.32) via `atan2(q, sqrt(1-q^2))`, domain `|q| <= 1`.
+  ## Out-of-domain or out-of-convergence clamps to 0.
+  try: asin(fxOf(q)).data
+  except CatchableError, Defect: 0
+
+proc unimath_fixed_acos(q: int64): int64 =
+  ## `acos(q)` (Q32.32) via `atan2(sqrt(1-q^2), q)`, domain `|q| <= 1`.
+  ## Out-of-domain or out-of-convergence clamps to 0.
+  try: acos(fxOf(q)).data
+  except CatchableError, Defect: 0
+
+proc unimath_fixed_factorial(n: cint): int64 =
+  ## `n!` (Q32.32), exact within range. 0 for `n < 0` (undefined).
+  try: gamma.factorial[Fixed[int64, 32]](n.int).data
+  except CatchableError, Defect: 0
+
+proc unimath_fixed_erf(q: int64): int64 =
+  ## `erf(q)` (Q32.32) via the Taylor core. Clamps to 0 on a defect.
+  try: erf(fxOf(q)).data
+  except CatchableError, Defect: 0
+
+proc unimath_fixed_bessel_j0(q: int64): int64 =
+  ## Bessel `J0(q)` (Q32.32) via the series core. Clamps to 0 on a defect.
+  try: besselJ0(fxOf(q)).data
+  except CatchableError, Defect: 0
+
 # ------------------------------------------------------------------------------
 # conversions — cross-type matrix across the handle / value surfaces. The C
 # ABI never raises: nil in -> nil/0/NaN-interval out; a representation overflow

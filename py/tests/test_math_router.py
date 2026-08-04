@@ -50,6 +50,12 @@ def test_pow(mr):
     assert abs(mr.pow(1.5, 1.0) - 1.5) < 2e-2
 
 
+def test_inverse_trig(mr):
+    assert abs(mr.asin(0.5) - math.asin(0.5)) < 2e-2
+    assert abs(mr.acos(0.5) - math.acos(0.5)) < 2e-2
+    assert mr.asin(2.0) == 0.0
+
+
 def test_domain_clamps_to_zero(mr):
     # The C ABI never raises: ln(<=0), sqrt(<0), and out-of-convergence exp
     # (|z| > ~1.1182) clamp to 0.0.

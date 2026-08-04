@@ -191,6 +191,11 @@ cdef extern from "UniMath.h":
     long long unimath_fixed_cosh(long long q)
     long long unimath_fixed_tanh(long long q)
     long long unimath_fixed_pow(long long base, long long exponent)
+    long long unimath_fixed_asin(long long q)
+    long long unimath_fixed_acos(long long q)
+    long long unimath_fixed_factorial(int n)
+    long long unimath_fixed_erf(long long q)
+    long long unimath_fixed_bessel_j0(long long q)
 
     # ---- conversions ----
     unimath_rational unimath_rational_from_f64(double v)
@@ -1528,6 +1533,24 @@ cdef class MathRouter:
         cdef long long qb = _to_q32(<double>base)
         cdef long long qe = _to_q32(<double>exponent)
         return _from_q32(unimath_fixed_pow(qb, qe))
+
+    def asin(self, x):
+        """Domain |x| <= 1; clamps to 0.0 out of domain (never raises)."""
+        return self._unary(<double>x, unimath_fixed_asin)
+
+    def acos(self, x):
+        """Domain |x| <= 1; clamps to 0.0 out of domain (never raises)."""
+        return self._unary(<double>x, unimath_fixed_acos)
+
+    def factorial(self, n):
+        """n! for non-negative n, exact within range. 0.0 for n < 0."""
+        return _from_q32(unimath_fixed_factorial(<int>n))
+
+    def erf(self, x):
+        return self._unary(<double>x, unimath_fixed_erf)
+
+    def bessel_j0(self, x):
+        return self._unary(<double>x, unimath_fixed_bessel_j0)
 
 
 cdef class Conversions:
