@@ -13,6 +13,8 @@ import UniMath/math_router
 import UniMath/rational_math
 
 var sink: uint64 = 0
+var mdPerf: seq[tuple[name: string, ns, ops: float64]] = @[]
+var mdParity: seq[tuple[name: string, got, want, err: float64]] = @[]
 
 proc keep(p: int) {.inline: false.} =
   sink = sink xor cast[uint64](p)
@@ -23,10 +25,13 @@ template bench(name: string, iters: int, body: untyped) =
     body
   let elapsed = cpuTime() - start
   let ns = (elapsed * 1_000_000_000) / float64(iters)
+  let ops = float64(iters) / elapsed
+  mdPerf.add((name, ns, ops))
   echo alignLeft(name, 34), " | ", formatFloat(ns, ffDecimal, 3), " ns/op | ",
-       formatFloat(float64(iters) / elapsed, ffDecimal, 0), " ops/sec"
+       formatFloat(ops, ffDecimal, 0), " ops/sec"
 
 proc parity(name: string, got, want: float64) =
+  mdParity.add((name, got, want, abs(got - want)))
   echo alignLeft(name, 30), " | got ", formatFloat(got, ffDecimal, 15),
        " | oracle ", formatFloat(want, ffDecimal, 15),
        " | |err| = ", formatFloat(abs(got - want), ffScientific, 2)
@@ -93,6 +98,23 @@ proc runParity() =
   parity("arctan(1)", toFloat64(arctan(one)), math.arctan(1.0))
   parity("arctan(0.5)", toFloat64(arctan(half)), math.arctan(0.5))
 
+proc writeMd() =
+  var fp = open("bench/.md_transcendentals.md", fmWrite)
+  fp.writeLine("| op | ns/op | ops/sec |")
+  fp.writeLine("|---|---|---|")
+  for r in mdPerf:
+    fp.writeLine("| " & r.name & " | " & r.ns.formatFloat(ffDecimal, 3) & " | " &
+      r.ops.formatFloat(ffDecimal, 0) & " |")
+  fp.close()
+  var fa = open("bench/.md_parity.md", fmWrite)
+  fa.writeLine("| op | got (BigFloat, 256-bit) | oracle (float64) | \\|err\\| |")
+  fa.writeLine("|---|---|---|---|")
+  for r in mdParity:
+    fa.writeLine("| " & r.name & " | " & r.got.formatFloat(ffDecimal, 15) & " | " &
+      r.want.formatFloat(ffDecimal, 15) & " | " & r.err.formatFloat(ffScientific, 2) & " |")
+  fa.close()
+
 when isMainModule:
   runPerf()
   runParity()
+  writeMd()

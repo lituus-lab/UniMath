@@ -50,6 +50,11 @@ examples/c/demo
 # bench binary (built by `nimble benchSpeed`; source tracked)
 bench/bench_speed
 
+# bench markdown fragments + export tool binary (built by `nimble benchReadme`;
+# sources tracked, generated data/results not)
+bench/.md_*.md
+bench/export_readme
+
 # oracle executables (built by `nimble buildOracles`; sources tracked)
 oracles/mpfr_oracle
 oracles/gmp_oracle

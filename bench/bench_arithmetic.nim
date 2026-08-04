@@ -11,6 +11,7 @@ import std/[strutils, times]
 import UniMath
 
 var sink: uint64 = 0
+var mdRows: seq[tuple[name: string, ns, ops: float64]] = @[]
 
 proc keep(p: int) {.inline: false.} =
   sink = sink xor cast[uint64](p)
@@ -21,8 +22,10 @@ template bench(name: string, iters: int, body: untyped) =
     body
   let elapsed = cpuTime() - start
   let ns = (elapsed * 1_000_000_000) / float64(iters)
+  let ops = float64(iters) / elapsed
+  mdRows.add((name, ns, ops))
   echo alignLeft(name, 34), " | ", formatFloat(ns, ffDecimal, 3), " ns/op | ",
-       formatFloat(float64(iters) / elapsed, ffDecimal, 0), " ops/sec"
+       formatFloat(ops, ffDecimal, 0), " ops/sec"
 
 proc runBenchmarks() =
   echo "UniMath arithmetic benchmarks (release, contracts compiled away)"
@@ -66,5 +69,15 @@ proc runBenchmarks() =
 
   echo "sink = ", sink # keep every result live across the suite
 
+proc writeMd(path: string) =
+  var f = open(path, fmWrite)
+  defer: f.close()
+  f.writeLine("| op | ns/op | ops/sec |")
+  f.writeLine("|---|---|---|")
+  for r in mdRows:
+    f.writeLine("| " & r.name & " | " & r.ns.formatFloat(ffDecimal, 3) & " | " &
+      r.ops.formatFloat(ffDecimal, 0) & " |")
+
 when isMainModule:
   runBenchmarks()
+  writeMd("bench/.md_arithmetic.md")

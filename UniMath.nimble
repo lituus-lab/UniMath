@@ -103,6 +103,10 @@ task bench, "Perf + precision-parity benchmarks (release; not in the default gat
   exec "nim c -r -d:release --path:src -o:build/bench_arithmetic bench/bench_arithmetic.nim"
   exec "nim c -r -d:release --path:src -o:build/bench_transcendentals bench/bench_transcendentals.nim"
 
+task benchReadme, "bench, plus splice a headline table into README.md for this machine":
+  exec "nimble bench"
+  exec "nim c -r --path:src bench/export_readme.nim"
+
 # Nim takes `-o:` literally and appends no platform extension.
 const
   sharedLib =
