@@ -140,7 +140,7 @@ without either overwriting the other.
 | arctan(1) | 0.785398163397448 | 0.785398163397448 | 0.00e+00 |
 | arctan(0.5) | 0.463647609000806 | 0.463647609000806 | 5.55e-17 |
 
-**UniMath vs GMP/MPFR** (`nimble benchSpeed`)
+**UniMath vs GMP/MPFR** (`nimble benchSpeed`) -- `orc` is the GMP/MPFR oracle (`-reuse`: init once and overwrite, the fastest idiomatic oracle usage; `-alloc`: init+free every call, matching UniMath's per-op handle allocation). `uni/orc-alloc` is the ratio; below 1.0 would mean UniMath is faster -- it is not, here:
 
 ```
 UniMath 0.1.0 vs GMP/MPFR (256-bit BigFloat); ns/op, lower is faster

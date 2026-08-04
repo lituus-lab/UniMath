@@ -63,7 +63,11 @@ proc main() =
   # table and reformatting it risks misreading a column.
   const speedPath = "bench/.md_speed.txt"
   if fileExists(speedPath):
-    body &= "**UniMath vs GMP/MPFR** (`nimble benchSpeed`)\n\n```\n" &
+    body &= "**UniMath vs GMP/MPFR** (`nimble benchSpeed`) -- `orc` is the " &
+      "GMP/MPFR oracle (`-reuse`: init once and overwrite, the fastest " &
+      "idiomatic oracle usage; `-alloc`: init+free every call, matching " &
+      "UniMath's per-op handle allocation). `uni/orc-alloc` is the ratio; " &
+      "below 1.0 would mean UniMath is faster -- it is not, here:\n\n```\n" &
       readFile(speedPath).strip() & "\n```\n\n"
   else:
     stderr.writeLine("[readme] no " & speedPath &
