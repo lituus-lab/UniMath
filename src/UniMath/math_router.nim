@@ -23,6 +23,7 @@ import ./trigonometry/cordic
 import ./trigonometry/taylor
 import ./trigonometry/chebyshev
 import ./exponential/taylor as exp_taylor
+import ./exponential/logarithm_generic
 import ./hyperbolic/cordic as hyp_cordic
 import ./special/gamma
 import ./special/error_functions
@@ -153,19 +154,25 @@ func exp*[T; FracBits: static[int]](x: Fixed[T, FracBits];
 
 func ln*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
     contractual.} =
-  ## Natural logarithm via Taylor series: `ln(x) = lnTaylor(x - 1, 15 terms)`.
+  ## Natural logarithm via the area-hyperbolic-tangent series (`lnGeneric`):
+  ## `x = (z-1)/(z+1)`, `ln(z) = 2*(x + x^3/3 + x^5/5 + ...)`, which converges
+  ## for every positive `z` -- `(z-1)/(z+1)` maps `(0, inf)` into `(-1, 1)`
+  ## for any `z > 0`, so the series radius is never exceeded, unlike the plain
+  ## `lnTaylor(z - 1, ...)` this used before (only convergent for `z` within 1
+  ## of 1). That gap was real, not theoretical: `asinh(1)`/`acosh(1.5)`/
+  ## `atanh(0.5)` each compute a `ln` argument outside `lnTaylor`'s radius
+  ## (2.414, 2.618, 3) and returned wildly wrong values (-4.31 vs 0.881, -35.2
+  ## vs 0.962, -380 vs 0.549) -- confirmed by real execution, not caught by
+  ## any existing test (only `atanh`'s `|x| >= 1` domain-boundary case was
+  ## tested, never the in-domain numeric output of `asinh`/`acosh`/`atanh`).
   ##
   ## Precondition: `x > 0`. For `x <= 0` the result is undefined and this
-  ## function raises `ValueError`. The Taylor series converges reliably only
-  ## for `x` near 1; for large `x` the `asinh`/`acosh` helpers in this module
-  ## use range reduction via `ln(x + root)` to stay in a good convergence range.
-  ## The domain guard is a body `raise` (survives release). Approximate.
+  ## function raises `ValueError` (body raise, survives release). Approximate.
   body:
-    let one = toFixed[T, FracBits](1)
     if x.data <= default(T):
       raise newException(ValueError,
         "ln: argument must be positive, got " & $x.data)
-    return exp_taylor.lnTaylor(x - one, 15)
+    return logarithm_generic.lnGeneric(x, 15)
 
 # ------------------------------------------------------------------------------
 # Unified hyperbolic

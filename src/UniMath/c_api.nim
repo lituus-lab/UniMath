@@ -1038,8 +1038,8 @@ proc unimath_fixed_exp(q: int64): int64 =
   except CatchableError, Defect: 0
 
 proc unimath_fixed_ln(q: int64): int64 =
-  ## `ln(q)` (Q32.32) via Taylor (converges for `q` near 1). `q <= 0` clamps
-  ## to 0.
+  ## `ln(q)` (Q32.32) via the area-hyperbolic-tangent series (globally
+  ## convergent for any `q > 0`). `q <= 0` clamps to 0.
   try: ln(fxOf(q)).data
   except CatchableError, Defect: 0
 
