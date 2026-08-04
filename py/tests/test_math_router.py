@@ -30,6 +30,15 @@ def test_exp_ln(mr):
     assert abs(mr.ln(1.5) - math.log(1.5)) < 1e-4
 
 
+def test_exp_scaled_beyond_raw_cordic_budget(mr):
+    # exp/pow via scaling-and-squaring cover far past the raw CORDIC budget
+    # (~1.1182), up to the Q32.32 representable ceiling (~21.5).
+    assert abs(mr.exp(2.0) - math.exp(2.0)) < 1e-3
+    assert abs(mr.exp(10.0) - math.exp(10.0)) < 2e-2 * math.exp(10.0)
+    assert abs(mr.pow(2.0, 10.0) - 1024.0) < 2e-2 * 1024.0
+    assert mr.exp(30.0) == 0.0  # past the Q32.32 ceiling, clamps to 0
+
+
 def test_sqrt(mr):
     assert abs(mr.sqrt(4.0) - 2.0) < 1e-6
     assert abs(mr.sqrt(2.0) - math.sqrt(2.0)) < 1e-6
@@ -65,8 +74,6 @@ def test_inverse_hyperbolic(mr):
 
 
 def test_domain_clamps_to_zero(mr):
-    # The C ABI never raises: ln(<=0), sqrt(<0), and out-of-convergence exp
-    # (|z| > ~1.1182) clamp to 0.0.
+    # The C ABI never raises: ln(<=0) and sqrt(<0) clamp to 0.0.
     assert mr.ln(0.0) == 0.0
     assert mr.sqrt(-1.0) == 0.0
-    assert mr.exp(2.0) == 0.0

@@ -103,30 +103,30 @@ without either overwriting the other.
 
 | op | ns/op | ops/sec |
 |---|---|---|
-| BigInt add (64-bit) | 27.250 | 36697248. |
-| BigInt mul (64-bit) | 30.360 | 32938076. |
-| BigInt mul (1024-bit) | 327.150 | 3056702. |
-| BigInt div (64/32-bit) | 69.220 | 14446692. |
-| isqrt (BigInt, ~120-bit) | 8876.540 | 112657. |
-| Fixed Q32.32 add | 0.752 | 1329787234. |
-| Fixed Q32.32 mul | 76.662 | 13044272. |
-| Fixed Q32.32 div | 120.940 | 8268563. |
+| BigInt add (64-bit) | 29.060 | 34411562. |
+| BigInt mul (64-bit) | 29.820 | 33534541. |
+| BigInt mul (1024-bit) | 320.900 | 3116236. |
+| BigInt div (64/32-bit) | 70.300 | 14224751. |
+| isqrt (BigInt, ~120-bit) | 8738.680 | 114434. |
+| Fixed Q32.32 add | 0.756 | 1322751323. |
+| Fixed Q32.32 mul | 75.340 | 13273162. |
+| Fixed Q32.32 div | 118.200 | 8460237. |
 
 **Transcendentals**
 
 | op | ns/op | ops/sec |
 |---|---|---|
-| BigFloat sin(1) | 6772.250 | 147661. |
-| BigFloat exp(1) | 8788.500 | 113785. |
-| BigFloat ln(2) | 2237.900 | 446847. |
-| BigFloat sqrt(2) | 1187.075 | 842407. |
-| BigFloat arctan(1) | 59517.450 | 16802. |
-| Fixed sin(1) (router) | 171.260 | 5839075. |
-| Fixed atan(1) (router) | 281.500 | 3552398. |
-| Fixed sqrt(2) (router) | 1237.830 | 807865. |
-| Fixed exp(1) (router) | 464.200 | 2154244. |
-| Rational sin(1/2) | 12131.950 | 82427. |
-| Rational sqrt(2) | 11804.700 | 84712. |
+| BigFloat sin(1) | 6738.000 | 148412. |
+| BigFloat exp(1) | 8561.350 | 116804. |
+| BigFloat ln(2) | 2196.100 | 455353. |
+| BigFloat sqrt(2) | 1156.575 | 864622. |
+| BigFloat arctan(1) | 58960.050 | 16961. |
+| Fixed sin(1) (router) | 169.740 | 5891363. |
+| Fixed atan(1) (router) | 277.260 | 3606723. |
+| Fixed sqrt(2) (router) | 1198.260 | 834543. |
+| Fixed exp(1) (router) | 492.420 | 2030787. |
+| Rational sin(1/2) | 11950.700 | 83677. |
+| Rational sqrt(2) | 11631.300 | 85975. |
 
 **Precision parity: BigFloat (256-bit) vs float64 `math`**
 
@@ -146,14 +146,14 @@ without either overwriting the other.
 UniMath 0.1.0 vs GMP/MPFR (256-bit BigFloat); ns/op, lower is faster
   ratio = UniMath / oracle-alloc  (<1.0 => UniMath faster)
   ----------------------------------------------------------------------------------------------
-  BigInt mul 64-bit      | uni      77.82 | orc-reuse       3.59 | orc-alloc      15.85 | uni/orc-alloc 4.91
-  BigInt mul 1024-bit    | uni     361.94 | orc-reuse      79.93 | orc-alloc      92.66 | uni/orc-alloc 3.91
-  BigInt div 1024/64     | uni     270.83 | orc-reuse      38.10 | orc-alloc      47.66 | uni/orc-alloc 5.68
-  BigInt div 1024/512    | uni     396.89 | orc-reuse      87.40 | orc-alloc      99.12 | uni/orc-alloc 4.00
-  BigFloat sin           | uni    6731.50 | orc-reuse     883.50 | orc-alloc     870.50 | uni/orc-alloc 7.73
-  BigFloat exp           | uni    8628.00 | orc-reuse    1189.00 | orc-alloc    1200.50 | uni/orc-alloc 7.19
-  BigFloat ln            | uni    2299.10 | orc-reuse    1877.20 | orc-alloc    1906.00 | uni/orc-alloc 1.21
-  BigFloat sqrt          | uni    1167.80 | orc-reuse      95.40 | orc-alloc     111.00 | uni/orc-alloc 10.52
+  BigInt mul 64-bit      | uni      88.43 | orc-reuse       3.53 | orc-alloc      16.10 | uni/orc-alloc 5.49
+  BigInt mul 1024-bit    | uni     359.57 | orc-reuse      80.23 | orc-alloc      93.42 | uni/orc-alloc 3.85
+  BigInt div 1024/64     | uni     266.82 | orc-reuse      37.13 | orc-alloc      47.88 | uni/orc-alloc 5.57
+  BigInt div 1024/512    | uni     391.31 | orc-reuse      87.74 | orc-alloc     100.00 | uni/orc-alloc 3.91
+  BigFloat sin           | uni    6548.50 | orc-reuse     863.50 | orc-alloc     854.50 | uni/orc-alloc 7.66
+  BigFloat exp           | uni    8493.50 | orc-reuse    1188.00 | orc-alloc    1192.50 | uni/orc-alloc 7.12
+  BigFloat ln            | uni    2275.70 | orc-reuse    1866.45 | orc-alloc    1874.35 | uni/orc-alloc 1.21
+  BigFloat sqrt          | uni    1180.40 | orc-reuse      96.00 | orc-alloc     114.20 | uni/orc-alloc 10.34
   checksum = 4.77935e+24 (keeps every result live)
 ```
 

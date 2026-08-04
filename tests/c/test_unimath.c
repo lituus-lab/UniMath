@@ -724,8 +724,13 @@ int main(void) {
   if (unimath_fixed_sqrt(TO_Q32(-1.0)) != 0) {
     printf("FAIL fixed_sqrt(-1) should clamp to 0\n"); failures++;
   }
-  if (unimath_fixed_exp(TO_Q32(2.0)) != 0) {
-    printf("FAIL fixed_exp(2) out-of-convergence should clamp to 0\n"); failures++;
+  /* exp/pow via scaling-and-squaring now cover far past the raw CORDIC
+   * budget (~1.1182), up to the Q32.32 representable ceiling (~21.5). */
+  check_dbl_tol("fixed_exp(2)", FROM_Q32(unimath_fixed_exp(TO_Q32(2.0))), exp(2.0), 1e-3);
+  check_dbl_tol("fixed_exp(10)", FROM_Q32(unimath_fixed_exp(TO_Q32(10.0))), exp(10.0), 2e-2);
+  check_dbl_tol("fixed_pow(2,10)", FROM_Q32(unimath_fixed_pow(TO_Q32(2.0), TO_Q32(10.0))), 1024.0, 2e-2);
+  if (unimath_fixed_exp(TO_Q32(30.0)) != 0) {
+    printf("FAIL fixed_exp(30) past the Q32.32 ceiling should clamp to 0\n"); failures++;
   }
 
   /* ---- conversions ----

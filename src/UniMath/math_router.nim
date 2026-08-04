@@ -146,11 +146,15 @@ func arccos*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits
 func exp*[T; FracBits: static[int]](x: Fixed[T, FracBits];
                                     algo: MathAlgo = Auto): Fixed[T, FracBits] {.
     contractual.} =
-  ## Dispatches to the hyperbolic-CORDIC (default) or Taylor core. Approximate.
+  ## Dispatches to the hyperbolic-CORDIC scaling-and-squaring (default,
+  ## `expCordicScaled` -- domain up to `T`'s representable ceiling, ~21.5 for
+  ## Q32.32) or the plain Taylor core (`algo = Taylor`; only accurate for `x`
+  ## within a few units of 0, no domain guard -- prefer the default).
+  ## Approximate.
   body:
     case algo
     of Taylor: return exp_taylor.expTaylor(x, 15)
-    else: return hyp_cordic.expCordic(x)
+    else: return hyp_cordic.expCordicScaled(x)
 
 func ln*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
     contractual.} =

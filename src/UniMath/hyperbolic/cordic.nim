@@ -7,15 +7,17 @@
 ## repeated.
 ##
 ## Convergence domain: hyperbolic functions are not periodic and `exp` grows
-## without bound, so there is no finite range reduction. The rotation can drive
-## `z -> 0` only when `|z|` does not exceed the total rotation budget
-## `sum atanh(2^-i) ~ 1.1182` (the repeat schedule is the standard convergence
-## guarantee, not extra budget). Beyond it the residual `z` never reaches 0 and
-## the result silently saturates to a wrong value, so the core raises
-## `ValueError` (a body `raise`, survives `-d:release`) when `|angle|` exceeds
-## the budget computed from the actual iteration count. Callers wanting larger
-## `|z|` use the BigFloat `exp`/`sinh`/`cosh` (scaling-and-squaring); fixed-point
-## CORDIC is the pedagogical/MCU path with a bounded domain.
+## without bound, so there is no finite range reduction for a single rotation.
+## The rotation can drive `z -> 0` only when `|z|` does not exceed the total
+## rotation budget `sum atanh(2^-i) ~ 1.1182` (the repeat schedule is the
+## standard convergence guarantee, not extra budget). Beyond it the residual
+## `z` never reaches 0 and the result silently saturates to a wrong value, so
+## `sinhCoshCordic`/`sinhCordic`/`coshCordic`/`tanhCordic` raise `ValueError`
+## (a body `raise`, survives `-d:release`) when `|angle|` exceeds the budget.
+## `expCordicScaled` lifts this for `exp` alone via scaling-and-squaring
+## (`exp(x) = exp(x/2^k)^(2^k)`, mirroring `BigFloat.exp`), extending the
+## domain to `T`'s own representable ceiling (`~2^31` for Q32.32, i.e. `x` up
+## to `~21.5`) instead of `~1.1182`; `sinh`/`cosh`/`tanh` stay bounded.
 ##
 ## Approximate algorithm: `{.contractual.}` with `body:` and no `ensure:` — the
 ## precision envelope is verified externally against a reference.
@@ -50,6 +52,24 @@ func getCordicHyperbolicGain[T; FracBits: static[int]](): T =
   let scale = float(pow2f64(FracBits))
   fromFloat(T, gainCompensation * scale)
 
+func hyperbolicConvergenceBudget[T; FracBits: static[int]](): T =
+  ## Sum of the actual `atanh(2^-i)` CORDIC steps (a repeat step at
+  ## `i in {4,13,40,121} <= FracBits` counted twice) -- the largest `|angle|`
+  ## `sinhCoshCordic` consumes without scaling. A sum of positive steps
+  ## bounded by `~1.1182 * 2^FracBits` (< 2^63 for Q32.32), so negating it
+  ## (see callers) never overflows. Not cheap (~32 `arctanh`/`pow` calls) --
+  ## `expCordicScaled` only pays for it on the out-of-budget path, never on
+  ## every call (see its own doc comment).
+  let zero = default(T)
+  result = zero
+  var bi = 1
+  while bi <= FracBits:
+    let step = getCordicHyperbolicAngle[T, FracBits](bi)
+    result += step
+    if isHyperbolicRepeat(bi):
+      result += step
+    bi += 1
+
 func sinhCoshCordic*[T; FracBits: static[int]](
     targetAngle: Fixed[T, FracBits]): tuple[sinh, cosh: Fixed[T,
         FracBits]] {.contractual.} =
@@ -63,22 +83,11 @@ func sinhCoshCordic*[T; FracBits: static[int]](
     let zero = default(T)
     let iterations = FracBits
 
-    # Convergence guard: sum the actual `atanh(2^-i)` steps (a repeat step at
-    # i in {4,13,40,121} <= iterations) to get the precise consumable `|z|`,
-    # then raise if the input exceeds it. Compare `z` against `+/-budget`
-    # directly — do NOT negate `z` to form `|z|`: the most-negative angle has
-    # `.data = low(int64)`, and `-low(int64)` wraps negative under `-d:danger`,
-    # so an `absZ > budget` guard would silently fail. `budget` is a sum of
-    # positive steps bounded by `~1.1182 * 2^FracBits` (< 2^63), so `-budget`
-    # does not overflow.
-    var budget = zero
-    var bi = 1
-    while bi <= iterations:
-      let step = getCordicHyperbolicAngle[T, FracBits](bi)
-      budget += step
-      if isHyperbolicRepeat(bi):
-        budget += step
-      bi += 1
+    # Convergence guard: compare `z` against `+/-budget` directly — do NOT
+    # negate `z` to form `|z|`: the most-negative angle has `.data =
+    # low(int64)`, and `-low(int64)` wraps negative under `-d:danger`, so an
+    # `absZ > budget` guard would silently fail.
+    let budget = hyperbolicConvergenceBudget[T, FracBits]()
     let negBudget = -budget
     if z < negBudget or z > budget:
       let zMag = abs(float(z)) / float(pow2f64(FracBits))
@@ -147,7 +156,48 @@ func tanhCordic*[T; FracBits: static[int]](
 
 func expCordic*[T; FracBits: static[int]](
     angle: Fixed[T, FracBits]): Fixed[T, FracBits] {.contractual, inline.} =
-  ## `e^x = cosh(x) + sinh(x)` — projection over `sinhCoshCordic`.
+  ## `e^x = cosh(x) + sinh(x)` — projection over `sinhCoshCordic`. Raises
+  ## `ValueError` when `|x|` exceeds the raw convergence budget (~1.1182);
+  ## `expCordicScaled` lifts this via scaling-and-squaring.
   body:
     let (s, c) = sinhCoshCordic(angle)
     return c + s
+
+func expCordicScaled*[T; FracBits: static[int]](
+    x: Fixed[T, FracBits]): Fixed[T, FracBits] {.contractual.} =
+  ## `exp(x)` via CORDIC scaling-and-squaring: `exp(x) = exp(x/2^k)^(2^k)`,
+  ## `k` the smallest halving count bringing `|x|` inside
+  ## `sinhCoshCordic`'s convergence budget (~1.1182). Mirrors `BigFloat.exp`'s
+  ## scaling-and-squaring (`float_math.nim`); extends `Fixed`'s domain to
+  ## `T`'s own representable ceiling (`~2^31` for Q32.32, i.e. `x` up to
+  ## `~21.5`) instead of `expCordic`'s narrow `~1.1182` window. Tries the
+  ## direct (unscaled) path first, which is both the common case and the only
+  ## one needing `hyperbolicConvergenceBudget`'s ~32-term sum, so no in-budget
+  ## call pays for it -- an earlier version computed the budget unconditionally
+  ## and measured 464 -> 731 ns/op slower on `exp(1.0)` (well inside budget)
+  ## for exactly that reason. Each squaring is a `Fixed` `*`, which raises
+  ## `OverflowDefect` once the growing magnitude exceeds `T`'s range -- the
+  ## type's own ceiling, not a separate guard here.
+  ##
+  ## The extended domain is symmetric in `x`, not in output precision: for
+  ## very negative `x` approaching the ceiling, `exp(x)` itself approaches
+  ## `T`'s smallest representable magnitude (`2^-FracBits`, `~2.3e-10` for
+  ## Q32.32) and loses most of its significant digits to quantization --
+  ## confirmed by real execution: `exp(-20.0)` has ~10% relative error
+  ## (true `2.061e-9`, only ~9 ULPs above the Q32.32 floor) versus ~2e-8 for
+  ## `exp(20.0)` at the same `|x|`. Inherent to any fixed-point
+  ## representation of a value that close to zero, not an artifact of
+  ## scaling-and-squaring itself.
+  body:
+    try:
+      return expCordic(x)
+    except ValueError:
+      discard
+    let budget = hyperbolicConvergenceBudget[T, FracBits]()
+    let negBudget = -budget
+    var k = 0
+    while x.data shr k > budget or x.data shr k < negBudget:
+      inc k
+    result = expCordic(initFixed[T, FracBits](x.data shr k))
+    for _ in 1 .. k:
+      result = result * result

@@ -1032,8 +1032,9 @@ proc unimath_fixed_tan(q: int64): int64 =
   except CatchableError, Defect: 0
 
 proc unimath_fixed_exp(q: int64): int64 =
-  ## `exp(q)` (Q32.32) via hyperbolic CORDIC (in-domain `|q| <= ~1.1182`),
-  ## else clamps to 0.
+  ## `exp(q)` (Q32.32) via hyperbolic CORDIC scaling-and-squaring (in-domain
+  ## up to the Q32.32 representable ceiling, `q` up to ~21.5), else (result
+  ## overflow) clamps to 0.
   try: exp(fxOf(q)).data
   except CatchableError, Defect: 0
 
@@ -1075,7 +1076,8 @@ proc unimath_fixed_tanh(q: int64): int64 =
 
 proc unimath_fixed_pow(base, exponent: int64): int64 =
   ## `base^exponent` (Q32.32) via `exp(exponent·ln(base))`, domain `base > 0`.
-  ## Out-of-domain or out-of-convergence clamps to 0.
+  ## Out-of-domain or a `base^exponent` result past the Q32.32 ceiling clamps
+  ## to 0.
   try: pow(fxOf(base), fxOf(exponent)).data
   except CatchableError, Defect: 0
 

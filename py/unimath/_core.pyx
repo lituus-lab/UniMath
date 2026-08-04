@@ -1545,6 +1545,16 @@ cdef class MathRouter:
         """Domain |x| <= 1; clamps to 0.0 out of domain (never raises)."""
         return self._unary(<double>x, unimath_fixed_acos)
 
+    def factorial(self, n):
+        """n! for non-negative n, exact within range. 0.0 for n < 0."""
+        return _from_q32(unimath_fixed_factorial(<int>n))
+
+    def erf(self, x):
+        return self._unary(<double>x, unimath_fixed_erf)
+
+    def bessel_j0(self, x):
+        return self._unary(<double>x, unimath_fixed_bessel_j0)
+
     def asinh(self, x):
         return self._unary(<double>x, unimath_fixed_asinh)
 
@@ -1555,16 +1565,6 @@ cdef class MathRouter:
     def atanh(self, x):
         """Domain |x| < 1; clamps to 0.0 out of domain (never raises)."""
         return self._unary(<double>x, unimath_fixed_atanh)
-
-    def factorial(self, n):
-        """n! for non-negative n, exact within range. 0.0 for n < 0."""
-        return _from_q32(unimath_fixed_factorial(<int>n))
-
-    def erf(self, x):
-        return self._unary(<double>x, unimath_fixed_erf)
-
-    def bessel_j0(self, x):
-        return self._unary(<double>x, unimath_fixed_bessel_j0)
 
 
 cdef class Conversions:
