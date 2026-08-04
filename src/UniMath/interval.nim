@@ -8,7 +8,8 @@ import ./interval/interval_type
 import ./interval/arithmetic
 import ./interval/comparison
 import ./interval/functions
-export interval_type, arithmetic, comparison, functions
+import ./interval/formatting
+export interval_type, arithmetic, comparison, functions, formatting
 
 # Implicit converters are opt-in via `-d:umConverters`: implicit conversions
 # across packages collide, so the canonical construction is the explicit

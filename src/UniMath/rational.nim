@@ -7,4 +7,5 @@ import ./rational/gcd
 import ./rational/rational_type
 import ./rational/arithmetic
 import ./rational/comparison
-export gcd, rational_type, arithmetic, comparison
+import ./rational/formatting
+export gcd, rational_type, arithmetic, comparison, formatting

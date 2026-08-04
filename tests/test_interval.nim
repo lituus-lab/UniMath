@@ -46,6 +46,8 @@ suite "construction":
     check certaintySign(initInterval(2.0, 3.0)) == 1
     check certaintySign(initInterval(-3.0, -2.0)) == -1
     check certaintySign(initInterval(-1.0, 1.0)) == 0
+  test "$ is [lower, upper]":
+    check $initInterval(1.0, 2.5) == "[1.0, 2.5]"
 
 suite "set ops":
   test "contains point":

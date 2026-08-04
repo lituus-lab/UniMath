@@ -24,6 +24,9 @@ suite "Rational construction":
   test "unchecked stores verbatim":
     let r = initRationalUnchecked(2, 4)
     check r.num == 2 and r.den == 4
+  test "$ is num/den, matching std/rationals":
+    check $initRational(3, 4) == "3/4"
+    check $initRational(-1, 2) == "-1/2"
 
 suite "Rational over BigInt":
   test "constructs and simplifies":
@@ -33,6 +36,8 @@ suite "Rational over BigInt":
     let r = fromInt(Rational[BigInt], 7)
     check r.num == initBigInt(7) and r.den == initBigInt(1)
     check fromInt(Rational[BigInt], 1).isOne
+  test "$ delegates to BigInt's own $ (hex)":
+    check $initRational(initBigInt(1), initBigInt(2)) == "0x1/0x2"
   test "large products stay exact":
     let big = initBigInt(1_000_000_000_000) * initBigInt(1_000_000_000_000)
     let r = initRational(big, initBigInt(1_000_000_000_000))
