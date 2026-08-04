@@ -1019,65 +1019,65 @@ proc unimath_rational_pow(h, e: pointer): pointer =
 proc unimath_fixed_sin(q: int64): int64 =
   ## `sin(q)` (Q32.32) via CORDIC. Clamps to 0 on a domain/overflow defect.
   try: sin(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_cos(q: int64): int64 =
   ## `cos(q)` (Q32.32) via CORDIC. Clamps to 0 on a domain/overflow defect.
   try: cos(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_tan(q: int64): int64 =
   ## `tan(q)` (Q32.32) via Chebyshev. Clamps to 0 on a singularity/overflow.
   try: tan(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_exp(q: int64): int64 =
   ## `exp(q)` (Q32.32) via hyperbolic CORDIC (in-domain `|q| <= ~1.1182`),
   ## else clamps to 0.
   try: exp(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_ln(q: int64): int64 =
   ## `ln(q)` (Q32.32) via Taylor (converges for `q` near 1). `q <= 0` clamps
   ## to 0.
   try: ln(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_sqrt(q: int64): int64 =
   ## `sqrt(q)` (Q32.32) via Newton. `q < 0` clamps to 0.
   try: sqrt(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_atan(q: int64): int64 =
   ## `atan(q)` (Q32.32) via CORDIC. Clamps to 0 on a defect.
   try: atan(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_atan2(y, x: int64): int64 =
   ## `atan2(y, x)` (Q32.32) via CORDIC. Clamps to 0 on a defect.
   try: atan2(fxOf(y), fxOf(x)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_sinh(q: int64): int64 =
   ## `sinh(q)` (Q32.32) via hyperbolic CORDIC (in-domain), else clamps to 0.
   try: sinh(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_cosh(q: int64): int64 =
   ## `cosh(q)` (Q32.32) via hyperbolic CORDIC (in-domain), else clamps to 0.
   try: cosh(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_tanh(q: int64): int64 =
   ## `tanh(q)` (Q32.32) via hyperbolic CORDIC (in-domain), else clamps to 0.
   try: tanh(fxOf(q)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 proc unimath_fixed_pow(base, exponent: int64): int64 =
   ## `base^exponent` (Q32.32) via `exp(exponent·ln(base))`, domain `base > 0`.
   ## Out-of-domain or out-of-convergence clamps to 0.
   try: pow(fxOf(base), fxOf(exponent)).data
-  except: 0
+  except CatchableError, Defect: 0
 
 # ------------------------------------------------------------------------------
 # conversions — cross-type matrix across the handle / value surfaces. The C
@@ -1124,7 +1124,7 @@ proc unimath_fixed_from_rational(h: pointer, frac_bits: cint): int64 =
     var raw = if isZero(q): 0'i64 else: int64(q.limbs[0])
     if r.num.isNegative: raw = -raw
     raw
-  except:
+  except CatchableError, Defect:
     0
 
 proc unimath_interval_from_bigfloat(h: pointer): IntervalC =
