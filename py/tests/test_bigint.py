@@ -101,3 +101,29 @@ def test_reflected_div_by_zero():
         10 // BigInt(0)
     with pytest.raises(ZeroDivisionError):
         10 % BigInt(0)
+
+
+def test_to_u64_clamps():
+    v, ok = BigInt(42).to_u64()
+    assert (v, ok) == (42, True)
+    v, ok = BigInt(-1).to_u64()
+    assert ok is False
+    assert v == 0
+    v, ok = BigInt(10**21).to_u64()
+    assert ok is False
+    assert v == 2**64 - 1  # clamped to uint64 max
+
+
+def test_shl_shr():
+    assert str(BigInt(3) << 4) == "48"
+    assert str(BigInt(48) >> 4) == "3"
+    # arithmetic shift right floors, not truncates toward zero
+    assert str(BigInt(-7) >> 1) == "-4"
+    assert str(BigInt(-1) >> 100) == "-1"  # -1 stays -1 (all-ones magnitude)
+
+
+def test_shl_shr_negative_count_raises():
+    with pytest.raises(ValueError):
+        BigInt(3) << -1
+    with pytest.raises(ValueError):
+        BigInt(3) >> -1

@@ -57,3 +57,23 @@ def test_inf_and_nan_rejected():
 def test_overflow_to_inf():
     huge = BigFloat(1e308) * BigFloat(1e308)
     assert math.isinf(huge.to_f64())
+
+
+def test_is_zero():
+    assert BigFloat(0.0).is_zero()
+    assert not BigFloat(10.0).is_zero()
+
+
+def test_neg_abs():
+    assert (-BigFloat(10.0)).to_f64() == -10.0
+    assert (-BigFloat(-10.0)).to_f64() == 10.0
+    assert abs(BigFloat(-10.0)).to_f64() == 10.0
+    assert abs(BigFloat(10.0)).to_f64() == 10.0
+
+
+def test_from_bigint_exact():
+    from unimath import BigInt
+
+    big = BigInt(123456789012345678)
+    assert BigFloat(big).to_f64() == 123456789012345678.0
+    assert BigFloat(big) == BigFloat(123456789012345678)

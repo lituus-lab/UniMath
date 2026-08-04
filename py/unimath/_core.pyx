@@ -6,7 +6,7 @@ this wrapper frees them in __dealloc__. Callers must have run unimath_init()
 once per process — done lazily on import via _ensure_init()."""
 from libc.stdlib cimport malloc, free
 from libc.string cimport memcpy
-from libc.stdint cimport int64_t
+from libc.stdint cimport int64_t, INT64_MIN, INT64_MAX
 
 cdef extern from "UniMath.h":
     const char *unimath_version()
@@ -27,6 +27,9 @@ cdef extern from "UniMath.h":
     unimath_bigint unimath_bigint_abs(unimath_bigint a)
     int unimath_bigint_cmp(unimath_bigint a, unimath_bigint b)
     long long unimath_bigint_to_i64(unimath_bigint h, int *out_ok)
+    unsigned long long unimath_bigint_to_u64(unimath_bigint h, int *out_ok)
+    unimath_bigint unimath_bigint_shl(unimath_bigint a, int k)
+    unimath_bigint unimath_bigint_shr(unimath_bigint a, int k)
     void unimath_bigint_destroy(unimath_bigint h)
 
     long long unimath_fixed_from_int(long long val, int frac_bits)
@@ -35,6 +38,15 @@ cdef extern from "UniMath.h":
     long long unimath_fixed_sub(long long a, long long b)
     long long unimath_fixed_mul(long long a, long long b, int frac_bits)
     long long unimath_fixed_div(long long a, long long b, int frac_bits)
+    int unimath_fixed_cmp(long long a, long long b)
+    long long unimath_fixed_abs(long long a)
+    int unimath_fixed_sign(long long a)
+    long long unimath_fixed_clamp(long long val, long long lo, long long hi)
+    long long unimath_fixed_floor_mod(long long a, long long b)
+    long long unimath_fixed_floor(long long a)
+    long long unimath_fixed_ceil(long long a)
+    long long unimath_fixed_round(long long a)
+    long long unimath_fixed_lerp(long long a, long long b, long long t)
 
     ctypedef void *unimath_bigfloat
 
@@ -46,6 +58,10 @@ cdef extern from "UniMath.h":
     unimath_bigfloat unimath_bigfloat_mul(unimath_bigfloat a, unimath_bigfloat b)
     unimath_bigfloat unimath_bigfloat_div(unimath_bigfloat a, unimath_bigfloat b)
     int unimath_bigfloat_cmp(unimath_bigfloat a, unimath_bigfloat b)
+    int unimath_bigfloat_is_zero(unimath_bigfloat h)
+    unimath_bigfloat unimath_bigfloat_neg(unimath_bigfloat a)
+    unimath_bigfloat unimath_bigfloat_abs(unimath_bigfloat a)
+    unimath_bigfloat unimath_bigfloat_from_bigint(unimath_bigint h)
     void unimath_bigfloat_destroy(unimath_bigfloat h)
 
     ctypedef void *unimath_rational
@@ -63,6 +79,8 @@ cdef extern from "UniMath.h":
     unimath_rational unimath_rational_neg(unimath_rational a)
     unimath_rational unimath_rational_abs(unimath_rational a)
     int unimath_rational_cmp(unimath_rational a, unimath_rational b)
+    int unimath_rational_is_zero(unimath_rational h)
+    int unimath_rational_is_one(unimath_rational h)
     void unimath_rational_destroy(unimath_rational h)
 
     ctypedef struct unimath_interval:
@@ -81,6 +99,20 @@ cdef extern from "UniMath.h":
     unimath_interval unimath_interval_ln(unimath_interval a)
     unimath_interval unimath_interval_sin(unimath_interval a)
     unimath_interval unimath_interval_cos(unimath_interval a)
+    unimath_interval unimath_interval_neg(unimath_interval a)
+    unimath_interval unimath_interval_pow(unimath_interval a, int n)
+    unimath_interval unimath_interval_arctan(unimath_interval a)
+    unimath_interval unimath_interval_arctan2(unimath_interval y, unimath_interval x)
+    int unimath_interval_is_valid(unimath_interval a)
+    double unimath_interval_width(unimath_interval a)
+    double unimath_interval_midpoint(unimath_interval a)
+    int unimath_interval_contains(unimath_interval a, double x)
+    int unimath_interval_contains_interval(unimath_interval outer,
+                                            unimath_interval inner)
+    int unimath_interval_overlaps(unimath_interval a, unimath_interval b)
+    unimath_interval unimath_interval_hull(unimath_interval a, unimath_interval b)
+    unimath_interval unimath_interval_intersect(unimath_interval a,
+                                                 unimath_interval b)
 
     long long unimath_isqrt_i64(long long n)
     double unimath_sqrt_newton_f64(double x)
@@ -371,6 +403,22 @@ cdef class BigInt:
         cdef long long v = unimath_bigint_to_i64(self._h, &ok)
         return int(v), bool(ok)
 
+    def to_u64(self):
+        """Best-effort uint64, clamped to [0, UINT64_MAX]. Returns (value, ok)."""
+        cdef int ok = 2
+        cdef unsigned long long v = unimath_bigint_to_u64(self._h, &ok)
+        return int(v), bool(ok)
+
+    def __lshift__(self, int k):
+        if k < 0:
+            raise ValueError("negative shift count")
+        return BigInt._wrap(unimath_bigint_shl(self._h, k))
+
+    def __rshift__(self, int k):
+        if k < 0:
+            raise ValueError("negative shift count")
+        return BigInt._wrap(unimath_bigint_shr(self._h, k))
+
 
 cdef BigInt _coerce(value):
     if isinstance(value, BigInt):
@@ -502,6 +550,93 @@ cdef class Fixed:
         # (self._raw, self._frac) never matches an int/float hash.
         return hash(self.value())
 
+    # cmp/abs/sign/clamp/floor_mod are scale-invariant (the same `frac_bits`
+    # on every operand), so they call the C ABI directly regardless of
+    # self._frac.
+
+    def __abs__(self):
+        return self._bin(unimath_fixed_abs(self._raw), self._frac)
+
+    def sign(self):
+        """-1, 0, or 1."""
+        return int(unimath_fixed_sign(self._raw))
+
+    def clamp(self, lo, hi):
+        cdef Fixed lo_f = _coerce_fixed(lo, self._frac)
+        cdef Fixed hi_f = _coerce_fixed(hi, self._frac)
+        return self._bin(unimath_fixed_clamp(self._raw, lo_f._raw, hi_f._raw), self._frac)
+
+    def floor_mod(self, other):
+        """Floored modulo. Raises ZeroDivisionError on a zero divisor."""
+        cdef Fixed o = _coerce_fixed(other, self._frac)
+        if o._raw == 0:
+            raise ZeroDivisionError("Fixed floor_mod by zero")
+        return self._bin(unimath_fixed_floor_mod(self._raw, o._raw), self._frac)
+
+    # floor/ceil/round/lerp: the C ABI fixes Q32.32 (no natural single ABI
+    # shape for a runtime frac_bits there -- see c_api.nim), but this Python
+    # Fixed defaults to frac_bits=16 and supports any width. Reimplemented
+    # here directly over Python's arbitrary-precision int (exact, no overflow
+    # risk), mirroring fixed/utils.nim's own bit manipulation, then clamped
+    # back to the int64 range the raw C ABI values live in.
+
+    def __floor__(self):
+        # `int(1)` forces a genuine Python (arbitrary-precision) int before the
+        # shift: `1 << self._frac` with the untyped literal `1` and the typed
+        # C `int self._frac` risks Cython lowering the shift to C-`int`
+        # arithmetic, undefined behaviour at frac_bits >= 32 (confirmed: a
+        # real 2.5.floor() at frac_bits=32 came back wrong, right at
+        # frac_bits=16, before this fix).
+        mask = (int(1) << self._frac) - 1
+        return self._bin(_clamp_i64(self._raw & ~mask), self._frac)
+
+    def __ceil__(self):
+        mask = (int(1) << self._frac) - 1
+        if (self._raw & mask) == 0:
+            return self._bin(self._raw, self._frac)
+        one = int(1) << self._frac
+        return self._bin(_clamp_i64((self._raw & ~mask) + one), self._frac)
+
+    def __round__(self, ndigits=None):
+        if self._frac == 0:
+            return self._bin(self._raw, self._frac)
+        half = int(1) << (self._frac - 1)
+        mask = (int(1) << self._frac) - 1
+        summed = _clamp_i64(self._raw + half)
+        return self._bin(summed & ~mask, self._frac)
+
+    @staticmethod
+    def lerp(a, b, t):
+        """Linear interpolation a + (b - a) * t, all Fixed at the same frac_bits."""
+        cdef Fixed a_f = a if isinstance(a, Fixed) else Fixed(a)
+        cdef Fixed b_f = _coerce_fixed(b, a_f._frac)
+        cdef Fixed t_f = _coerce_fixed(t, a_f._frac)
+        # int(...) each _raw first: all three are typed C `long long`, so their
+        # product computed directly would run in fixed-width C arithmetic and
+        # silently overflow (confirmed: lerp(0,10,0.5) at frac_bits=32 came
+        # back 0.0 instead of 5.0 before this fix -- the intermediate product
+        # is ~10*2^63, past the int64 range, before the division that would
+        # have brought it back in range ever runs).
+        araw = int(a_f._raw)
+        braw = int(b_f._raw)
+        traw = int(t_f._raw)
+        raw = araw + ((braw - araw) * traw) // (int(1) << a_f._frac)
+        return Fixed._from_raw(_clamp_i64(raw), a_f._frac)
+
+
+cdef long long _clamp_i64(value):
+    """Clamp an arbitrary-precision Python int to the int64 range (matches the
+    C ABI's own never-raises clamp philosophy for the raw Fixed word). Uses
+    the <stdint.h> constants, not a literal -9223372036854775808: Cython
+    constant-folds that literal itself (regardless of how it's spelled in
+    Python-level code) into a value one bit too wide for a signed 64-bit
+    literal, which clang accepts but flags."""
+    if value > INT64_MAX:
+        return INT64_MAX
+    if value < INT64_MIN:
+        return INT64_MIN
+    return <long long>value
+
 
 cdef Fixed _coerce_fixed(value, int frac_bits):
     if isinstance(value, Fixed):
@@ -542,6 +677,10 @@ cdef class BigFloat:
             _zero = unimath_bigfloat_from_f64(0.0)
             self._h = unimath_bigfloat_add((<BigFloat>value)._h, _zero)
             unimath_bigfloat_destroy(_zero)
+        elif isinstance(value, BigInt):
+            # Exact (mantissa-direct), unlike routing through int64/float64,
+            # which would clamp/lose precision for a BigInt beyond that range.
+            self._h = unimath_bigfloat_from_bigint((<BigInt>value)._h)
         elif isinstance(value, int):
             self._h = unimath_bigfloat_from_i64(<long long>value)
         elif isinstance(value, float):
@@ -549,7 +688,7 @@ cdef class BigFloat:
                 raise ValueError("BigFloat cannot represent Inf or NaN")
             self._h = unimath_bigfloat_from_f64(<double>value)
         else:
-            raise TypeError("BigFloat expects an int or float, got " + type(value).__name__)
+            raise TypeError("BigFloat expects an int, float, BigInt, or BigFloat, got " + type(value).__name__)
         if self._h == NULL:
             raise ValueError("BigFloat construction failed (bad input)")
 
@@ -586,8 +725,13 @@ cdef class BigFloat:
         return BigFloat._wrap(r)
 
     def __neg__(self):
-        cdef BigFloat z = BigFloat._wrap(unimath_bigfloat_from_f64(0.0))
-        return BigFloat._wrap(unimath_bigfloat_sub(z._h, self._h))
+        return BigFloat._wrap(unimath_bigfloat_neg(self._h))
+
+    def __abs__(self):
+        return BigFloat._wrap(unimath_bigfloat_abs(self._h))
+
+    def is_zero(self):
+        return bool(unimath_bigfloat_is_zero(self._h))
 
     def __eq__(self, other):
         cdef BigFloat o
@@ -763,6 +907,12 @@ cdef class Rational:
         # gives that value and its hash matches the equal int/float.
         return hash(self.to_f64())
 
+    def is_zero(self):
+        return bool(unimath_rational_is_zero(self._h))
+
+    def is_one(self):
+        return bool(unimath_rational_is_one(self._h))
+
 
 cdef Rational _coerce_rational(value):
     if isinstance(value, Rational):
@@ -834,6 +984,57 @@ cdef class Interval:
 
     def cos(self):
         return Interval._wrap(unimath_interval_cos(self._c()))
+
+    def __neg__(self):
+        return Interval._wrap(unimath_interval_neg(self._c()))
+
+    def __pow__(self, n, modulo=None):
+        if modulo is not None:
+            return NotImplemented
+        return Interval._wrap(unimath_interval_pow(self._c(), <int>n))
+
+    def arctan(self):
+        return Interval._wrap(unimath_interval_arctan(self._c()))
+
+    @staticmethod
+    def arctan2(y, x):
+        cdef Interval y_i = _coerce_interval(y)
+        cdef Interval x_i = _coerce_interval(x)
+        return Interval._wrap(unimath_interval_arctan2(y_i._c(), x_i._c()))
+
+    def is_valid(self):
+        """`lo <= hi` (false if either bound is NaN)."""
+        return bool(unimath_interval_is_valid(self._c()))
+
+    def width(self):
+        return float(unimath_interval_width(self._c()))
+
+    def midpoint(self):
+        return float(unimath_interval_midpoint(self._c()))
+
+    def contains(self, x):
+        """`x in [lo, hi]` for a real `x`, or `other subseteq self` for an
+        Interval `x`."""
+        cdef Interval o
+        if isinstance(x, Interval):
+            o = x
+            return bool(unimath_interval_contains_interval(self._c(), o._c()))
+        return bool(unimath_interval_contains(self._c(), <double>x))
+
+    def overlaps(self, other):
+        """`self n other != empty`."""
+        cdef Interval o = _coerce_interval(other)
+        return bool(unimath_interval_overlaps(self._c(), o._c()))
+
+    def hull(self, other):
+        """Smallest interval containing both `self` and `other`."""
+        cdef Interval o = _coerce_interval(other)
+        return Interval._wrap(unimath_interval_hull(self._c(), o._c()))
+
+    def intersect(self, other):
+        """`self n other`. Valid (check `is_valid()`) iff `overlaps(other)`."""
+        cdef Interval o = _coerce_interval(other)
+        return Interval._wrap(unimath_interval_intersect(self._c(), o._c()))
 
     def __eq__(self, other):
         cdef Interval o

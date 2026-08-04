@@ -67,6 +67,15 @@ int unimath_bigint_cmp(unimath_bigint a, unimath_bigint b);
  * *out_ok is 0 when the value was out of range (clamped) or the handle nil. */
 long long unimath_bigint_to_i64(unimath_bigint h, int *out_ok);
 
+/* Best-effort uint64, clamped to [0, UINT64_MAX]. If out_ok is non-NULL,
+ * *out_ok is 0 when negative/out of range (clamped) or the handle nil. */
+unsigned long long unimath_bigint_to_u64(unimath_bigint h, int *out_ok);
+
+/* a << k / a >> k (arithmetic, sign-preserving). NULL on a nil handle or a
+ * negative k. */
+unimath_bigint unimath_bigint_shl(unimath_bigint a, int k);
+unimath_bigint unimath_bigint_shr(unimath_bigint a, int k);
+
 void unimath_bigint_destroy(unimath_bigint h);
 
 /* ---- Fixed (raw int64 Q-format; frac_bits = fractional width) ----
@@ -78,6 +87,20 @@ long long unimath_fixed_add(long long a, long long b);
 long long unimath_fixed_sub(long long a, long long b);
 long long unimath_fixed_mul(long long a, long long b, int frac_bits);
 long long unimath_fixed_div(long long a, long long b, int frac_bits);
+
+/* -1 / 0 / 1; scale-invariant (same frac_bits on both sides). */
+int unimath_fixed_cmp(long long a, long long b);
+long long unimath_fixed_abs(long long a);
+int unimath_fixed_sign(long long a);
+long long unimath_fixed_clamp(long long val, long long lo, long long hi);
+/* Floored modulo, scale-invariant. Returns 0 on division by zero. */
+long long unimath_fixed_floor_mod(long long a, long long b);
+
+/* Q32.32 only (no runtime frac_bits -- see the .nim source for why), clamped. */
+long long unimath_fixed_floor(long long a);
+long long unimath_fixed_ceil(long long a);
+long long unimath_fixed_round(long long a);
+long long unimath_fixed_lerp(long long a, long long b, long long t);
 
 /* ---- BigFloat (handle = pinned ref BigFloat; default 256-bit precision) ----
  * The ABI never raises: NULL on nil handle / Inf/NaN input / division by zero;
@@ -94,6 +117,13 @@ unimath_bigfloat unimath_bigfloat_div(unimath_bigfloat a, unimath_bigfloat b);
 
 /* -1 / 0 / 1; 0 if either handle is nil. */
 int unimath_bigfloat_cmp(unimath_bigfloat a, unimath_bigfloat b);
+
+/* 0/1 (false on a nil handle -- not the zero value). */
+int unimath_bigfloat_is_zero(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_neg(unimath_bigfloat a);
+unimath_bigfloat unimath_bigfloat_abs(unimath_bigfloat a);
+/* Exact conversion from a BigInt handle (no float64 detour). NULL on nil. */
+unimath_bigfloat unimath_bigfloat_from_bigint(unimath_bigint h);
 
 void unimath_bigfloat_destroy(unimath_bigfloat h);
 
@@ -119,6 +149,10 @@ unimath_rational unimath_rational_abs(unimath_rational a);
 /* -1 / 0 / 1; 0 if either handle is nil. */
 int unimath_rational_cmp(unimath_rational a, unimath_rational b);
 
+/* 0/1 (false on a nil handle -- not the value itself). */
+int unimath_rational_is_zero(unimath_rational h);
+int unimath_rational_is_one(unimath_rational h);
+
 void unimath_rational_destroy(unimath_rational h);
 
 /* ---- Interval (value type: two doubles, returned by value) ----
@@ -143,6 +177,27 @@ unimath_interval unimath_interval_exp(unimath_interval a);
 unimath_interval unimath_interval_ln(unimath_interval a);
 unimath_interval unimath_interval_sin(unimath_interval a);
 unimath_interval unimath_interval_cos(unimath_interval a);
+unimath_interval unimath_interval_neg(unimath_interval a);
+/* a^n. The NaN interval on a negative n whose base interval contains zero. */
+unimath_interval unimath_interval_pow(unimath_interval a, int n);
+unimath_interval unimath_interval_arctan(unimath_interval a);
+unimath_interval unimath_interval_arctan2(unimath_interval y, unimath_interval x);
+
+/* 0/1. is_valid: lo <= hi. contains: x in [lo, hi]. contains_interval:
+ * inner subseteq outer. overlaps: a n b != empty. */
+int unimath_interval_is_valid(unimath_interval a);
+double unimath_interval_width(unimath_interval a);
+double unimath_interval_midpoint(unimath_interval a);
+int unimath_interval_contains(unimath_interval a, double x);
+int unimath_interval_contains_interval(unimath_interval outer,
+                                        unimath_interval inner);
+int unimath_interval_overlaps(unimath_interval a, unimath_interval b);
+/* Smallest interval containing both a and b. */
+unimath_interval unimath_interval_hull(unimath_interval a, unimath_interval b);
+/* a n b. Valid (check unimath_interval_is_valid) iff
+ * unimath_interval_overlaps(a, b). */
+unimath_interval unimath_interval_intersect(unimath_interval a,
+                                             unimath_interval b);
 
 /* ---- Roots ----
  * Integer square root (raw int64) and Newton-Raphson square root (float64,

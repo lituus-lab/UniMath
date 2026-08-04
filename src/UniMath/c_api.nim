@@ -241,6 +241,34 @@ proc unimath_bigint_to_i64(h: pointer, out_ok: ptr cint): int64 =
   if out_ok != nil: out_ok[] = cint(inRange)
   clampToInt64(b)
 
+proc unimath_bigint_to_u64(h: pointer, out_ok: ptr cint): uint64 =
+  ## Best-effort uint64, clamped to `[0, UINT64_MAX]`. If `out_ok` is non-NULL,
+  ## `*out_ok` is false when the value was negative or out of range (clamped)
+  ## or the handle is nil.
+  if h == nil:
+    if out_ok != nil: out_ok[] = cint(false)
+    return 0
+  let b = bigOf(h)
+  if b.isNegative:
+    if out_ok != nil: out_ok[] = cint(false)
+    return 0'u64
+  if b.mag.limbs.len > 1:
+    if out_ok != nil: out_ok[] = cint(false)
+    return high(uint64)
+  if out_ok != nil: out_ok[] = cint(true)
+  toUInt64(b)
+
+proc unimath_bigint_shl(a: pointer, k: cint): pointer =
+  ## `a << k` (sign preserved). NULL on a nil handle or negative `k`.
+  if a == nil or k < 0: return nil
+  pin(bigOf(a) shl Natural(int(k)))
+
+proc unimath_bigint_shr(a: pointer, k: cint): pointer =
+  ## Arithmetic shift right (floor division by `2^k`, sign-extending). NULL on
+  ## a nil handle or negative `k`.
+  if a == nil or k < 0: return nil
+  pin(bigOf(a) shr Natural(int(k)))
+
 proc unimath_bigint_destroy(h: pointer) =
   unrefBigInt(h)
 
@@ -285,6 +313,64 @@ proc unimath_fixed_div(a, b: int64, frac_bits: cint): int64 =
   if frac_bits < 0: return 0
   clampToInt64((initBigInt(a) shl Natural(int(frac_bits))) div initBigInt(b))
 
+proc unimath_fixed_cmp(a, b: int64): cint =
+  ## -1/0/1, scale-invariant: two Q-format values of the same `frac_bits`
+  ## compare as their raw words, order-preserving.
+  cint(cmp(a, b))
+
+proc unimath_fixed_abs(a: int64): int64 =
+  ## Absolute value, clamped (the raw `low(int64)` word has no positive int64
+  ## counterpart; clamps to `high(int64)` rather than overflow, never raises).
+  clampToInt64(initBigInt(abs(initBigInt(a)), false))
+
+proc unimath_fixed_sign(a: int64): cint =
+  ## -1/0/1, scale-invariant.
+  if a > 0: 1 elif a < 0: -1 else: 0
+
+proc unimath_fixed_clamp(val, lo, hi: int64): int64 =
+  ## Clamp `val` to `[lo, hi]` (raw Q-format words, same `frac_bits`).
+  if val < lo: lo elif val > hi: hi else: val
+
+proc unimath_fixed_floor_mod(a, b: int64): int64 =
+  ## Floored modulo, scale-invariant (the scale cancels in `a mod b`, so the
+  ## same floored-remainder adjustment as the integer case applies to the raw
+  ## words directly). Returns 0 on division by zero (never raises).
+  if b == 0: return 0
+  let r = a mod b
+  if (r > 0 and b < 0) or (r < 0 and b > 0): r + b else: r
+
+# The remaining Fixed utilities (floor/ceil/round/lerp) need the fractional-bit
+# boundary, unlike the scale-invariant ops above; like the CORDIC/LUT/gamma/
+# bessel functions elsewhere in this file, they fix Q32.32 (`fxOf`) rather than
+# taking a runtime `frac_bits` -- there is no single C ABI shape for a value
+# genuinely generic over `static[int] FracBits`. Computed via the same exact
+# BigInt intermediate + clamp the rest of this file uses, not by calling the
+# Fixed[int64,32] operators directly: `ceil`/`round`/`lerp` go through the
+# overflow-checked Fixed `+` (raises `OverflowDefect` out of range), and this
+# ABI never raises.
+const Q32Frac = 32
+const Q32One = 1'i64 shl Q32Frac
+const Q32Mask = Q32One - 1'i64
+
+proc unimath_fixed_floor(a: int64): int64 =
+  ## Q32.32 floor: clear the fractional bits (no overflow possible).
+  a and not Q32Mask
+
+proc unimath_fixed_ceil(a: int64): int64 =
+  ## Q32.32 ceiling, clamped.
+  if (a and Q32Mask) == 0: return a
+  clampToInt64(initBigInt(a and not Q32Mask) + initBigInt(Q32One))
+
+proc unimath_fixed_round(a: int64): int64 =
+  ## Q32.32 round-half-up, clamped.
+  let summed = clampToInt64(initBigInt(a) + initBigInt(Q32One shr 1))
+  summed and not Q32Mask
+
+proc unimath_fixed_lerp(a, b, t: int64): int64 =
+  ## Q32.32 linear interpolation `a + (b - a) * t`, clamped.
+  clampToInt64(initBigInt(a) +
+    ((initBigInt(b) - initBigInt(a)) * initBigInt(t)) shr Natural(Q32Frac))
+
 # ------------------------------------------------------------------------------
 # BigFloat — handle = pinned ref BigFloat. Default 256-bit precision. Never
 # raises: NULL on nil handle / Inf/NaN input / division by zero; `to_f64`
@@ -326,6 +412,25 @@ proc unimath_bigfloat_cmp(a, b: pointer): cint =
   ## -1 / 0 / 1. Returns 0 if either handle is nil.
   if a == nil or b == nil: return cint(0)
   cint(cmp(bfOf(a), bfOf(b)))
+
+proc unimath_bigfloat_is_zero(h: pointer): bool =
+  ## False on a nil handle (not the zero value).
+  if h == nil: return false
+  isZero(bfOf(h))
+
+proc unimath_bigfloat_neg(a: pointer): pointer =
+  if a == nil: return nil
+  pinFloat(-bfOf(a))
+
+proc unimath_bigfloat_abs(a: pointer): pointer =
+  if a == nil: return nil
+  pinFloat(abs(bfOf(a)))
+
+proc unimath_bigfloat_from_bigint(h: pointer): pointer =
+  ## Exact conversion (via the BigInt's own mantissa, no float64 detour).
+  ## NULL on a nil handle.
+  if h == nil: return nil
+  pinFloat(fromBigInt(bigOf(h)))
 
 proc unimath_bigfloat_destroy(h: pointer) =
   unrefBigFloat(h)
@@ -393,6 +498,16 @@ proc unimath_rational_cmp(a, b: pointer): cint =
   if a == nil or b == nil: return cint(0)
   cint(cmp(ratOf(a), ratOf(b)))
 
+proc unimath_rational_is_zero(h: pointer): bool =
+  ## False on a nil handle (not the zero value).
+  if h == nil: return false
+  isZero(ratOf(h))
+
+proc unimath_rational_is_one(h: pointer): bool =
+  ## False on a nil handle (not the value one).
+  if h == nil: return false
+  isOne(ratOf(h))
+
 proc unimath_rational_destroy(h: pointer) =
   unrefRational(h)
 
@@ -431,6 +546,61 @@ proc unimath_interval_sqrt(a: IntervalC): IntervalC =
   if a.hi < 0.0: return IntervalC(lo: NaN, hi: NaN)
   let lo = if a.lo < 0.0: 0.0 else: a.lo
   let r = sqrt(initInterval(lo, a.hi))
+  IntervalC(lo: r.lower, hi: r.upper)
+
+proc unimath_interval_neg(a: IntervalC): IntervalC =
+  let r = -initInterval(a.lo, a.hi)
+  IntervalC(lo: r.lower, hi: r.upper)
+
+proc unimath_interval_pow(a: IntervalC, n: cint): IntervalC =
+  ## `a^n`. The NaN interval on a negative `n` whose base interval contains
+  ## zero (division by zero, never raises).
+  try:
+    let r = pow(initInterval(a.lo, a.hi), int(n))
+    IntervalC(lo: r.lower, hi: r.upper)
+  except DivByZeroDefect:
+    IntervalC(lo: NaN, hi: NaN)
+
+proc unimath_interval_arctan(a: IntervalC): IntervalC =
+  let r = arctan(initInterval(a.lo, a.hi))
+  IntervalC(lo: r.lower, hi: r.upper)
+
+proc unimath_interval_arctan2(y, x: IntervalC): IntervalC =
+  let r = arctan2(initInterval(y.lo, y.hi), initInterval(x.lo, x.hi))
+  IntervalC(lo: r.lower, hi: r.upper)
+
+proc unimath_interval_is_valid(a: IntervalC): bool =
+  ## `lo <= hi` (false if either bound is NaN).
+  isValid(initInterval(a.lo, a.hi))
+
+proc unimath_interval_width(a: IntervalC): float64 =
+  width(initInterval(a.lo, a.hi))
+
+proc unimath_interval_midpoint(a: IntervalC): float64 =
+  midpoint(initInterval(a.lo, a.hi))
+
+proc unimath_interval_contains(a: IntervalC, x: float64): bool =
+  ## `x in [lo, hi]` (closed bounds).
+  contains(initInterval(a.lo, a.hi), x)
+
+proc unimath_interval_contains_interval(outer, inner: IntervalC): bool =
+  ## `inner ⊆ outer`.
+  contains(initInterval(outer.lo, outer.hi), initInterval(inner.lo, inner.hi))
+
+proc unimath_interval_overlaps(a, b: IntervalC): bool =
+  ## `a ∩ b ≠ ∅`.
+  overlaps(initInterval(a.lo, a.hi), initInterval(b.lo, b.hi))
+
+proc unimath_interval_hull(a, b: IntervalC): IntervalC =
+  ## Smallest interval containing both `a` and `b`.
+  let r = hull(initInterval(a.lo, a.hi), initInterval(b.lo, b.hi))
+  IntervalC(lo: r.lower, hi: r.upper)
+
+proc unimath_interval_intersect(a, b: IntervalC): IntervalC =
+  ## `a ∩ b`. Valid (`lo <= hi`, check with `unimath_interval_is_valid`) iff
+  ## `unimath_interval_overlaps(a, b)` -- the caller checks that, matching the
+  ## underlying `intersect`'s own contract.
+  let r = intersect(initInterval(a.lo, a.hi), initInterval(b.lo, b.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_exp(a: IntervalC): IntervalC =

@@ -18,6 +18,11 @@ static void check_int(const char *name, long long got, long long want) {
   else printf("ok   %s = %lld\n", name, got);
 }
 
+static void check_u64(const char *name, unsigned long long got, unsigned long long want) {
+  if (got != want) { printf("FAIL %s: got %llu want %llu\n", name, got, want); failures++; }
+  else printf("ok   %s = %llu\n", name, got);
+}
+
 static void check_dbl(const char *name, double got, double want) {
   if (fabs(got - want) > 1e-12) { printf("FAIL %s: got %.17g want %.17g\n", name, got, want); failures++; }
   else printf("ok   %s = %.17g\n", name, got);
@@ -157,6 +162,39 @@ int main(void) {
   if (ok != 1) { printf("FAIL to_i64(-42) out_ok should be 1\n"); failures++; }
   else printf("ok   to_i64(-42) out_ok = 1\n");
   unimath_bigint_destroy(small);
+
+  /* to_u64: negative clamps to 0/out_ok=0; in-range round-trips exactly. */
+  int uok = 2;
+  check_u64("to_u64(1000000000000000000000) clamps", unimath_bigint_to_u64(n, &uok), 18446744073709551615ULL);
+  if (uok != 0) { printf("FAIL to_u64(1e21) out_ok should be 0\n"); failures++; }
+  else printf("ok   to_u64(1e21) out_ok = 0\n");
+  unimath_bigint u42 = unimath_bigint_from_i64(42);
+  uok = 2;
+  if (unimath_bigint_to_u64(u42, &uok) == 42ULL && uok == 1) printf("ok   to_u64(42) = 42, out_ok = 1\n");
+  else { printf("FAIL to_u64(42) or out_ok wrong\n"); failures++; }
+  unimath_bigint_destroy(u42);
+  unimath_bigint negForU64 = unimath_bigint_from_i64(-7);
+  uok = 2;
+  unimath_bigint_to_u64(negForU64, &uok);
+  if (uok != 0) { printf("FAIL to_u64(-7) out_ok should be 0\n"); failures++; }
+  else printf("ok   to_u64(-7) out_ok = 0\n");
+  unimath_bigint_destroy(negForU64);
+
+  /* shl/shr: sign-preserving, GMP-comparable (mpz_fdiv_q_2exp for shr). */
+  unimath_bigint sh = unimath_bigint_from_i64(3);
+  check_str("shl(3,4)", dec_of("3<<4", unimath_bigint_shl(sh, 4)), "48");
+  unimath_bigint fortyEight = unimath_bigint_from_decimal("48");
+  check_str("shr(48,4)", dec_of("48>>4", unimath_bigint_shr(fortyEight, 4)), "3");
+  /* floor(-7 / 2) = -4 (floor division, not truncation toward zero) */
+  unimath_bigint negsh = unimath_bigint_from_i64(-7);
+  check_str("shr(-7,1) floors", dec_of("-7>>1", unimath_bigint_shr(negsh, 1)), "-4");
+  if (unimath_bigint_shl(sh, -1) != NULL) { printf("FAIL shl(3,-1) should be NULL\n"); failures++; }
+  else printf("ok   shl(3,-1) = NULL\n");
+  if (unimath_bigint_shr(sh, -1) != NULL) { printf("FAIL shr(3,-1) should be NULL\n"); failures++; }
+  else printf("ok   shr(3,-1) = NULL\n");
+  unimath_bigint_destroy(sh);
+  unimath_bigint_destroy(negsh);
+
   unimath_bigint_destroy(n);
   unimath_bigint_destroy(d);
 
@@ -177,6 +215,40 @@ int main(void) {
   /* out-of-range shift clamps to int64 extremes */
   check_int("fixed_from_int clamps high", unimath_fixed_from_int(9223372036854775807LL, FB), 9223372036854775807LL);
   check_int("fixed_from_int clamps low", unimath_fixed_from_int(-9223372036854775807LL - 1, FB), -9223372036854775807LL - 1);
+
+  /* scale-invariant utilities (any frac_bits, same on both sides) */
+  check_int("fixed_cmp(2<<16,3<<16)", unimath_fixed_cmp(2LL << 16, 3LL << 16), -1);
+  check_int("fixed_cmp(3<<16,2<<16)", unimath_fixed_cmp(3LL << 16, 2LL << 16), 1);
+  check_int("fixed_cmp(3<<16,3<<16)", unimath_fixed_cmp(3LL << 16, 3LL << 16), 0);
+  check_int("fixed_abs(-3<<16)", unimath_fixed_abs(-3LL << 16), 3LL << 16);
+  check_int("fixed_abs(3<<16)", unimath_fixed_abs(3LL << 16), 3LL << 16);
+  check_int("fixed_abs(INT64_MIN) clamps to INT64_MAX",
+            unimath_fixed_abs(-9223372036854775807LL - 1), 9223372036854775807LL);
+  check_int("fixed_sign(-3<<16)", unimath_fixed_sign(-3LL << 16), -1);
+  check_int("fixed_sign(0)", unimath_fixed_sign(0), 0);
+  check_int("fixed_sign(3<<16)", unimath_fixed_sign(3LL << 16), 1);
+  check_int("fixed_clamp(5,1,3)", unimath_fixed_clamp(5, 1, 3), 3);
+  check_int("fixed_clamp(-1,1,3)", unimath_fixed_clamp(-1, 1, 3), 1);
+  check_int("fixed_clamp(2,1,3)", unimath_fixed_clamp(2, 1, 3), 2);
+  /* floored modulo: floor(-7/2)*2 + r = -7 -> r = -1 as truncated mod, but
+   * floored mod adjusts to a same-sign-as-divisor remainder: 1 */
+  check_int("fixed_floor_mod(-7,2)", unimath_fixed_floor_mod(-7, 2), 1);
+  check_int("fixed_floor_mod(7,-2)", unimath_fixed_floor_mod(7, -2), -1);
+  check_int("fixed_floor_mod(7,2)", unimath_fixed_floor_mod(7, 2), 1);
+  check_int("fixed_floor_mod by zero", unimath_fixed_floor_mod(7, 0), 0);
+
+  /* Q32.32-only utilities (floor/ceil/round/lerp) */
+  long long q32_2_5 = TO_Q32(2.5);
+  check_int("fixed_floor(2.5)", unimath_fixed_floor(q32_2_5), TO_Q32(2.0));
+  check_int("fixed_ceil(2.5)", unimath_fixed_ceil(q32_2_5), TO_Q32(3.0));
+  check_int("fixed_ceil(2.0) exact", unimath_fixed_ceil(TO_Q32(2.0)), TO_Q32(2.0));
+  check_int("fixed_round(2.5)", unimath_fixed_round(q32_2_5), TO_Q32(3.0));
+  long long q32_neg2_5 = TO_Q32(-2.5);
+  check_int("fixed_floor(-2.5)", unimath_fixed_floor(q32_neg2_5), TO_Q32(-3.0));
+  check_int("fixed_ceil(-2.5)", unimath_fixed_ceil(q32_neg2_5), TO_Q32(-2.0));
+  check_dbl_tol("fixed_lerp(0,10,0.5)", FROM_Q32(unimath_fixed_lerp(TO_Q32(0.0), TO_Q32(10.0), TO_Q32(0.5))), 5.0, 1e-9);
+  check_dbl_tol("fixed_lerp(0,10,0)", FROM_Q32(unimath_fixed_lerp(TO_Q32(0.0), TO_Q32(10.0), TO_Q32(0.0))), 0.0, 1e-9);
+  check_dbl_tol("fixed_lerp(0,10,1)", FROM_Q32(unimath_fixed_lerp(TO_Q32(0.0), TO_Q32(10.0), TO_Q32(1.0))), 10.0, 1e-9);
 
   /* ---- BigFloat (handle, default 256-bit precision) ---- */
   unimath_bigfloat fa = unimath_bigfloat_from_f64(10.0);
@@ -205,6 +277,24 @@ int main(void) {
   unimath_bigfloat huge = unimath_bigfloat_mul(unimath_bigfloat_from_f64(1e308), unimath_bigfloat_from_f64(1e308));
   if (!isinf(unimath_bigfloat_to_f64(huge))) { printf("FAIL bigfloat overflow should be Inf\n"); failures++; }
   else printf("ok   bigfloat overflow = Inf\n");
+  /* is_zero, neg, abs */
+  unimath_bigfloat fzero = unimath_bigfloat_from_f64(0.0);
+  if (unimath_bigfloat_is_zero(fzero)) printf("ok   bigfloat_is_zero(0) = true\n");
+  else { printf("FAIL bigfloat_is_zero(0) should be true\n"); failures++; }
+  if (!unimath_bigfloat_is_zero(fa)) printf("ok   bigfloat_is_zero(10) = false\n");
+  else { printf("FAIL bigfloat_is_zero(10) should be false\n"); failures++; }
+  if (unimath_bigfloat_is_zero(NULL)) { printf("FAIL bigfloat_is_zero(NULL) should be false\n"); failures++; }
+  else printf("ok   bigfloat_is_zero(NULL) = false\n");
+  check_dbl("bigfloat_neg(10)", unimath_bigfloat_to_f64(unimath_bigfloat_neg(fa)), -10.0);
+  check_dbl("bigfloat_abs(-10)", unimath_bigfloat_to_f64(unimath_bigfloat_abs(unimath_bigfloat_from_f64(-10.0))), 10.0);
+  unimath_bigfloat_destroy(fzero);
+  /* from_bigint: exact, no float64 detour */
+  unimath_bigint bigForFloat = unimath_bigint_from_decimal("123456789012345678");
+  check_dbl("bigfloat_from_bigint", unimath_bigfloat_to_f64(unimath_bigfloat_from_bigint(bigForFloat)), 123456789012345678.0);
+  if (unimath_bigfloat_from_bigint(NULL) != NULL) { printf("FAIL bigfloat_from_bigint(NULL) should be NULL\n"); failures++; }
+  else printf("ok   bigfloat_from_bigint(NULL) = NULL\n");
+  unimath_bigint_destroy(bigForFloat);
+
   unimath_bigfloat_destroy(fa);
   unimath_bigfloat_destroy(fb);
   unimath_bigfloat_destroy(huge);
@@ -234,6 +324,22 @@ int main(void) {
   unimath_rational rz = unimath_rational_div(ra, unimath_rational_from_i64(0, 1));
   if (rz != NULL) { printf("FAIL rational div by zero should be NULL\n"); failures++; unimath_rational_destroy(rz); }
   else printf("ok   rational div by zero = NULL\n");
+  /* is_zero / is_one */
+  unimath_rational rZero = unimath_rational_from_i64(0, 1);
+  unimath_rational rOne = unimath_rational_from_i64(1, 1);
+  if (unimath_rational_is_zero(rZero)) printf("ok   rational_is_zero(0/1) = true\n");
+  else { printf("FAIL rational_is_zero(0/1) should be true\n"); failures++; }
+  if (!unimath_rational_is_zero(ra)) printf("ok   rational_is_zero(1/2) = false\n");
+  else { printf("FAIL rational_is_zero(1/2) should be false\n"); failures++; }
+  if (unimath_rational_is_one(rOne)) printf("ok   rational_is_one(1/1) = true\n");
+  else { printf("FAIL rational_is_one(1/1) should be true\n"); failures++; }
+  if (!unimath_rational_is_one(ra)) printf("ok   rational_is_one(1/2) = false\n");
+  else { printf("FAIL rational_is_one(1/2) should be false\n"); failures++; }
+  if (unimath_rational_is_zero(NULL) || unimath_rational_is_one(NULL)) { printf("FAIL is_zero/is_one(NULL) should be false\n"); failures++; }
+  else printf("ok   rational_is_zero/is_one(NULL) = false\n");
+  unimath_rational_destroy(rZero);
+  unimath_rational_destroy(rOne);
+
   unimath_rational_destroy(ra);
   unimath_rational_destroy(rb);
 
@@ -282,6 +388,55 @@ int main(void) {
   unimath_interval cfull = unimath_interval_cos(unimath_interval_from_f64(-0.5, 0.5));
   if (cfull.lo == -1.0 && cfull.hi == 1.0) printf("ok   interval cos(-0.5,0.5) = [-1, 1]\n");
   else { printf("FAIL interval cos(-0.5,0.5) should be [-1, 1], got [%.17g, %.17g]\n", cfull.lo, cfull.hi); failures++; }
+
+  /* neg, pow, arctan, arctan2 */
+  /* neg widens outward by a ULP like every other op (nextDown/nextUp), even
+   * though negation itself is exact -- an enclosure check, not bit-exact. */
+  check_enc("interval_neg([1,2])", unimath_interval_neg(unimath_interval_from_f64(1.0, 2.0)), -2.0, -1.0);
+  check_enc("interval_pow([2,3],2)", unimath_interval_pow(unimath_interval_from_f64(2.0, 3.0), 2), 4.0, 9.0);
+  unimath_interval powNegZero = unimath_interval_pow(unimath_interval_from_f64(-1.0, 1.0), -1);
+  if (isnan(powNegZero.lo) && isnan(powNegZero.hi)) printf("ok   interval_pow([-1,1],-1) = NaN\n");
+  else { printf("FAIL interval_pow([-1,1],-1) should be NaN, got [%.17g, %.17g]\n", powNegZero.lo, powNegZero.hi); failures++; }
+  check_enc("interval_arctan([0,1])", unimath_interval_arctan(unimath_interval_from_f64(0.0, 1.0)), 0.0, atan(1.0));
+  check_enc("interval_arctan2 box excl origin", unimath_interval_arctan2(unimath_interval_from_f64(1.0, 1.0), unimath_interval_from_f64(1.0, 1.0)), atan2(1.0, 1.0), atan2(1.0, 1.0));
+  unimath_interval atan2Full = unimath_interval_arctan2(unimath_interval_from_f64(-1.0, 1.0), unimath_interval_from_f64(-1.0, 1.0));
+  if (fabs(atan2Full.lo - (-C_PI)) < 1e-9 && fabs(atan2Full.hi - C_PI) < 1e-9) printf("ok   interval_arctan2 box encl origin = [-pi,pi]\n");
+  else { printf("FAIL interval_arctan2 box encl origin should be [-pi,pi], got [%.17g, %.17g]\n", atan2Full.lo, atan2Full.hi); failures++; }
+
+  /* is_valid, width, midpoint, contains, contains_interval, overlaps, hull,
+   * intersect -- the set-theoretic predicates. */
+  unimath_interval v12 = unimath_interval_from_f64(1.0, 2.0);
+  unimath_interval v34 = unimath_interval_from_f64(3.0, 4.0);
+  unimath_interval v15 = unimath_interval_from_f64(1.0, 5.0);
+  unimath_interval invalidIv = unimath_interval_from_f64(2.0, 1.0);
+  if (unimath_interval_is_valid(v12)) printf("ok   interval_is_valid([1,2]) = true\n");
+  else { printf("FAIL interval_is_valid([1,2]) should be true\n"); failures++; }
+  if (!unimath_interval_is_valid(invalidIv)) printf("ok   interval_is_valid([2,1]) = false\n");
+  else { printf("FAIL interval_is_valid([2,1]) should be false\n"); failures++; }
+  check_dbl("interval_width([1,2])", unimath_interval_width(v12), 1.0);
+  check_dbl("interval_midpoint([1,2])", unimath_interval_midpoint(v12), 1.5);
+  if (unimath_interval_contains(v12, 1.5)) printf("ok   interval_contains([1,2],1.5) = true\n");
+  else { printf("FAIL interval_contains([1,2],1.5) should be true\n"); failures++; }
+  if (!unimath_interval_contains(v12, 3.0)) printf("ok   interval_contains([1,2],3) = false\n");
+  else { printf("FAIL interval_contains([1,2],3) should be false\n"); failures++; }
+  if (unimath_interval_contains_interval(v15, v12)) printf("ok   interval_contains_interval([1,5],[1,2]) = true\n");
+  else { printf("FAIL interval_contains_interval([1,5],[1,2]) should be true\n"); failures++; }
+  if (!unimath_interval_contains_interval(v12, v15)) printf("ok   interval_contains_interval([1,2],[1,5]) = false\n");
+  else { printf("FAIL interval_contains_interval([1,2],[1,5]) should be false\n"); failures++; }
+  if (!unimath_interval_overlaps(v12, v34)) printf("ok   interval_overlaps([1,2],[3,4]) = false\n");
+  else { printf("FAIL interval_overlaps([1,2],[3,4]) should be false\n"); failures++; }
+  if (unimath_interval_overlaps(v12, v15)) printf("ok   interval_overlaps([1,2],[1,5]) = true\n");
+  else { printf("FAIL interval_overlaps([1,2],[1,5]) should be true\n"); failures++; }
+  unimath_interval hulled = unimath_interval_hull(v12, v34);
+  if (hulled.lo == 1.0 && hulled.hi == 4.0) printf("ok   interval_hull([1,2],[3,4]) = [1,4]\n");
+  else { printf("FAIL interval_hull([1,2],[3,4]) should be [1,4], got [%.17g, %.17g]\n", hulled.lo, hulled.hi); failures++; }
+  unimath_interval intersected = unimath_interval_intersect(v12, v15);
+  if (intersected.lo == 1.0 && intersected.hi == 2.0) printf("ok   interval_intersect([1,2],[1,5]) = [1,2]\n");
+  else { printf("FAIL interval_intersect([1,2],[1,5]) should be [1,2], got [%.17g, %.17g]\n", intersected.lo, intersected.hi); failures++; }
+  /* non-overlapping intersect is invalid (lo > hi) -- caller checks is_valid */
+  unimath_interval notOverlapping = unimath_interval_intersect(v12, v34);
+  if (!unimath_interval_is_valid(notOverlapping)) printf("ok   interval_intersect([1,2],[3,4]) is invalid\n");
+  else { printf("FAIL interval_intersect([1,2],[3,4]) should be invalid, got [%.17g, %.17g]\n", notOverlapping.lo, notOverlapping.hi); failures++; }
 
   /* ---- Roots ---- */
   check_int("isqrt(15)", unimath_isqrt_i64(15), 3);

@@ -70,3 +70,10 @@ def test_str_repr():
     assert str(Rational(1, 2)) == "1/2"
     assert repr(Rational(1, 2)) == "Rational(1, 2)"
 
+
+def test_is_zero_is_one():
+    assert Rational(0, 1).is_zero()
+    assert not Rational(1, 2).is_zero()
+    assert Rational(1, 1).is_one()
+    assert not Rational(1, 2).is_one()
+
