@@ -16,10 +16,10 @@ limitations under the License.
 ----------------------------------------------------------------------------
 
 Bundles a pinned dependency on NimContracts (github.com/lbartoletti/NimContracts,
-branch fix/generic-proc-support), MIT-licensed.
+main branch HEAD), MIT-licensed.
 
 Bundles an optional pinned dependency on nimsimd
-(github.com/lbartoletti/nimsimd, branch neon-avx512), MIT-licensed. It is an
+(github.com/lbartoletti/nimsimd, master branch HEAD), MIT-licensed. It is an
 opt-in SIMD backend for the limb-array bitwise ops, enabled with `-d:simd` and
 out of the default build.
 

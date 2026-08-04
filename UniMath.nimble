@@ -9,11 +9,11 @@ license = "Apache-2.0"
 srcDir = "src"
 
 requires "nim >= 2.0.0"
-requires "https://github.com/lbartoletti/NimContracts#fix/generic-proc-support"
+requires "https://github.com/lbartoletti/NimContracts#main"
 # EFT engine: twoSum/twoProduct and the Shewchuk expansions live here.
 requires "https://github.com/lituus-lab/UniAccurate#main"
 # Opt-in SIMD backend for the limb-array bitwise ops (`-d:simd`).
-requires "https://github.com/lbartoletti/nimsimd#neon-avx512"
+requires "https://github.com/lbartoletti/nimsimd#master"
 
 task lint, "Fail if nimpretty would reformat a source":
   exec "nim c -r --hints:off -o:build/lint_tool tools/lint.nim"
