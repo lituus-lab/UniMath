@@ -145,14 +145,24 @@ task clibMsvc, "C static library, MSVC ABI (Windows Python extension)":
 # Nim's MinGW toolchain names it mingw32-make.
 let makeExe = if findExe("mingw32-make").len > 0: "mingw32-make" else: "make"
 
+# tests/c and examples/c are POSIX-portable Makefiles carrying no OS branch
+# (GNU and BSD make share no conditional syntax), so the Windows names come
+# from here as command-line assignments, which beat `?=` on every make flavor.
+# `del` needs no `/q`: it is only ever handed a single name, never a wildcard.
+proc winMakeVars(bin: string): string =
+  when defined(windows):
+    " CC=gcc BIN=" & bin & ".exe RUN=" & bin & ".exe RM_F=del"
+  else:
+    ""
+
 # `make -C`, not `cd dir && make`: nimble's exec runs no shell on Windows.
 task ctest, "C ABI tests":
   exec "nimble clibStatic"
-  exec makeExe & " -C tests/c"
+  exec makeExe & " -C tests/c" & winMakeVars("test_unimath")
 
 task cexample, "C demo":
   exec "nimble clibStatic"
-  exec makeExe & " -C examples/c"
+  exec makeExe & " -C examples/c" & winMakeVars("demo")
 
 # Head-to-head speed vs the native GMP/MPFR oracles at matching precision.
 # Linux/macOS only (needs libmpfr/libgmp via pkg-config); NOT in the default
