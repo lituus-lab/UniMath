@@ -98,6 +98,68 @@ without either overwriting the other.
 
 <!-- bench:insert -->
 
+<!-- bench:machine=freebsd-amd64 -->
+**BigInt / Fixed arithmetic**
+
+| op | ns/op | ops/sec |
+|---|---|---|
+| BigInt add (64-bit) | 30.674 | 32601410. |
+| BigInt mul (64-bit) | 32.000 | 31250186. |
+| BigInt mul (1024-bit) | 577.612 | 1731265. |
+| BigInt div (64/32-bit) | 75.746 | 13202010. |
+| isqrt (BigInt, ~120-bit) | 9706.809 | 103020. |
+| Fixed Q32.32 add | 0.859 | 1164048140. |
+| Fixed Q32.32 mul | 80.856 | 12367695. |
+| Fixed Q32.32 div | 136.501 | 7325931. |
+
+**Transcendentals**
+
+| op | ns/op | ops/sec |
+|---|---|---|
+| BigFloat sin(1) | 6508.463 | 153646. |
+| BigFloat exp(1) | 8588.111 | 116440. |
+| BigFloat ln(2) | 2155.013 | 464034. |
+| BigFloat sqrt(2) | 1324.334 | 755097. |
+| BigFloat arctan(1) | 59470.946 | 16815. |
+| Fixed sin(1) (router) | 230.216 | 4343743. |
+| Fixed atan(1) (router) | 347.922 | 2874211. |
+| Fixed sqrt(2) (router) | 1279.818 | 781361. |
+| Fixed exp(1) (router) | 681.331 | 1467715. |
+| Rational sin(1/2) | 13683.263 | 73082. |
+| Rational sqrt(2) | 12847.044 | 77839. |
+
+**Precision parity: BigFloat (256-bit) vs float64 `math`**
+
+| op | got (BigFloat, 256-bit) | oracle (float64) | \|err\| |
+|---|---|---|---|
+| sin(1) | 0.841470984807897 | 0.841470984807897 | 0.00e+00 |
+| cos(1) | 0.540302305868140 | 0.540302305868140 | 0.00e+00 |
+| exp(1) | 2.718281828459045 | 2.718281828459046 | 4.44e-16 |
+| ln(2) | 0.693147180559945 | 0.693147180559945 | 0.00e+00 |
+| sqrt(2) | 1.414213562373095 | 1.414213562373095 | 0.00e+00 |
+| arctan(1) | 0.785398163397448 | 0.785398163397448 | 0.00e+00 |
+| arctan(0.5) | 0.463647609000806 | 0.463647609000806 | 0.00e+00 |
+
+**UniMath vs GMP/MPFR** (`nimble benchSpeed`) -- `orc` is the GMP/MPFR oracle (`-reuse`: init once and overwrite, the fastest idiomatic oracle usage; `-alloc`: init+free every call, matching UniMath's per-op handle allocation). `uni/orc-alloc` is the ratio; below 1.0 would mean UniMath is faster -- it is not, here:
+
+```
+UniMath 0.1.0 vs GMP/MPFR (256-bit BigFloat); ns/op, lower is faster
+  ratio = UniMath / oracle-alloc  (<1.0 => UniMath faster)
+  ----------------------------------------------------------------------------------------------
+  BigInt mul 64-bit      | uni      83.82 | orc-reuse       7.14 | orc-alloc     105.64 | uni/orc-alloc 0.79
+  BigInt mul 1024-bit    | uni     570.30 | orc-reuse     122.32 | orc-alloc     224.13 | uni/orc-alloc 2.54
+  BigInt div 1024/64     | uni     214.42 | orc-reuse      41.87 | orc-alloc     145.90 | uni/orc-alloc 1.47
+  BigInt div 1024/512    | uni     420.67 | orc-reuse     116.08 | orc-alloc     214.27 | uni/orc-alloc 1.96
+  BigFloat sin           | uni    6298.64 | orc-reuse    1662.94 | orc-alloc    1734.12 | uni/orc-alloc 3.63
+  BigFloat exp           | uni    8384.14 | orc-reuse    1745.16 | orc-alloc    1820.97 | uni/orc-alloc 4.60
+  BigFloat ln            | uni    2230.93 | orc-reuse    2528.20 | orc-alloc    2642.81 | uni/orc-alloc 0.84
+  BigFloat sqrt          | uni    1344.23 | orc-reuse     115.66 | orc-alloc     233.21 | uni/orc-alloc 5.76
+  checksum = 4.77936e+24 (keeps every result live)
+```
+
+
+<!-- /bench:machine=freebsd-amd64 -->
+
 <!-- bench:machine=macosx-apple-m4 -->
 **BigInt / Fixed arithmetic**
 
