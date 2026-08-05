@@ -78,6 +78,11 @@ task testRelease, "Nim tests (release, contracts compiled away)":
 task testSimd, "Nim tests with the opt-in SIMD backend (-d:simd)":
   exec "nim c -r -d:simd --path:src -o:build/test_arithmetic_simd tests/test_arithmetic_simd.nim"
 
+# Its own task: the guards only exist under the flag, so the default suites
+# compile them out and cannot cover them.
+task testChecked, "Fixed-width overflow guards (-d:checkedArithmetic)":
+  exec "nim c -r -d:checkedArithmetic --path:src -o:build/test_checked_arithmetic tests/test_checked_arithmetic.nim"
+
 task testCi, "Nim tests (CI subset, debug)":
   exec "nimble test"
 
@@ -87,9 +92,10 @@ task testCiRelease, "Nim tests (CI subset, release)":
 task prop, "Randomized property suite (heavy: 2000 iters via -d:propIters)":
   exec "nim c -r -d:release -d:propIters=2000 --path:src -o:build/test_properties_prop tests/test_properties.nim"
 
-task testAll, "debug + release + C ABI + properties":
+task testAll, "debug + release + checked + C ABI + properties":
   exec "nimble test"
   exec "nimble testRelease"
+  exec "nimble testChecked"
   exec "nimble ctest"
   exec "nimble prop"
 
