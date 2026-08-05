@@ -158,8 +158,11 @@ jobs:
           test -f artifact/libUniMath.a
           CC=cc; BIN=consumer
           if [ "$RUNNER_OS" = Windows ]; then CC=gcc; BIN=consumer.exe; fi
+          # -lm after the archive, as tests/c/Makefile does: the static lib
+          # leaves libm calls (pow, sin, log, ...) unresolved for the final
+          # link, and ld only scans a library for symbols already pending.
           "$CC" -Iartifact/include -O2 -Wall -Wextra -std=c11 -o "$BIN" \
-            tests/c/test_unimath.c artifact/libUniMath.a
+            tests/c/test_unimath.c artifact/libUniMath.a -lm
           "./$BIN"
 
   consume-wheel:
