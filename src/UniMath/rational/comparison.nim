@@ -62,11 +62,7 @@ func `<`*[T](x, y: Rational[T]): bool {.inline.} =
 func `<=`*[T](x, y: Rational[T]): bool {.inline.} =
   cmp(x, y) <= 0
 
-func `>`*[T](x, y: Rational[T]): bool {.inline.} =
-  cmp(x, y) > 0
-
-func `>=`*[T](x, y: Rational[T]): bool {.inline.} =
-  cmp(x, y) >= 0
+# `>` and `>=` come from system, derived from `<` and `<=`.
 
 func `<`*[T](x: Rational[T], y: T): bool {.inline.} =
   x < toRational(y)

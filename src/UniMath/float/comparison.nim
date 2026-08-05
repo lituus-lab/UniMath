@@ -50,5 +50,4 @@ func cmp*(a, b: BigFloat): int {.contractual.} =
 func `==`*(a, b: BigFloat): bool {.inline.} = cmp(a, b) == 0
 func `<`*(a, b: BigFloat): bool {.inline.} = cmp(a, b) < 0
 func `<=`*(a, b: BigFloat): bool {.inline.} = cmp(a, b) <= 0
-func `>`*(a, b: BigFloat): bool {.inline.} = cmp(a, b) > 0
-func `>=`*(a, b: BigFloat): bool {.inline.} = cmp(a, b) >= 0
+# `>` and `>=` come from system, derived from `<` and `<=`.

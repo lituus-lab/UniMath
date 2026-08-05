@@ -27,9 +27,4 @@ func `<=`*[T; FracBits: static[int]](a, b: Fixed[T,
     FracBits]): bool {.inline.} =
   a.data <= b.data
 
-func `>`*[T; FracBits: static[int]](a, b: Fixed[T, FracBits]): bool {.inline.} =
-  a.data > b.data
-
-func `>=`*[T; FracBits: static[int]](a, b: Fixed[T,
-    FracBits]): bool {.inline.} =
-  a.data >= b.data
+# `>` and `>=` come from system, derived from `<` and `<=`.

@@ -34,8 +34,7 @@ template generateComparisons*(T: typedesc) =
   func `==`*[Bits: static int](a, b: T[Bits]): bool {.inline.} = cmp(a, b) == 0
   func `<`*[Bits: static int](a, b: T[Bits]): bool {.inline.} = cmp(a, b) < 0
   func `<=`*[Bits: static int](a, b: T[Bits]): bool {.inline.} = cmp(a, b) <= 0
-  func `>`*[Bits: static int](a, b: T[Bits]): bool {.inline.} = cmp(a, b) > 0
-  func `>=`*[Bits: static int](a, b: T[Bits]): bool {.inline.} = cmp(a, b) >= 0
+  # `>` and `>=` come from system, derived from `<` and `<=`.
 
 generateComparisons(FixedUInt)
 generateComparisons(FixedInt)

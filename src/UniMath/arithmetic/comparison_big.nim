@@ -23,6 +23,5 @@ func equalLimbs*(a, b: BigUInt): bool {.inline.} =
 func `==`*(a, b: BigUInt): bool {.inline.} = cmp(a, b) == 0
 func `<`*(a, b: BigUInt): bool {.inline.} = cmp(a, b) < 0
 func `<=`*(a, b: BigUInt): bool {.inline.} = cmp(a, b) <= 0
-func `>`*(a, b: BigUInt): bool {.inline.} = cmp(a, b) > 0
-func `>=`*(a, b: BigUInt): bool {.inline.} = cmp(a, b) >= 0
+# `>` and `>=` come from system, derived from `<` and `<=`.
 

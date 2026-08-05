@@ -38,8 +38,7 @@ func cmp*(a, b: BigInt): int {.contractual.} =
 func `==`*(a, b: BigInt): bool {.inline.} = cmp(a, b) == 0
 func `<`*(a, b: BigInt): bool {.inline.} = cmp(a, b) < 0
 func `<=`*(a, b: BigInt): bool {.inline.} = cmp(a, b) <= 0
-func `>`*(a, b: BigInt): bool {.inline.} = cmp(a, b) > 0
-func `>=`*(a, b: BigInt): bool {.inline.} = cmp(a, b) >= 0
+# `>` and `>=` come from system, derived from `<` and `<=`.
 
 func add*(a, b: BigInt): BigInt {.contractual.} =
   ## Sign-magnitude sum. Zero iff `a` and `b` are additive inverses.
