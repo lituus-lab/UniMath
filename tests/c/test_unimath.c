@@ -220,11 +220,11 @@ int main(void) {
   check_int("fixed_cmp(2<<16,3<<16)", unimath_fixed_cmp(2LL << 16, 3LL << 16), -1);
   check_int("fixed_cmp(3<<16,2<<16)", unimath_fixed_cmp(3LL << 16, 2LL << 16), 1);
   check_int("fixed_cmp(3<<16,3<<16)", unimath_fixed_cmp(3LL << 16, 3LL << 16), 0);
-  check_int("fixed_abs(-3<<16)", unimath_fixed_abs(-3LL << 16), 3LL << 16);
+  check_int("fixed_abs(-3<<16)", unimath_fixed_abs(-(3LL << 16)), 3LL << 16);
   check_int("fixed_abs(3<<16)", unimath_fixed_abs(3LL << 16), 3LL << 16);
   check_int("fixed_abs(INT64_MIN) clamps to INT64_MAX",
             unimath_fixed_abs(-9223372036854775807LL - 1), 9223372036854775807LL);
-  check_int("fixed_sign(-3<<16)", unimath_fixed_sign(-3LL << 16), -1);
+  check_int("fixed_sign(-3<<16)", unimath_fixed_sign(-(3LL << 16)), -1);
   check_int("fixed_sign(0)", unimath_fixed_sign(0), 0);
   check_int("fixed_sign(3<<16)", unimath_fixed_sign(3LL << 16), 1);
   check_int("fixed_clamp(5,1,3)", unimath_fixed_clamp(5, 1, 3), 3);
