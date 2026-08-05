@@ -3,7 +3,7 @@
 [build-system]
 # >=77: `license = "Apache-2.0"` is PEP 639 SPDX metadata, which
 # setuptools only accepts in project.license from 77.0.0 on.
-requires = ["setuptools>=77", "wheel", "Cython>=3.0"]
+requires = ["setuptools>=77", "wheel", "Cython>=3.2.9"]
 build-backend = "setuptools.build_meta"
 
 [project]
