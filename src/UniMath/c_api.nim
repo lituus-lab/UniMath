@@ -10,6 +10,10 @@
 ## `--app:lib` (only the C `main` is suppressed; `NimMain` still bootstraps the
 ## allocator and module initialisers). Never raises: returns NULL / 0 / -1 on
 ## bad input or domain errors (div by zero), clamps out-of-range results.
+##
+## Predicates return `cint` 1/0, never Nim `bool`: `bool` is one byte, so a C
+## caller reading the declared `int` picks up whatever the ABI left in the
+## upper bytes of the return register — true-looking garbage for a false result.
 import std/[strutils, math]
 import ./arithmetic
 import ./fixed
@@ -144,13 +148,13 @@ proc unimath_version(): cstring =
 
 proc NimMain() {.importc, cdecl.}
 
-proc unimath_init(): bool =
+proc unimath_init(): cint =
   ## Bring up the Nim/ARC runtime. Call once before any other entry point.
-  ## Idempotent. Returns true.
+  ## Idempotent. Returns 1.
   if not gInited:
     NimMain()
     gInited = true
-  true
+  cint(1)
 
 proc unimath_cleanup() =
   ## No-op (matches `unimath_init`); handles are freed per-call by `*_destroy`.
@@ -413,10 +417,10 @@ proc unimath_bigfloat_cmp(a, b: pointer): cint =
   if a == nil or b == nil: return cint(0)
   cint(cmp(bfOf(a), bfOf(b)))
 
-proc unimath_bigfloat_is_zero(h: pointer): bool =
-  ## False on a nil handle (not the zero value).
-  if h == nil: return false
-  isZero(bfOf(h))
+proc unimath_bigfloat_is_zero(h: pointer): cint =
+  ## 0 on a nil handle (not the zero value).
+  if h == nil: return cint(0)
+  cint(isZero(bfOf(h)))
 
 proc unimath_bigfloat_neg(a: pointer): pointer =
   if a == nil: return nil
@@ -498,15 +502,15 @@ proc unimath_rational_cmp(a, b: pointer): cint =
   if a == nil or b == nil: return cint(0)
   cint(cmp(ratOf(a), ratOf(b)))
 
-proc unimath_rational_is_zero(h: pointer): bool =
-  ## False on a nil handle (not the zero value).
-  if h == nil: return false
-  isZero(ratOf(h))
+proc unimath_rational_is_zero(h: pointer): cint =
+  ## 0 on a nil handle (not the zero value).
+  if h == nil: return cint(0)
+  cint(isZero(ratOf(h)))
 
-proc unimath_rational_is_one(h: pointer): bool =
-  ## False on a nil handle (not the value one).
-  if h == nil: return false
-  isOne(ratOf(h))
+proc unimath_rational_is_one(h: pointer): cint =
+  ## 0 on a nil handle (not the value one).
+  if h == nil: return cint(0)
+  cint(isOne(ratOf(h)))
 
 proc unimath_rational_destroy(h: pointer) =
   unrefRational(h)
@@ -569,9 +573,9 @@ proc unimath_interval_arctan2(y, x: IntervalC): IntervalC =
   let r = arctan2(initInterval(y.lo, y.hi), initInterval(x.lo, x.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
-proc unimath_interval_is_valid(a: IntervalC): bool =
-  ## `lo <= hi` (false if either bound is NaN).
-  isValid(initInterval(a.lo, a.hi))
+proc unimath_interval_is_valid(a: IntervalC): cint =
+  ## `lo <= hi` (0 if either bound is NaN).
+  cint(isValid(initInterval(a.lo, a.hi)))
 
 proc unimath_interval_width(a: IntervalC): float64 =
   width(initInterval(a.lo, a.hi))
@@ -579,17 +583,17 @@ proc unimath_interval_width(a: IntervalC): float64 =
 proc unimath_interval_midpoint(a: IntervalC): float64 =
   midpoint(initInterval(a.lo, a.hi))
 
-proc unimath_interval_contains(a: IntervalC, x: float64): bool =
+proc unimath_interval_contains(a: IntervalC, x: float64): cint =
   ## `x in [lo, hi]` (closed bounds).
-  contains(initInterval(a.lo, a.hi), x)
+  cint(contains(initInterval(a.lo, a.hi), x))
 
-proc unimath_interval_contains_interval(outer, inner: IntervalC): bool =
+proc unimath_interval_contains_interval(outer, inner: IntervalC): cint =
   ## `inner ⊆ outer`.
-  contains(initInterval(outer.lo, outer.hi), initInterval(inner.lo, inner.hi))
+  cint(contains(initInterval(outer.lo, outer.hi), initInterval(inner.lo, inner.hi)))
 
-proc unimath_interval_overlaps(a, b: IntervalC): bool =
+proc unimath_interval_overlaps(a, b: IntervalC): cint =
   ## `a ∩ b ≠ ∅`.
-  overlaps(initInterval(a.lo, a.hi), initInterval(b.lo, b.hi))
+  cint(overlaps(initInterval(a.lo, a.hi), initInterval(b.lo, b.hi)))
 
 proc unimath_interval_hull(a, b: IntervalC): IntervalC =
   ## Smallest interval containing both `a` and `b`.
