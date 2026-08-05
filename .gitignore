@@ -1,0 +1,69 @@
+# build artifacts
+build/
+# Anchored: this is the build output dir, and unanchored `bin/` would also
+# swallow any nested bin/ a subdirectory legitimately tracks.
+/bin/
+libUniMath.so
+libUniMath.so.*
+libUniMath.dylib
+libUniMath.a
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.so.*
+*.dylib
+*.a
+*.lib
+
+# coverage
+coverage/
+lcov.info
+
+# nim cache
+nimcache/
+rnimcache/
+dnimcache/
+
+# docs output
+pages/
+docs/
+*.html
+nimdoc.out.css
+
+# python binding artifacts (sources tracked; generated + bundled lib not)
+py/unimath/_core.c
+py/unimath/*.so
+py/unimath/libUniMath.so
+py/dist/
+py/build/
+py/*.egg-info/
+py/**/__pycache__/
+py/.pytest_cache/
+py/_nimsrc/
+
+# c test/example binaries
+tests/c/test_unimath
+examples/c/demo
+
+# bench binary (built by `nimble benchSpeed`; source tracked)
+bench/bench_speed
+
+# bench markdown/text fragments + export tool binary (built by
+# `nimble benchReadme`; sources tracked, generated data/results not)
+bench/.md_*
+bench/export_readme
+
+# oracle executables (built by `nimble buildOracles`; sources tracked)
+oracles/mpfr_oracle
+oracles/gmp_oracle
+
+# os / editor
+.DS_Store
+*~
+.*.swp
+*.dSYM
+
+*.log
+*.core

@@ -1,1 +1,263 @@
-# UniMath
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 lituus-lab -->
+# UniMath
+
+A multi-precision numeric library: arbitrary-precision integers, fixed-point,
+big floats, rationals, and intervals, with the transcendental and
+special-function algorithms over them. Exposed in Nim, a C ABI, and Python.
+
+## What's inside
+
+- **Exact integers & fixed-point** — `BigInt` (arbitrary-precision, `arithmetic/`)
+  and `Fixed[T, Frac]` (Q-format fixed-point).
+- **Big floats & rationals** — `BigFloat` (arbitrary-precision, `float/`) and
+  `Rational[T]` (exact fractions, `rational/`, reduced to lowest terms).
+- **Intervals** — `Interval[T]` (`interval/`) with directed-rounding
+  arithmetic and transcendentals.
+- **Transcendentals** (`exponential/`, `trigonometry/`, `hyperbolic/`,
+  `special/`, `roots/`) — the same algorithms (sin/cos/exp/ln/sqrt/atan/...)
+  implemented across three backends: `BigFloat` (`float_math.nim`), `Fixed`
+  (`math_router.nim`), and `Rational[BigInt]` (`rational_math.nim`).
+- **Error-free transforms** (`eft.nim`) — a re-export of UniAccurate's EFT
+  primitives (`twoSum`, `twoProduct`, Shewchuk expansions); UniMath adds no
+  EFT code of its own (ADR-0006).
+
+## The Uni* family
+
+UniMath is layer 2 of `lituus-lab`'s `Uni*` family: a set of Nim libraries,
+each with a C ABI and a Python binding, unified by a shared dependency DAG and
+documentation/testing conventions. See
+[lituus-lab/.github](https://github.com/lituus-lab/.github) for the family's
+purpose and philosophy. UniMath depends on UniAccurate (layer 1) for its
+error-free transforms; UniLinalg (layer 3) depends on UniMath in turn, for
+`Vector`'s exact-precision arithmetic.
+
+## Provenance & development
+
+The numeric types and transcendental algorithms here are textbook (long
+division, CORDIC-style range reduction, Taylor/continued-fraction
+transcendentals) — no original numerics, gathered from the references cited
+throughout `book/index.nim` and cross-checked against GMP/MPFR
+(`tests`/`nimble testOracle`) and the float64 `math` oracle
+(`nimble bench`'s parity section).
+
+Development used LLM/agent assistance extensively, on the terms described
+below. One visible consequence: this repo's git history is short and linear,
+with commits landing close together in time — that reflects an LLM/agent
+rewrite pass over a pre-existing design (the six non-linalg packages absorbed
+from an earlier `UniversalMath` monorepo, see ADR-0005), not the numerics
+being designed at that speed from a blank page.
+
+## Layout
+
+```text
+src/UniMath.nim              umbrella module
+src/UniMath/<pkg>.nim        sub-umbrella per package (arithmetic, fixed, ...)
+src/UniMath/<pkg>/*.nim      package modules
+src/UniMath/c_api.nim        C ABI
+include/UniMath.h            hand-written C header
+tests/ tests/c/             Nim + C ABI tests
+examples/                    Nim + C demos
+py/                          Cython binding + pytest
+ADRs/                        0001 sibling deps, 0002 license, 0003 engine&shell,
+                             0004 conventions (+ domain ADRs 0005-0008)
+.github/workflows/ci.yml     3-OS Nim matrix + C ABI + Python
+```
+
+## Build
+
+```bash
+nimble install -y
+nimble test           # Nim, debug (contracts active)
+nimble testRelease    # Nim, release (contracts compiled away)
+nimble testAll        # debug + release + C ABI
+nimble ctest          # C ABI: static lib + tests/c
+nimble cexample       # C demo
+nimble example        # Nim demo
+nimble pyTest         # Cython + pytest
+nimble coverage       # gcov + lcov -> coverage/
+nimble book           # nimib book -> book/index.html
+nimble docs           # book + API reference -> pages/
+nimble bench          # perf + precision-parity benchmarks (not in the gate)
+nimble benchReadme    # bench, then splice a headline table into this README for this machine
+nimble testOracle     # GMP/MPFR oracle tests (needs libmpfr/libgmp; not in the gate)
+```
+
+## Benchmarks
+
+`nimble bench` times the exact-integer/fixed-point core (`bench_arithmetic.nim`)
+and the transcendentals across all three backends (`bench_transcendentals.nim`),
+plus a precision-parity check of `BigFloat` against the float64 `math` oracle.
+`nimble benchReadme` runs the same suite and additionally writes the table
+below, tagged to the machine it ran on (`<!-- bench:machine=... -->` — see
+`bench/export_readme.nim`). Re-running on the same machine replaces only that
+machine's block; a second machine (say a FreeBSD/Zen4 box,
+`UNIMATH_BENCH_MACHINE` env var to name it explicitly) adds its own block
+alongside, so this table can carry more than one machine's numbers at once
+without either overwriting the other.
+
+<!-- bench:insert -->
+
+<!-- bench:machine=freebsd-amd64 -->
+**BigInt / Fixed arithmetic**
+
+| op | ns/op | ops/sec |
+|---|---|---|
+| BigInt add (64-bit) | 30.674 | 32601410. |
+| BigInt mul (64-bit) | 32.000 | 31250186. |
+| BigInt mul (1024-bit) | 577.612 | 1731265. |
+| BigInt div (64/32-bit) | 75.746 | 13202010. |
+| isqrt (BigInt, ~120-bit) | 9706.809 | 103020. |
+| Fixed Q32.32 add | 0.859 | 1164048140. |
+| Fixed Q32.32 mul | 80.856 | 12367695. |
+| Fixed Q32.32 div | 136.501 | 7325931. |
+
+**Transcendentals**
+
+| op | ns/op | ops/sec |
+|---|---|---|
+| BigFloat sin(1) | 6508.463 | 153646. |
+| BigFloat exp(1) | 8588.111 | 116440. |
+| BigFloat ln(2) | 2155.013 | 464034. |
+| BigFloat sqrt(2) | 1324.334 | 755097. |
+| BigFloat arctan(1) | 59470.946 | 16815. |
+| Fixed sin(1) (router) | 230.216 | 4343743. |
+| Fixed atan(1) (router) | 347.922 | 2874211. |
+| Fixed sqrt(2) (router) | 1279.818 | 781361. |
+| Fixed exp(1) (router) | 681.331 | 1467715. |
+| Rational sin(1/2) | 13683.263 | 73082. |
+| Rational sqrt(2) | 12847.044 | 77839. |
+
+**Precision parity: BigFloat (256-bit) vs float64 `math`**
+
+| op | got (BigFloat, 256-bit) | oracle (float64) | \|err\| |
+|---|---|---|---|
+| sin(1) | 0.841470984807897 | 0.841470984807897 | 0.00e+00 |
+| cos(1) | 0.540302305868140 | 0.540302305868140 | 0.00e+00 |
+| exp(1) | 2.718281828459045 | 2.718281828459046 | 4.44e-16 |
+| ln(2) | 0.693147180559945 | 0.693147180559945 | 0.00e+00 |
+| sqrt(2) | 1.414213562373095 | 1.414213562373095 | 0.00e+00 |
+| arctan(1) | 0.785398163397448 | 0.785398163397448 | 0.00e+00 |
+| arctan(0.5) | 0.463647609000806 | 0.463647609000806 | 0.00e+00 |
+
+**UniMath vs GMP/MPFR** (`nimble benchSpeed`) -- `orc` is the GMP/MPFR oracle (`-reuse`: init once and overwrite, the fastest idiomatic oracle usage; `-alloc`: init+free every call, matching UniMath's per-op handle allocation). `uni/orc-alloc` is the ratio; below 1.0 would mean UniMath is faster -- it is not, here:
+
+```text
+UniMath 0.1.0 vs GMP/MPFR (256-bit BigFloat); ns/op, lower is faster
+  ratio = UniMath / oracle-alloc  (<1.0 => UniMath faster)
+  ----------------------------------------------------------------------------------------------
+  BigInt mul 64-bit      | uni      83.82 | orc-reuse       7.14 | orc-alloc     105.64 | uni/orc-alloc 0.79
+  BigInt mul 1024-bit    | uni     570.30 | orc-reuse     122.32 | orc-alloc     224.13 | uni/orc-alloc 2.54
+  BigInt div 1024/64     | uni     214.42 | orc-reuse      41.87 | orc-alloc     145.90 | uni/orc-alloc 1.47
+  BigInt div 1024/512    | uni     420.67 | orc-reuse     116.08 | orc-alloc     214.27 | uni/orc-alloc 1.96
+  BigFloat sin           | uni    6298.64 | orc-reuse    1662.94 | orc-alloc    1734.12 | uni/orc-alloc 3.63
+  BigFloat exp           | uni    8384.14 | orc-reuse    1745.16 | orc-alloc    1820.97 | uni/orc-alloc 4.60
+  BigFloat ln            | uni    2230.93 | orc-reuse    2528.20 | orc-alloc    2642.81 | uni/orc-alloc 0.84
+  BigFloat sqrt          | uni    1344.23 | orc-reuse     115.66 | orc-alloc     233.21 | uni/orc-alloc 5.76
+  checksum = 4.77936e+24 (keeps every result live)
+```
+
+
+<!-- /bench:machine=freebsd-amd64 -->
+
+<!-- bench:machine=macosx-apple-m4 -->
+**BigInt / Fixed arithmetic**
+
+| op | ns/op | ops/sec |
+|---|---|---|
+| BigInt add (64-bit) | 29.060 | 34411562. |
+| BigInt mul (64-bit) | 29.820 | 33534541. |
+| BigInt mul (1024-bit) | 320.900 | 3116236. |
+| BigInt div (64/32-bit) | 70.300 | 14224751. |
+| isqrt (BigInt, ~120-bit) | 8738.680 | 114434. |
+| Fixed Q32.32 add | 0.756 | 1322751323. |
+| Fixed Q32.32 mul | 75.340 | 13273162. |
+| Fixed Q32.32 div | 118.200 | 8460237. |
+
+**Transcendentals**
+
+| op | ns/op | ops/sec |
+|---|---|---|
+| BigFloat sin(1) | 6738.000 | 148412. |
+| BigFloat exp(1) | 8561.350 | 116804. |
+| BigFloat ln(2) | 2196.100 | 455353. |
+| BigFloat sqrt(2) | 1156.575 | 864622. |
+| BigFloat arctan(1) | 58960.050 | 16961. |
+| Fixed sin(1) (router) | 169.740 | 5891363. |
+| Fixed atan(1) (router) | 277.260 | 3606723. |
+| Fixed sqrt(2) (router) | 1198.260 | 834543. |
+| Fixed exp(1) (router) | 492.420 | 2030787. |
+| Rational sin(1/2) | 11950.700 | 83677. |
+| Rational sqrt(2) | 11631.300 | 85975. |
+
+**Precision parity: BigFloat (256-bit) vs float64 `math`**
+
+| op | got (BigFloat, 256-bit) | oracle (float64) | \|err\| |
+|---|---|---|---|
+| sin(1) | 0.841470984807897 | 0.841470984807897 | 0.00e+00 |
+| cos(1) | 0.540302305868140 | 0.540302305868140 | 0.00e+00 |
+| exp(1) | 2.718281828459045 | 2.718281828459045 | 0.00e+00 |
+| ln(2) | 0.693147180559945 | 0.693147180559945 | 0.00e+00 |
+| sqrt(2) | 1.414213562373095 | 1.414213562373095 | 0.00e+00 |
+| arctan(1) | 0.785398163397448 | 0.785398163397448 | 0.00e+00 |
+| arctan(0.5) | 0.463647609000806 | 0.463647609000806 | 5.55e-17 |
+
+**UniMath vs GMP/MPFR** (`nimble benchSpeed`) -- `orc` is the GMP/MPFR oracle (`-reuse`: init once and overwrite, the fastest idiomatic oracle usage; `-alloc`: init+free every call, matching UniMath's per-op handle allocation). `uni/orc-alloc` is the ratio; below 1.0 would mean UniMath is faster -- it is not, here:
+
+```text
+UniMath 0.1.0 vs GMP/MPFR (256-bit BigFloat); ns/op, lower is faster
+  ratio = UniMath / oracle-alloc  (<1.0 => UniMath faster)
+  ----------------------------------------------------------------------------------------------
+  BigInt mul 64-bit      | uni      88.43 | orc-reuse       3.53 | orc-alloc      16.10 | uni/orc-alloc 5.49
+  BigInt mul 1024-bit    | uni     359.57 | orc-reuse      80.23 | orc-alloc      93.42 | uni/orc-alloc 3.85
+  BigInt div 1024/64     | uni     266.82 | orc-reuse      37.13 | orc-alloc      47.88 | uni/orc-alloc 5.57
+  BigInt div 1024/512    | uni     391.31 | orc-reuse      87.74 | orc-alloc     100.00 | uni/orc-alloc 3.91
+  BigFloat sin           | uni    6548.50 | orc-reuse     863.50 | orc-alloc     854.50 | uni/orc-alloc 7.66
+  BigFloat exp           | uni    8493.50 | orc-reuse    1188.00 | orc-alloc    1192.50 | uni/orc-alloc 7.12
+  BigFloat ln            | uni    2275.70 | orc-reuse    1866.45 | orc-alloc    1874.35 | uni/orc-alloc 1.21
+  BigFloat sqrt          | uni    1180.40 | orc-reuse      96.00 | orc-alloc     114.20 | uni/orc-alloc 10.34
+  checksum = 4.77935e+24 (keeps every result live)
+```
+
+
+<!-- /bench:machine=macosx-apple-m4 -->
+
+## CI
+
+`test`, `cabi` and `python` on ubuntu/macOS/Windows. `consume-cabi` and
+`consume-wheel` rebuild against the published artifacts on a machine without Nim,
+so what ships is what was tested. `coverage` and `docs` run on ubuntu.
+
+`dco` blocks PRs missing a `Signed-off-by` trailer; `commitizen` blocks PRs whose
+commits or title are not [Conventional Commits](https://www.conventionalcommits.org/)
+(`CONTRIBUTING.md`).
+
+The same gates run locally with pre-commit: `pip install pre-commit && pre-commit install`
+(`CONTRIBUTING.md`).
+
+`docs` publishes to GitHub Pages only from a public repo.
+
+## AI-assisted contributions
+
+Assistance from AI/LLM tools is welcome on the same terms as any other
+contribution.
+
+- **Accountability.** The human contributor is the author and remains fully
+  responsible for the change. The DCO sign-off (`Signed-off-by`) is the mechanism:
+  by signing you certify the content is yours or properly licensed — this covers
+  AI-assisted work, provided you can stand behind it.
+- **No third-party contamination.** Ensure AI output introduces no code from a
+  third party without a compatible license and attribution. If an LLM reproduced
+  protected material, do not submit it.
+- **Correctness is yours.** The gates (tests, `nimble lint`, conventional commits,
+  pre-commit) catch a lot, but you own the result — review and verify what you
+  commit.
+- **Atomic commits.** Each commit is one logical change. A PR may stack
+  several atomic commits (one per element, say) — one monolithic big-bang
+  commit is not.
+- **Disclosure.** State in the PR whether AI assistance was used (see the PR
+  template). It is not a hard requirement — the DCO remains the gate.
+
+## License
+
+Apache-2.0 (`LICENSE`). DCO sign-off on every commit (`CONTRIBUTING.md`).
