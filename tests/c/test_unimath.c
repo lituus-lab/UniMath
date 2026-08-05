@@ -35,6 +35,11 @@ static void check_dbl_tol(const char *name, double got, double want, double tol)
   else printf("ok   %s = %.17g\n", name, got);
 }
 
+/* Spelled out, not <math.h>'s M_PI/M_E: those are POSIX, and the -std=c11 this
+ * suite builds under exposes only the ISO C names. */
+#define C_PI 3.14159265358979323846
+#define C_E 2.71828182845904523536
+
 /* Q32.32 fixed-point (32 fractional bits): convert a raw long long to double. */
 #define Q32 4294967296.0
 #define TO_Q32(x) ((long long)((x) * Q32))
@@ -344,8 +349,6 @@ int main(void) {
   unimath_rational_destroy(rb);
 
   /* ---- Interval (value type: two doubles, returned by value) ---- */
-  const double C_PI = 3.14159265358979323846;
-  const double C_E = 2.71828182845904523536;
   unimath_interval iv = unimath_interval_from_f64(1.0, 2.0);
   check_dbl("interval_lo", unimath_interval_lo(iv), 1.0);
   check_dbl("interval_hi", unimath_interval_hi(iv), 2.0);
@@ -534,7 +537,7 @@ int main(void) {
   check_dbl_tol("erf(0.5)", unimath_erf(0.5), 0.5205, 1e-3);
   check_dbl_tol("gamma(1)", unimath_gamma(1.0), 1.0, 1e-10);
   check_dbl_tol("gamma(5)", unimath_gamma(5.0), 24.0, 1e-9);
-  check_dbl_tol("gamma(0.5)", unimath_gamma(0.5), sqrt(M_PI), 1e-10);
+  check_dbl_tol("gamma(0.5)", unimath_gamma(0.5), sqrt(C_PI), 1e-10);
   /* poles return NaN, not a raise */
   if (!isnan(unimath_gamma(0.0))) { printf("FAIL gamma(0) should be NaN\n"); failures++; }
   if (!isnan(unimath_gamma(-1.0))) { printf("FAIL gamma(-1) should be NaN\n"); failures++; }
@@ -550,19 +553,19 @@ int main(void) {
   {
     void *pi_h = unimath_pi_bigfloat();
     void *e_h = unimath_e_bigfloat();
-    check_dbl_tol("pi_bigfloat", unimath_bigfloat_to_f64(pi_h), M_PI, 1e-15);
-    check_dbl_tol("e_bigfloat", unimath_bigfloat_to_f64(e_h), M_E, 1e-15);
+    check_dbl_tol("pi_bigfloat", unimath_bigfloat_to_f64(pi_h), C_PI, 1e-15);
+    check_dbl_tol("e_bigfloat", unimath_bigfloat_to_f64(e_h), C_E, 1e-15);
     unimath_bigfloat_destroy(pi_h);
     unimath_bigfloat_destroy(e_h);
   }
-  check_dbl_tol("pi_fixed", FROM_Q32(unimath_pi_fixed()), M_PI, 1e-9);
-  check_dbl_tol("e_fixed", FROM_Q32(unimath_e_fixed()), M_E, 1e-9);
+  check_dbl_tol("pi_fixed", FROM_Q32(unimath_pi_fixed()), C_PI, 1e-9);
+  check_dbl_tol("e_fixed", FROM_Q32(unimath_e_fixed()), C_E, 1e-9);
 
   /* ---- Reduction ----
    * BigFloat trig stage-1 reduction mod 2pi into [-pi, pi]. The handle is
    * destroyed after extraction. */
   {
-    void *x = unimath_bigfloat_from_f64(2.0 * M_PI + 0.5);
+    void *x = unimath_bigfloat_from_f64(2.0 * C_PI + 0.5);
     void *r = unimath_bigfloat_reduce(x);
     check_dbl_tol("bigfloat_reduce(2pi+0.5)", unimath_bigfloat_to_f64(r), 0.5, 1e-12);
     unimath_bigfloat_destroy(x);
@@ -573,21 +576,21 @@ int main(void) {
    * Range-reduced BigFloat transcendentals. Results are checked to float64
    * tolerance; domain errors return NULL (never raise). */
   check_bf_unary("bigfloat_sin(0)", unimath_bigfloat_sin, 0.0, 0.0, 1e-12);
-  check_bf_unary("bigfloat_sin(pi/2)", unimath_bigfloat_sin, M_PI / 2, 1.0, 1e-12);
+  check_bf_unary("bigfloat_sin(pi/2)", unimath_bigfloat_sin, C_PI / 2, 1.0, 1e-12);
   check_bf_unary("bigfloat_cos(0)", unimath_bigfloat_cos, 0.0, 1.0, 1e-12);
-  check_bf_unary("bigfloat_cos(pi/2)", unimath_bigfloat_cos, M_PI / 2, 0.0, 1e-12);
+  check_bf_unary("bigfloat_cos(pi/2)", unimath_bigfloat_cos, C_PI / 2, 0.0, 1e-12);
   check_bf_unary("bigfloat_exp(0)", unimath_bigfloat_exp, 0.0, 1.0, 1e-12);
-  check_bf_unary("bigfloat_exp(1)", unimath_bigfloat_exp, 1.0, M_E, 1e-12);
+  check_bf_unary("bigfloat_exp(1)", unimath_bigfloat_exp, 1.0, C_E, 1e-12);
   check_bf_unary("bigfloat_ln(1)", unimath_bigfloat_ln, 1.0, 0.0, 1e-12);
-  check_bf_unary("bigfloat_ln(e)", unimath_bigfloat_ln, M_E, 1.0, 1e-12);
+  check_bf_unary("bigfloat_ln(e)", unimath_bigfloat_ln, C_E, 1.0, 1e-12);
   check_bf_unary("bigfloat_sqrt(4)", unimath_bigfloat_sqrt, 4.0, 2.0, 1e-12);
   check_bf_unary("bigfloat_sqrt(2)", unimath_bigfloat_sqrt, 2.0, sqrt(2.0), 1e-12);
-  check_bf_unary("bigfloat_arctan(1)", unimath_bigfloat_arctan, 1.0, M_PI / 4, 1e-12);
+  check_bf_unary("bigfloat_arctan(1)", unimath_bigfloat_arctan, 1.0, C_PI / 4, 1e-12);
   {
     void *y = unimath_bigfloat_from_f64(1.0);
     void *x = unimath_bigfloat_from_f64(1.0);
     void *r = unimath_bigfloat_arctan2(y, x);
-    check_dbl_tol("bigfloat_arctan2(1,1)", unimath_bigfloat_to_f64(r), M_PI / 4, 1e-12);
+    check_dbl_tol("bigfloat_arctan2(1,1)", unimath_bigfloat_to_f64(r), C_PI / 4, 1e-12);
     unimath_bigfloat_destroy(y);
     unimath_bigfloat_destroy(x);
     unimath_bigfloat_destroy(r);
@@ -690,7 +693,7 @@ int main(void) {
   check_fix_unary("fixed_ln(1.5)", unimath_fixed_ln, 1.5, log(1.5), 1e-4);
   check_fix_unary("fixed_sqrt(4)", unimath_fixed_sqrt, 4.0, 2.0, 1e-6);
   check_fix_unary("fixed_sqrt(2)", unimath_fixed_sqrt, 2.0, sqrt(2.0), 1e-6);
-  check_fix_unary("fixed_atan(1)", unimath_fixed_atan, 1.0, M_PI / 4, 1e-3);
+  check_fix_unary("fixed_atan(1)", unimath_fixed_atan, 1.0, C_PI / 4, 1e-3);
   check_fix_unary("fixed_sinh(1)", unimath_fixed_sinh, 1.0, sinh(1.0), 1e-3);
   check_fix_unary("fixed_cosh(1)", unimath_fixed_cosh, 1.0, cosh(1.0), 1e-3);
   check_fix_unary("fixed_tanh(1)", unimath_fixed_tanh, 1.0, tanh(1.0), 1e-3);
@@ -698,7 +701,7 @@ int main(void) {
     long long qy = TO_Q32(1.0);
     long long qx = TO_Q32(1.0);
     long long r = unimath_fixed_atan2(qy, qx);
-    check_dbl_tol("fixed_atan2(1,1)", FROM_Q32(r), M_PI / 4, 1e-3);
+    check_dbl_tol("fixed_atan2(1,1)", FROM_Q32(r), C_PI / 4, 1e-3);
   }
   {
     long long base = TO_Q32(1.5);
