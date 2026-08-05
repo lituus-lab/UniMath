@@ -106,7 +106,7 @@ jobs:
         with:
           nim-version: '2.2.10'
       - run: nimble install -y
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
       - run: pip install -U setuptools wheel Cython pytest
@@ -184,7 +184,7 @@ jobs:
       # Neither Nim nor libUniMath exists here: whatever the extension needs
       # at runtime must have travelled inside the wheel.
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
       - uses: actions/download-artifact@v4
