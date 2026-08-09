@@ -24,7 +24,7 @@ self-contained wheel: the native library travels inside the package, so
 installing it needs neither Nim nor a compiler.
 
 ```
-pip install unimath
+pip install UniMath-lituus
 ```
 
 CI installs the wheel the release actually publishes and executes this
