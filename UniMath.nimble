@@ -2,7 +2,7 @@
 # Copyright 2026 lituus-lab
 # UniMath — a multi-precision numeric library.
 
-version = "0.1.0"
+version = "1.0.0"
 author = "lituus-lab"
 description = "Multi-precision numeric library (Nim + C-ABI + Python)"
 license = "Apache-2.0"

@@ -22,4 +22,4 @@ export arithmetic, fixed, float, rational, interval, eft, roots, exponential,
        trigonometry, hyperbolic, special, constants, reduction, float_math,
        rational_math, conversions, math_router
 
-const UniMathVersion* = "0.1.0"
+const UniMathVersion* = "1.0.0"
