@@ -10,5 +10,5 @@ cd py && python3 -m pytest -q                            # test
 
 ```python
 import unimath
-unimath.version()       # "0.1.0"
+unimath.version()       # "1.0.0"
 ```

@@ -33,7 +33,7 @@ import ./rational_math
 import ./math_router
 import ./conversions
 
-const UniMathVersionC: cstring = "0.1.0"
+const UniMathVersionC: cstring = "1.0.0"
 
 # ------------------------------------------------------------------------------
 # Internal helpers (NOT exported): pinned BigInt handle, decimal parse, clamp.
@@ -143,7 +143,7 @@ proc sqrtF64Abi(v: float64): float64 {.noSideEffect.} = math.sqrt(v)
 # ------------------------------------------------------------------------------
 
 proc unimath_version(): cstring =
-  ## Library version (e.g. "0.1.0"); static, do not free.
+  ## Library version (e.g. "1.0.0"); static, do not free.
   UniMathVersionC
 
 proc NimMain() {.importc, cdecl.}

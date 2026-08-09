@@ -35,6 +35,6 @@ body:
     attributes:
       label: Environment
       description: OS, Nim version, and package version.
-      placeholder: macOS 15 / Nim 2.2.10 / UniMath 0.1.0
+      placeholder: macOS 15 / Nim 2.2.10 / UniMath 1.0.0
     validations:
       required: true
