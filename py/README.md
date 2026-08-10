@@ -17,7 +17,7 @@ pip install UniMath-lituus
 ```
 
 Prebuilt wheels include the native UniMath library for Linux, macOS, and
-Windows on CPython 3.9–3.14. Installing a wheel needs neither Nim nor a C
+Windows on CPython 3.10–3.14. Installing a wheel needs neither Nim nor a C
 compiler.
 
 The distribution is named `UniMath-lituus`; the Python package is imported as
