@@ -16,7 +16,9 @@ jobs:
     name: Tag matches .nimble version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # A tag disagreeing with the package version ships artifacts whose
       # embedded version lies. Refuse before anything is built.
       - run: |
@@ -35,7 +37,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -52,7 +56,7 @@ jobs:
           cp libUniMath.* "$dir/"
           cp LICENSE NOTICE "$dir/"
           tar czf "$dir.tar.gz" "$dir"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cabi-${{ matrix.os }}
           path: '*.tar.gz'
@@ -67,14 +71,16 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         # No Py_LIMITED_API/abi3 in setup.py: the extension is tied to each
         # CPython minor version's C ABI, so every one needs its own wheel.
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
       - run: nimble install -y
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -U setuptools wheel Cython
@@ -91,7 +97,7 @@ jobs:
             macOS)   pip install delocate   && delocate-wheel py/dist/*.whl -w dist/ ;;
             Windows) pip install delvewheel && delvewheel repair py/dist/*.whl -w dist/ ;;
           esac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ matrix.os }}-py${{ matrix.python-version }}
           path: dist/*.whl
@@ -101,8 +107,10 @@ jobs:
     needs: guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: pip install -U setuptools wheel Cython
@@ -110,7 +118,7 @@ jobs:
       # so `pip install --no-binary` can build it on a platform/Python version
       # with no prebuilt wheel -- nimble/nim must be on the installer's PATH.
       - run: cd py && python3 setup.py sdist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: py/dist/*.tar.gz
@@ -123,7 +131,7 @@ jobs:
       # softprops/action-gh-release creates the release and uploads the assets.
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
       - run: ls -R artifacts
@@ -146,12 +154,12 @@ jobs:
       # UniMath-lituus project.
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: wheel-*
           path: dist
           merge-multiple: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: sdist
           path: dist
