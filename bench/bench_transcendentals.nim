@@ -90,6 +90,55 @@ proc runPerf() =
     var z = rational_math.sqrt(rTwo)
     keepVal(z)
 
+  # Complex over three backends. `Complex[float64]` is the cheap reference;
+  # `Complex[BigFloat]` shows what multi precision costs per component; the
+  # Rational rows are the exact ring operations, which never leave the field
+  # and so carry no truncation at all.
+  let cf = complex(3.0, 4.0)
+  let cg = complex(1.0, -2.0)
+  bench("Complex[float64] mul", 2000000):
+    var z = cf * cg
+    keepVal(z)
+  bench("Complex[float64] div", 1000000):
+    var z = cf / cg
+    keepVal(z)
+  bench("Complex[float64] abs", 2000000):
+    var z = abs(cf)
+    keepVal(z)
+  bench("Complex[float64] sqrt", 1000000):
+    var z = sqrt(cf)
+    keepVal(z)
+  bench("Complex[float64] exp", 500000):
+    var z = exp(cg)
+    keepVal(z)
+  bench("Complex[float64] ln", 500000):
+    var z = ln(cf)
+    keepVal(z)
+
+  let cbf = complex(initBigFloat(3.0), initBigFloat(4.0))
+  let cbg = complex(initBigFloat(1.0), initBigFloat(-2.0))
+  bench("Complex[BigFloat] mul", 20000):
+    var z = cbf * cbg
+    keepVal(z)
+  bench("Complex[BigFloat] abs", 10000):
+    var z = abs(cbf)
+    keepVal(z)
+  bench("Complex[BigFloat] sqrt", 5000):
+    var z = sqrt(cbf)
+    keepVal(z)
+  bench("Complex[BigFloat] exp", 5000):
+    var z = exp(cbg)
+    keepVal(z)
+
+  let crf = complex(initRational(initBigInt(1), initBigInt(2)),
+                    initRational(initBigInt(3), initBigInt(4)))
+  bench("Complex[Rational] mul (exact)", 20000):
+    var z = crf * crf
+    keepVal(z)
+  bench("Complex[Rational] pow 8 (exact)", 5000):
+    var z = pow(crf, 8)
+    keepVal(z)
+
   echo "sink = ", sink # keep every result live across the suite
 
 proc runParity() =
@@ -106,6 +155,19 @@ proc runParity() =
   parity("sqrt(2)", toFloat64(sqrt(two)), math.sqrt(2.0))
   parity("arctan(1)", toFloat64(arctan(one)), math.arctan(1.0))
   parity("arctan(0.5)", toFloat64(arctan(half)), math.arctan(0.5))
+  # Complex, component by component: the multi-precision result against the
+  # float64 one computed by the same closed forms.
+  let cb = complex(initBigFloat(-3.0), initBigFloat(4.0))
+  let cd = complex(-3.0, 4.0)
+  let cbSqrt = sqrt(cb)
+  let cdSqrt = sqrt(cd)
+  parity("complex sqrt(-3+4i) re", toFloat64(cbSqrt.re), cdSqrt.re)
+  parity("complex sqrt(-3+4i) im", toFloat64(cbSqrt.im), cdSqrt.im)
+  let cbLn = ln(cb)
+  let cdLn = ln(cd)
+  parity("complex ln(-3+4i) re", toFloat64(cbLn.re), cdLn.re)
+  parity("complex ln(-3+4i) im", toFloat64(cbLn.im), cdLn.im)
+  parity("complex abs(-3+4i)", toFloat64(abs(cb)), abs(cd))
 
 proc writeMd() =
   var fp = open("bench/.md_transcendentals.md", fmWrite)
