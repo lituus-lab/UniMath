@@ -100,12 +100,15 @@ jobs:
             libUniMath.a
             libUniMath.lib
   python:
-    name: Python (${{ matrix.os }})
+    name: Python (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        # Every version release.yml ships a wheel for: without Py_LIMITED_API
+        # each CPython minor has its own C ABI, so each needs its own run.
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -116,7 +119,7 @@ jobs:
       - run: nimble install -y
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
       - run: pip install -U setuptools wheel Cython pytest
       # CPython is MSVC-built here, so the lib it links must be too: put cl.exe on
       # PATH for `nimble pyLib`, which routes to clibMsvc on Windows.
@@ -144,7 +147,7 @@ jobs:
       - name: Upload Python Wheel
         uses: actions/upload-artifact@v7
         with:
-          name: unimath-wheel-${{ matrix.os }}
+          name: unimath-wheel-${{ matrix.os }}-py${{ matrix.python-version }}
           path: py/dist/repaired/*.whl
 
   consume-cabi:
@@ -183,13 +186,16 @@ jobs:
           "./$BIN"
 
   consume-wheel:
-    name: Consume wheel (${{ matrix.os }})
+    name: Consume wheel (${{ matrix.os }}, py${{ matrix.python-version }})
     needs: python
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        # Mirrors the python job: a wheel only installs on the CPython minor
+        # it was built for, so each one is consumed where it was produced.
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     steps:
       # Neither Nim nor libUniMath exists here: whatever the extension needs
       # at runtime must have travelled inside the wheel.
@@ -198,10 +204,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
       - uses: actions/download-artifact@v8
         with:
-          name: unimath-wheel-${{ matrix.os }}
+          name: unimath-wheel-${{ matrix.os }}-py${{ matrix.python-version }}
           path: dist
       - name: Install the wheel and test the installed package
         shell: bash
