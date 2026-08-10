@@ -21,6 +21,11 @@ special-function algorithms over them. Exposed in Nim, a C ABI, and Python.
   `special/`, `roots/`) — the same algorithms (sin/cos/exp/ln/sqrt/atan/...)
   implemented across three backends: `BigFloat` (`float_math.nim`), `Fixed`
   (`math_router.nim`), and `Rational[BigInt]` (`rational_math.nim`).
+- **Complex numbers** — `Complex[T]` (`complex/`) over any of the backends
+  above, with modulus, argument, roots and transcendentals in
+  `complex_math.nim`. `csqrt(-1.0)` is `0+1i` where the real `sqrt` refuses;
+  from Python, where the return type can follow the value, `unimath.sqrt(-1)`
+  returns `1j` and `unimath.sqrt(4)` returns `2.0`.
 - **Error-free transforms** (`eft.nim`) — a re-export of UniAccurate's EFT
   primitives (`twoSum`, `twoProduct`, Shewchuk expansions); UniMath adds no
   EFT code of its own (ADR-0006).
@@ -63,7 +68,7 @@ tests/ tests/c/             Nim + C ABI tests
 examples/                    Nim + C demos
 py/                          Cython binding + pytest
 ADRs/                        0001 sibling deps, 0002 license, 0003 engine&shell,
-                             0004 conventions (+ domain ADRs 0005-0008)
+                             0004 conventions (+ domain ADRs 0005-0009)
 .github/workflows/ci.yml     3-OS Nim matrix + C ABI + Python
 ```
 

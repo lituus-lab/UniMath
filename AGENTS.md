@@ -39,5 +39,5 @@ CI: 3-OS Nim matrix + C ABI (linux/macOS) + Python.
 ## Scope
 
 A multi-precision numeric library: arbitrary-precision integers, fixed-point,
-big floats, rationals, intervals, and the algorithms over them. Apache-2.0,
-DCO.
+big floats, rationals, intervals, complex numbers over any of those, and the
+algorithms over them. Apache-2.0, DCO.
