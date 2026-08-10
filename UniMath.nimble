@@ -197,17 +197,21 @@ task benchSpeed, "UniMath-vs-GMP/MPFR speed benchmark (needs libmpfr/libgmp; not
   exec "nimble clibStatic"
   exec makeExe & " -C bench"
 
-# Native oracles: independent MPFR/GMP references for the exact-type and
-# transcendental tests. Linux/macOS only (need libmpfr/libgmp via pkg-config);
-# NOT in the default gate — run `nimble testOracle` explicitly. The C binaries
+# Native oracles: independent MPFR/GMP/MPC references for the exact-type,
+# transcendental and complex tests. Linux/macOS only (need libmpc/libmpfr/
+# libgmp via pkg-config); NOT in the default gate — run `nimble testOracle`
+# explicitly. The C binaries
 # are gitignored; lint does not scan oracles/ (only src/tests/examples/book).
-task buildOracles, "Build the MPFR and GMP C oracles (needs libmpfr/libgmp)":
+task buildOracles, "Build the MPFR, GMP and MPC C oracles (needs libmpfr/libgmp/libmpc)":
   exec "cc -O2 -std=c11 -o oracles/mpfr_oracle oracles/mpfr_oracle.c " &
        "$(pkg-config --cflags --libs mpfr gmp)"
   exec "cc -O2 -std=c11 -o oracles/gmp_oracle oracles/gmp_oracle.c " &
        "$(pkg-config --cflags --libs gmp)"
+  # MPC is MPFR's complex counterpart: the independent reference for Complex.
+  exec "cc -O2 -std=c11 -o oracles/mpc_oracle oracles/mpc_oracle.c " &
+       "$(pkg-config --cflags --libs mpc mpfr gmp)"
 
-task testOracle, "Oracle tests — GMP/MPFR/EFT (needs libmpfr/libgmp; not in the default gate)":
+task testOracle, "Oracle tests — GMP/MPFR/MPC/EFT (needs libmpc/libmpfr/libgmp; not in the default gate)":
   exec "nimble buildOracles"
   exec "nim c -r --path:. --hints:off -o:build/test_oracle tests/test_oracle_smoke.nim"
   exec "nim c -r --path:src --path:. --hints:off -o:build/test_gmp_oracle tests/test_gmp_oracle.nim"
@@ -215,6 +219,7 @@ task testOracle, "Oracle tests — GMP/MPFR/EFT (needs libmpfr/libgmp; not in th
   exec "nim c -r --path:src --path:. --hints:off -o:build/test_bigfloat_oracle tests/test_bigfloat_oracle.nim"
   exec "nim c -r --path:src --path:. --hints:off -o:build/test_float_math_oracle tests/test_float_math_oracle.nim"
   exec "nim c -r --path:src --path:. --hints:off -o:build/test_rational_oracle tests/test_rational_oracle.nim"
+  exec "nim c -r --path:src --path:. --hints:off -o:build/test_complex_oracle tests/test_complex_oracle.nim"
 
 # The Windows launcher is `python`; `python3` only exists elsewhere.
 const pyExe = when defined(windows): "python" else: "python3"

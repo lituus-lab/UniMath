@@ -58,6 +58,7 @@ bench/export_readme
 # oracle executables (built by `nimble buildOracles`; sources tracked)
 oracles/mpfr_oracle
 oracles/gmp_oracle
+oracles/mpc_oracle
 
 # os / editor
 .DS_Store
