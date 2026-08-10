@@ -438,6 +438,207 @@ unimath_interval unimath_interval_from_bigfloat(unimath_bigfloat h);
 unimath_interval unimath_interval_from_rational(unimath_rational h);
 unimath_interval unimath_interval_from_bigint(unimath_bigint h);
 
+/* ---------------------------------------------------------------------------
+ * Complex - value type (re, im doubles), passed and returned by value. No
+ * handle, so nothing to destroy.
+ *
+ * Never raises: a domain error (division by zero, log of zero, a pole of
+ * tan/tanh) returns the NaN complex. Test it with unimath_complex_is_nan, not
+ * ==: NaN compares unequal to itself.
+ *
+ * Branch cuts: principal values, unimath_complex_arg in (-pi, pi], the cut
+ * along the negative real axis. A negative real yields the +i root, so
+ * unimath_csqrt(-1.0) is 0+1i. Signed zero is not honoured.
+ * ------------------------------------------------------------------------- */
+typedef struct unimath_complex {
+  double re;
+  double im;
+} unimath_complex;
+
+unimath_complex unimath_complex_from_f64(double re, double im);
+double unimath_complex_re(unimath_complex z);
+double unimath_complex_im(unimath_complex z);
+int unimath_complex_is_nan(unimath_complex z);
+
+unimath_complex unimath_complex_add(unimath_complex a, unimath_complex b);
+unimath_complex unimath_complex_sub(unimath_complex a, unimath_complex b);
+unimath_complex unimath_complex_mul(unimath_complex a, unimath_complex b);
+unimath_complex unimath_complex_div(unimath_complex a, unimath_complex b);
+unimath_complex unimath_complex_neg(unimath_complex a);
+unimath_complex unimath_complex_conj(unimath_complex a);
+unimath_complex unimath_complex_inv(unimath_complex a);
+
+/* Modulus, scaled by the larger component: finite where norm2 overflows. */
+double unimath_complex_abs(unimath_complex a);
+double unimath_complex_norm2(unimath_complex a);
+double unimath_complex_arg(unimath_complex a);
+unimath_complex unimath_complex_rect(double r, double theta);
+
+unimath_complex unimath_complex_sqrt(unimath_complex a);
+unimath_complex unimath_complex_exp(unimath_complex a);
+unimath_complex unimath_complex_ln(unimath_complex a);
+unimath_complex unimath_complex_sin(unimath_complex a);
+unimath_complex unimath_complex_cos(unimath_complex a);
+unimath_complex unimath_complex_tan(unimath_complex a);
+unimath_complex unimath_complex_sinh(unimath_complex a);
+unimath_complex unimath_complex_cosh(unimath_complex a);
+unimath_complex unimath_complex_tanh(unimath_complex a);
+
+/* n == 0 is 1 for every base, zero included; a negative n on a zero base is
+ * the NaN complex. */
+unimath_complex unimath_complex_pow_int(unimath_complex a, int n);
+/* Principal a^b = exp(b * ln a). A zero base is the NaN complex. */
+unimath_complex unimath_complex_pow(unimath_complex a, unimath_complex b);
+
+/* Square root and logarithm of a REAL, returned as a complex where the real
+ * answer does not exist: unimath_csqrt(-1.0) is 0+1i, unimath_cln(-1.0) is
+ * 0 + pi*i. The real entry points (unimath_sqrt_newton_f64, ...) keep their
+ * NaN-on-domain-error contract. */
+unimath_complex unimath_csqrt(double x);
+unimath_complex unimath_cln(double x);
+
+/* ---------------------------------------------------------------------------
+ * Complex over BigFloat - handle-based, like the BigFloat scalars: destroy
+ * every returned handle with unimath_complex_bigfloat_destroy (or
+ * unimath_bigfloat_destroy for the ones typed unimath_bigfloat). This is the
+ * multi-precision complex path.
+ *
+ * Never raises: NULL in -> NULL out; a domain error (zero divisor, log of
+ * zero) returns NULL.
+ * ------------------------------------------------------------------------- */
+typedef void *unimath_complex_bigfloat;
+
+/* The two component handles are copied in; the caller still owns them. */
+unimath_complex_bigfloat unimath_complex_bigfloat_from_bigfloat(
+    unimath_bigfloat re, unimath_bigfloat im);
+/* NULL if either component is Inf or NaN. */
+unimath_complex_bigfloat unimath_complex_bigfloat_from_f64(double re, double im);
+/* NEW component handles; destroy them separately. */
+unimath_bigfloat unimath_complex_bigfloat_re(unimath_complex_bigfloat h);
+unimath_bigfloat unimath_complex_bigfloat_im(unimath_complex_bigfloat h);
+int unimath_complex_bigfloat_is_zero(unimath_complex_bigfloat h);
+
+unimath_complex_bigfloat unimath_complex_bigfloat_add(
+    unimath_complex_bigfloat a, unimath_complex_bigfloat b);
+unimath_complex_bigfloat unimath_complex_bigfloat_sub(
+    unimath_complex_bigfloat a, unimath_complex_bigfloat b);
+unimath_complex_bigfloat unimath_complex_bigfloat_mul(
+    unimath_complex_bigfloat a, unimath_complex_bigfloat b);
+unimath_complex_bigfloat unimath_complex_bigfloat_div(
+    unimath_complex_bigfloat a, unimath_complex_bigfloat b);
+unimath_complex_bigfloat unimath_complex_bigfloat_neg(unimath_complex_bigfloat a);
+unimath_complex_bigfloat unimath_complex_bigfloat_conj(unimath_complex_bigfloat a);
+unimath_complex_bigfloat unimath_complex_bigfloat_inv(unimath_complex_bigfloat a);
+
+unimath_bigfloat unimath_complex_bigfloat_abs(unimath_complex_bigfloat a);
+unimath_bigfloat unimath_complex_bigfloat_norm2(unimath_complex_bigfloat a);
+unimath_bigfloat unimath_complex_bigfloat_arg(unimath_complex_bigfloat a);
+
+unimath_complex_bigfloat unimath_complex_bigfloat_sqrt(unimath_complex_bigfloat a);
+unimath_complex_bigfloat unimath_complex_bigfloat_exp(unimath_complex_bigfloat a);
+unimath_complex_bigfloat unimath_complex_bigfloat_ln(unimath_complex_bigfloat a);
+unimath_complex_bigfloat unimath_complex_bigfloat_sin(unimath_complex_bigfloat a);
+unimath_complex_bigfloat unimath_complex_bigfloat_cos(unimath_complex_bigfloat a);
+unimath_complex_bigfloat unimath_complex_bigfloat_pow_int(
+    unimath_complex_bigfloat a, int n);
+unimath_complex_bigfloat unimath_complex_bigfloat_pow(
+    unimath_complex_bigfloat a, unimath_complex_bigfloat b);
+
+/* Square root and logarithm of a REAL BigFloat handle, as a complex. */
+unimath_complex_bigfloat unimath_csqrt_bigfloat(unimath_bigfloat h);
+unimath_complex_bigfloat unimath_cln_bigfloat(unimath_bigfloat h);
+
+void unimath_complex_bigfloat_destroy(unimath_complex_bigfloat h);
+
+/* ---------------------------------------------------------------------------
+ * Complex over Rational[BigInt] - handle-based, the EXACT complex path.
+ * add/sub/mul/div, conj, norm2 and integer powers are exact Gaussian-rational
+ * arithmetic, unbounded. abs and sqrt are the only approximate entries (a root
+ * generally leaves the field). No exp/ln/sin/cos: each would compound two
+ * truncated rational series per component - use the BigFloat complex above.
+ *
+ * Never raises: NULL in -> NULL out.
+ * ------------------------------------------------------------------------- */
+typedef void *unimath_complex_rational;
+
+unimath_complex_rational unimath_complex_rational_from_rational(
+    unimath_rational re, unimath_rational im);
+/* NULL if either denominator is zero. */
+unimath_complex_rational unimath_complex_rational_from_i64(
+    long long re_num, long long re_den, long long im_num, long long im_den);
+/* NEW component handles; destroy them separately. */
+unimath_rational unimath_complex_rational_re(unimath_complex_rational h);
+unimath_rational unimath_complex_rational_im(unimath_complex_rational h);
+int unimath_complex_rational_is_zero(unimath_complex_rational h);
+
+unimath_complex_rational unimath_complex_rational_add(
+    unimath_complex_rational a, unimath_complex_rational b);
+unimath_complex_rational unimath_complex_rational_sub(
+    unimath_complex_rational a, unimath_complex_rational b);
+unimath_complex_rational unimath_complex_rational_mul(
+    unimath_complex_rational a, unimath_complex_rational b);
+unimath_complex_rational unimath_complex_rational_div(
+    unimath_complex_rational a, unimath_complex_rational b);
+unimath_complex_rational unimath_complex_rational_neg(unimath_complex_rational a);
+unimath_complex_rational unimath_complex_rational_conj(unimath_complex_rational a);
+unimath_complex_rational unimath_complex_rational_inv(unimath_complex_rational a);
+
+/* EXACT. */
+unimath_rational unimath_complex_rational_norm2(unimath_complex_rational a);
+unimath_complex_rational unimath_complex_rational_pow_int(
+    unimath_complex_rational a, int n);
+/* APPROXIMATE (Newton iterate: a root leaves the rationals). */
+unimath_rational unimath_complex_rational_abs(unimath_complex_rational a);
+unimath_complex_rational unimath_complex_rational_sqrt(unimath_complex_rational a);
+
+/* Square root of a REAL Rational handle, as a complex: approximate in
+ * magnitude, exact in which axis the result lands on. */
+unimath_complex_rational unimath_csqrt_rational(unimath_rational h);
+
+void unimath_complex_rational_destroy(unimath_complex_rational h);
+
+/* ---------------------------------------------------------------------------
+ * Complex over Fixed - two raw Q-format words, by value like the Fixed
+ * scalars, so nothing to destroy. `frac_bits` is the shared fractional width
+ * of both components: add/sub/neg/conj are scale-invariant, mul/div/norm2/
+ * pow_int take it. abs/arg/sqrt are Q32.32 only, matching unimath_fixed_sqrt.
+ *
+ * Never raises: results clamp to the long long range through an exact BigInt
+ * intermediate; division by zero returns the zero complex.
+ * ------------------------------------------------------------------------- */
+typedef struct unimath_complex_fixed {
+  long long re;
+  long long im;
+} unimath_complex_fixed;
+
+unimath_complex_fixed unimath_complex_fixed_from_int(long long re, long long im,
+                                                     int frac_bits);
+long long unimath_complex_fixed_re(unimath_complex_fixed z);
+long long unimath_complex_fixed_im(unimath_complex_fixed z);
+
+unimath_complex_fixed unimath_complex_fixed_add(unimath_complex_fixed a,
+                                                unimath_complex_fixed b);
+unimath_complex_fixed unimath_complex_fixed_sub(unimath_complex_fixed a,
+                                                unimath_complex_fixed b);
+unimath_complex_fixed unimath_complex_fixed_neg(unimath_complex_fixed a);
+unimath_complex_fixed unimath_complex_fixed_conj(unimath_complex_fixed a);
+unimath_complex_fixed unimath_complex_fixed_mul(unimath_complex_fixed a,
+                                                unimath_complex_fixed b,
+                                                int frac_bits);
+unimath_complex_fixed unimath_complex_fixed_div(unimath_complex_fixed a,
+                                                unimath_complex_fixed b,
+                                                int frac_bits);
+long long unimath_complex_fixed_norm2(unimath_complex_fixed a, int frac_bits);
+unimath_complex_fixed unimath_complex_fixed_pow_int(unimath_complex_fixed a,
+                                                    int n, int frac_bits);
+
+/* Q32.32 only. */
+long long unimath_complex_fixed_abs(unimath_complex_fixed a);
+long long unimath_complex_fixed_arg(unimath_complex_fixed a);
+unimath_complex_fixed unimath_complex_fixed_sqrt(unimath_complex_fixed a);
+/* Square root of a REAL raw Q32.32 word, as a complex. */
+unimath_complex_fixed unimath_csqrt_fixed(long long q);
+
 #ifdef __cplusplus
 }
 #endif

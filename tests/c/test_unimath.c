@@ -117,6 +117,17 @@ static void check_rat_unary(const char *name, unimath_rational (*fn)(unimath_rat
   unimath_rational_destroy(r);
 }
 
+/* Exact numerator or denominator of a Rational as a long long, for the
+ * Gaussian-rational exactness assertions. Both accessors hand back a bigint
+ * handle this consumes; a value too large for int64 reports as a sentinel that
+ * no expected value can match. */
+static long long rat_part(unimath_bigint h) {
+  int ok = 0;
+  long long v = unimath_bigint_to_i64(h, &ok);
+  unimath_bigint_destroy(h);
+  return ok ? v : -999999999LL;
+}
+
 /* Apply a unary Q32.32 fixed transcendental to x, check the float64 result.
  * The raw Q32.32 word is `x * 2^32`; the result word is divided back. */
 static void check_fix_unary(const char *name, long long (*fn)(long long),
@@ -951,6 +962,327 @@ int main(void) {
     if (!isnan(i.lo) || !isnan(i.hi)) {
       printf("FAIL interval_from_bigfloat(NULL) should be NaN interval\n"); failures++;
     }
+  }
+
+  /* --- Complex: value type, never raises --------------------------------- */
+  printf("\n-- complex --\n");
+  {
+    /* The promotion the real entry points refuse: sqrt(-1) is 0+1i. */
+    unimath_complex r = unimath_csqrt(-1.0);
+    check_dbl("csqrt(-1).re", r.re, 0.0);
+    check_dbl("csqrt(-1).im", r.im, 1.0);
+    check_dbl("csqrt(4).re", unimath_csqrt(4.0).re, 2.0);
+    check_dbl("csqrt(4).im", unimath_csqrt(4.0).im, 0.0);
+    /* while the real sqrt keeps its NaN contract */
+    if (!isnan(unimath_sqrt_newton_f64(-1.0))) {
+      printf("FAIL sqrt_newton_f64(-1) should stay NaN\n"); failures++;
+    }
+    check_dbl("cln(-1).im", unimath_cln(-1.0).im, C_PI);
+  }
+  {
+    unimath_complex a = unimath_complex_from_f64(1.0, 2.0);
+    unimath_complex b = unimath_complex_from_f64(3.0, -1.0);
+    unimath_complex m = unimath_complex_mul(a, b);
+    check_dbl("complex_mul.re", m.re, 5.0);
+    check_dbl("complex_mul.im", m.im, 5.0);
+    unimath_complex d = unimath_complex_div(m, b);
+    check_dbl("complex_div round-trip .re", d.re, 1.0);
+    check_dbl("complex_div round-trip .im", d.im, 2.0);
+    check_dbl("complex_re", unimath_complex_re(a), 1.0);
+    check_dbl("complex_im", unimath_complex_im(a), 2.0);
+    check_dbl("complex_conj.im", unimath_complex_conj(a).im, -2.0);
+    check_dbl("complex_neg.re", unimath_complex_neg(a).re, -1.0);
+    unimath_complex s = unimath_complex_add(a, b);
+    check_dbl("complex_add.re", s.re, 4.0);
+    check_dbl("complex_sub.im", unimath_complex_sub(a, b).im, 3.0);
+  }
+  {
+    unimath_complex z = unimath_complex_from_f64(3.0, 4.0);
+    check_dbl("complex_abs", unimath_complex_abs(z), 5.0);
+    check_dbl("complex_norm2", unimath_complex_norm2(z), 25.0);
+    check_dbl("complex_arg(-1+0i)",
+              unimath_complex_arg(unimath_complex_from_f64(-1.0, 0.0)), C_PI);
+    /* The scaled modulus stays finite where re*re + im*im is +Inf. */
+    unimath_complex big = unimath_complex_from_f64(1e300, 1e300);
+    if (!isfinite(unimath_complex_abs(big))) {
+      printf("FAIL complex_abs(1e300+1e300i) should be finite\n"); failures++;
+    }
+    unimath_complex q = unimath_complex_div(big, big);
+    check_dbl("complex_div avoids the squared-magnitude overflow", q.re, 1.0);
+  }
+  {
+    /* Euler, and the principal branch on both sides of the cut. */
+    unimath_complex e = unimath_complex_exp(unimath_complex_from_f64(0.0, C_PI));
+    check_dbl_tol("complex_exp(i*pi).re", e.re, -1.0, 1e-15);
+    check_dbl_tol("complex_exp(i*pi).im", e.im, 0.0, 1e-15);
+    unimath_complex l = unimath_complex_ln(unimath_complex_from_f64(-1.0, 0.0));
+    check_dbl("complex_ln(-1).im", l.im, C_PI);
+    unimath_complex rt = unimath_complex_sqrt(unimath_complex_from_f64(-3.0, -4.0));
+    check_dbl("complex_sqrt(-3-4i).re", rt.re, 1.0);
+    check_dbl("complex_sqrt(-3-4i).im", rt.im, -2.0);
+    unimath_complex i2 = unimath_complex_pow_int(unimath_complex_from_f64(0.0, 1.0), 2);
+    check_dbl("complex_pow_int(i, 2).re", i2.re, -1.0);
+    unimath_complex rec = unimath_complex_rect(2.0, 0.0);
+    check_dbl("complex_rect(2, 0).re", rec.re, 2.0);
+  }
+  {
+    /* sin^2 + cos^2 == 1 exercises sin, cos, mul and add together. */
+    unimath_complex z = unimath_complex_from_f64(1.0, 1.0);
+    unimath_complex s = unimath_complex_sin(z);
+    unimath_complex c = unimath_complex_cos(z);
+    unimath_complex one = unimath_complex_add(unimath_complex_mul(s, s),
+                                              unimath_complex_mul(c, c));
+    check_dbl_tol("complex sin^2+cos^2 .re", one.re, 1.0, 1e-12);
+    check_dbl_tol("complex sin^2+cos^2 .im", one.im, 0.0, 1e-12);
+    unimath_complex sh = unimath_complex_sinh(z);
+    unimath_complex ch = unimath_complex_cosh(z);
+    unimath_complex u = unimath_complex_sub(unimath_complex_mul(ch, ch),
+                                            unimath_complex_mul(sh, sh));
+    check_dbl_tol("complex cosh^2-sinh^2 .re", u.re, 1.0, 1e-12);
+    check_dbl_tol("complex_tan agrees with sin/cos",
+                  unimath_complex_tan(z).re,
+                  unimath_complex_div(s, c).re, 1e-12);
+    check_dbl_tol("complex_tanh agrees with sinh/cosh",
+                  unimath_complex_tanh(z).re,
+                  unimath_complex_div(sh, ch).re, 1e-12);
+  }
+  {
+    /* Every domain error is the NaN complex, never a raise. */
+    unimath_complex zero = unimath_complex_from_f64(0.0, 0.0);
+    unimath_complex one = unimath_complex_from_f64(1.0, 0.0);
+    check_int("complex_div by zero is NaN",
+              unimath_complex_is_nan(unimath_complex_div(one, zero)), 1);
+    check_int("complex_inv(0) is NaN",
+              unimath_complex_is_nan(unimath_complex_inv(zero)), 1);
+    check_int("complex_ln(0) is NaN",
+              unimath_complex_is_nan(unimath_complex_ln(zero)), 1);
+    check_int("complex_pow(0, w) is NaN",
+              unimath_complex_is_nan(unimath_complex_pow(zero, one)), 1);
+    check_int("complex_pow_int(0, -1) is NaN",
+              unimath_complex_is_nan(unimath_complex_pow_int(zero, -1)), 1);
+    check_int("cln(0) is NaN", unimath_complex_is_nan(unimath_cln(0.0)), 1);
+    /* pow_int(z, 0) is 1 for every base, zero included. */
+    check_dbl("complex_pow_int(0, 0).re",
+              unimath_complex_pow_int(zero, 0).re, 1.0);
+    check_int("a finite result is not flagged NaN",
+              unimath_complex_is_nan(one), 0);
+  }
+
+  /* --- Complex over BigFloat: handle-based, multi-precision -------------- */
+  printf("\n-- complex over BigFloat --\n");
+  {
+    unimath_complex_bigfloat z = unimath_complex_bigfloat_from_f64(3.0, 4.0);
+    unimath_bigfloat m = unimath_complex_bigfloat_abs(z);
+    check_dbl_tol("cx_bigfloat_abs(3+4i)", unimath_bigfloat_to_f64(m), 5.0, 1e-12);
+    unimath_bigfloat n2 = unimath_complex_bigfloat_norm2(z);
+    check_dbl_tol("cx_bigfloat_norm2(3+4i)", unimath_bigfloat_to_f64(n2), 25.0, 1e-12);
+    unimath_bigfloat re = unimath_complex_bigfloat_re(z);
+    check_dbl_tol("cx_bigfloat_re", unimath_bigfloat_to_f64(re), 3.0, 1e-12);
+    unimath_bigfloat_destroy(m);
+    unimath_bigfloat_destroy(n2);
+    unimath_bigfloat_destroy(re);
+    unimath_complex_bigfloat_destroy(z);
+  }
+  {
+    /* The branch cut carries to the multi-precision path. */
+    unimath_bigfloat mone = unimath_bigfloat_from_f64(-1.0);
+    unimath_complex_bigfloat r = unimath_csqrt_bigfloat(mone);
+    unimath_bigfloat ri = unimath_complex_bigfloat_im(r);
+    check_dbl_tol("csqrt_bigfloat(-1).im", unimath_bigfloat_to_f64(ri), 1.0, 1e-12);
+    unimath_complex_bigfloat l = unimath_cln_bigfloat(mone);
+    unimath_bigfloat li = unimath_complex_bigfloat_im(l);
+    check_dbl_tol("cln_bigfloat(-1).im", unimath_bigfloat_to_f64(li), C_PI, 1e-12);
+    unimath_bigfloat_destroy(ri);
+    unimath_bigfloat_destroy(li);
+    unimath_complex_bigfloat_destroy(r);
+    unimath_complex_bigfloat_destroy(l);
+    unimath_bigfloat_destroy(mone);
+  }
+  {
+    /* (1+2i)(3-1i) == 5+5i, then divide back. */
+    unimath_complex_bigfloat a = unimath_complex_bigfloat_from_f64(1.0, 2.0);
+    unimath_complex_bigfloat b = unimath_complex_bigfloat_from_f64(3.0, -1.0);
+    unimath_complex_bigfloat m = unimath_complex_bigfloat_mul(a, b);
+    unimath_bigfloat mr = unimath_complex_bigfloat_re(m);
+    check_dbl_tol("cx_bigfloat_mul.re", unimath_bigfloat_to_f64(mr), 5.0, 1e-12);
+    unimath_complex_bigfloat d = unimath_complex_bigfloat_div(m, b);
+    unimath_bigfloat dr = unimath_complex_bigfloat_im(d);
+    check_dbl_tol("cx_bigfloat_div round-trip .im", unimath_bigfloat_to_f64(dr), 2.0, 1e-12);
+    /* exp(i*pi) == -1 at multi precision */
+    unimath_bigfloat pi_bf = unimath_bigfloat_from_f64(C_PI);
+    unimath_bigfloat zero_bf = unimath_bigfloat_from_f64(0.0);
+    unimath_complex_bigfloat ipi =
+        unimath_complex_bigfloat_from_bigfloat(zero_bf, pi_bf);
+    unimath_complex_bigfloat e = unimath_complex_bigfloat_exp(ipi);
+    unimath_bigfloat er = unimath_complex_bigfloat_re(e);
+    check_dbl_tol("cx_bigfloat_exp(i*pi).re", unimath_bigfloat_to_f64(er), -1.0, 1e-12);
+    unimath_bigfloat_destroy(mr);
+    unimath_bigfloat_destroy(dr);
+    unimath_bigfloat_destroy(er);
+    unimath_bigfloat_destroy(pi_bf);
+    unimath_bigfloat_destroy(zero_bf);
+    unimath_complex_bigfloat_destroy(a);
+    unimath_complex_bigfloat_destroy(b);
+    unimath_complex_bigfloat_destroy(m);
+    unimath_complex_bigfloat_destroy(d);
+    unimath_complex_bigfloat_destroy(ipi);
+    unimath_complex_bigfloat_destroy(e);
+  }
+  {
+    /* NULL in -> NULL out, and a domain error is NULL, never a raise. */
+    unimath_complex_bigfloat zero = unimath_complex_bigfloat_from_f64(0.0, 0.0);
+    unimath_complex_bigfloat one = unimath_complex_bigfloat_from_f64(1.0, 0.0);
+    check_int("cx_bigfloat_is_zero", unimath_complex_bigfloat_is_zero(zero), 1);
+    if (unimath_complex_bigfloat_div(one, zero) != NULL) {
+      printf("FAIL cx_bigfloat_div by zero should be NULL\n"); failures++;
+    }
+    if (unimath_complex_bigfloat_ln(zero) != NULL) {
+      printf("FAIL cx_bigfloat_ln(0) should be NULL\n"); failures++;
+    }
+    if (unimath_complex_bigfloat_add(NULL, one) != NULL) {
+      printf("FAIL cx_bigfloat_add(NULL, .) should be NULL\n"); failures++;
+    }
+    if (unimath_complex_bigfloat_abs(NULL) != NULL) {
+      printf("FAIL cx_bigfloat_abs(NULL) should be NULL\n"); failures++;
+    }
+    unimath_complex_bigfloat_destroy(zero);
+    unimath_complex_bigfloat_destroy(one);
+  }
+
+  /* --- Complex over Rational: handle-based, exact ------------------------ */
+  printf("\n-- complex over Rational --\n");
+  {
+    /* z = 1/2 + 3/4 i: norm2 = 1/4 + 9/16 = 13/16 and z^2 = 1/4 - 9/16 +
+     * 2*(3/8) i = -5/16 + 3/4 i, both representable exactly as fractions. */
+    unimath_complex_rational z = unimath_complex_rational_from_i64(1, 2, 3, 4);
+    unimath_rational n2 = unimath_complex_rational_norm2(z);
+    check_int("cx_rational_norm2 num", rat_part(unimath_rational_num(n2)), 13);
+    check_int("cx_rational_norm2 den", rat_part(unimath_rational_den(n2)), 16);
+    unimath_complex_rational sq = unimath_complex_rational_pow_int(z, 2);
+    unimath_rational sr = unimath_complex_rational_re(sq);
+    unimath_rational si = unimath_complex_rational_im(sq);
+    check_int("cx_rational_pow_int(z,2).re num", rat_part(unimath_rational_num(sr)), -5);
+    check_int("cx_rational_pow_int(z,2).re den", rat_part(unimath_rational_den(sr)), 16);
+    check_int("cx_rational_pow_int(z,2).im num", rat_part(unimath_rational_num(si)), 3);
+    check_int("cx_rational_pow_int(z,2).im den", rat_part(unimath_rational_den(si)), 4);
+    /* z * conj(z) == norm2, exactly */
+    unimath_complex_rational cj = unimath_complex_rational_conj(z);
+    unimath_complex_rational p = unimath_complex_rational_mul(z, cj);
+    unimath_rational pr = unimath_complex_rational_re(p);
+    unimath_rational pi_ = unimath_complex_rational_im(p);
+    check_int("cx_rational z*conj(z) re num", rat_part(unimath_rational_num(pr)), 13);
+    check_int("cx_rational z*conj(z) re den", rat_part(unimath_rational_den(pr)), 16);
+    check_int("cx_rational z*conj(z) im is zero", unimath_rational_is_zero(pi_), 1);
+    /* z / z == 1, exactly */
+    unimath_complex_rational q = unimath_complex_rational_div(z, z);
+    unimath_rational qr = unimath_complex_rational_re(q);
+    check_int("cx_rational z/z re is one", unimath_rational_is_one(qr), 1);
+    unimath_rational_destroy(n2);
+    unimath_rational_destroy(sr);
+    unimath_rational_destroy(si);
+    unimath_rational_destroy(pr);
+    unimath_rational_destroy(pi_);
+    unimath_rational_destroy(qr);
+    unimath_complex_rational_destroy(z);
+    unimath_complex_rational_destroy(sq);
+    unimath_complex_rational_destroy(cj);
+    unimath_complex_rational_destroy(p);
+    unimath_complex_rational_destroy(q);
+  }
+  {
+    /* The promotion over the exact field: sqrt(-1) lands on the imaginary
+     * axis exactly, whatever the Newton iterate rounds the magnitude to. */
+    unimath_rational mone = unimath_rational_from_i64(-1, 1);
+    unimath_complex_rational r = unimath_csqrt_rational(mone);
+    unimath_rational rr = unimath_complex_rational_re(r);
+    unimath_rational ri = unimath_complex_rational_im(r);
+    check_int("csqrt_rational(-1).re is zero", unimath_rational_is_zero(rr), 1);
+    check_dbl_tol("csqrt_rational(-1).im", unimath_rational_to_f64(ri), 1.0, 1e-6);
+    unimath_rational_destroy(mone);
+    unimath_rational_destroy(rr);
+    unimath_rational_destroy(ri);
+    unimath_complex_rational_destroy(r);
+  }
+  {
+    unimath_complex_rational zero = unimath_complex_rational_from_i64(0, 1, 0, 1);
+    unimath_complex_rational one = unimath_complex_rational_from_i64(1, 1, 0, 1);
+    check_int("cx_rational_is_zero", unimath_complex_rational_is_zero(zero), 1);
+    if (unimath_complex_rational_div(one, zero) != NULL) {
+      printf("FAIL cx_rational_div by zero should be NULL\n"); failures++;
+    }
+    if (unimath_complex_rational_from_i64(1, 0, 0, 1) != NULL) {
+      printf("FAIL cx_rational_from_i64 with a zero denominator should be NULL\n");
+      failures++;
+    }
+    if (unimath_complex_rational_mul(NULL, one) != NULL) {
+      printf("FAIL cx_rational_mul(NULL, .) should be NULL\n"); failures++;
+    }
+    unimath_complex_rational_destroy(zero);
+    unimath_complex_rational_destroy(one);
+  }
+
+  /* --- Complex over Fixed: raw Q-format words, by value ------------------ */
+  printf("\n-- complex over Fixed --\n");
+  {
+    const int FB32 = 32;
+    unimath_complex_fixed a = unimath_complex_fixed_from_int(1, 2, FB32);
+    unimath_complex_fixed b = unimath_complex_fixed_from_int(3, -1, FB32);
+    check_int("cx_fixed_from_int.re", unimath_complex_fixed_re(a), 1LL << 32);
+    check_int("cx_fixed_from_int.im", unimath_complex_fixed_im(a), 2LL << 32);
+    unimath_complex_fixed s = unimath_complex_fixed_add(a, b);
+    check_int("cx_fixed_add.re", s.re, 4LL << 32);
+    check_int("cx_fixed_sub.im", unimath_complex_fixed_sub(a, b).im, 3LL << 32);
+    check_int("cx_fixed_neg.re", unimath_complex_fixed_neg(a).re, -(1LL << 32));
+    check_int("cx_fixed_conj.im", unimath_complex_fixed_conj(a).im, -(2LL << 32));
+    unimath_complex_fixed m = unimath_complex_fixed_mul(a, b, FB32);
+    check_int("cx_fixed_mul.re", m.re, 5LL << 32);
+    check_int("cx_fixed_mul.im", m.im, 5LL << 32);
+    unimath_complex_fixed d = unimath_complex_fixed_div(m, b, FB32);
+    check_int("cx_fixed_div round-trip .re", d.re, 1LL << 32);
+    check_int("cx_fixed_div round-trip .im", d.im, 2LL << 32);
+  }
+  {
+    const int FB32 = 32;
+    unimath_complex_fixed z = unimath_complex_fixed_from_int(3, 4, FB32);
+    check_dbl_tol("cx_fixed_abs(3+4i)", FROM_Q32(unimath_complex_fixed_abs(z)),
+                  5.0, 1e-6);
+    check_int("cx_fixed_norm2(3+4i)", unimath_complex_fixed_norm2(z, FB32),
+              25LL << 32);
+    check_dbl_tol("cx_fixed_arg(-1+0i)",
+                  FROM_Q32(unimath_complex_fixed_arg(
+                      unimath_complex_fixed_from_int(-1, 0, FB32))),
+                  C_PI, 1e-6);
+    unimath_complex_fixed i = unimath_complex_fixed_from_int(0, 1, FB32);
+    check_int("cx_fixed_pow_int(i, 2).re",
+              unimath_complex_fixed_pow_int(i, 2, FB32).re, -(1LL << 32));
+    check_int("cx_fixed_pow_int(z, 0) is one",
+              unimath_complex_fixed_pow_int(z, 0, FB32).re, 1LL << 32);
+    check_int("cx_fixed_pow_int(i, -1).im",
+              unimath_complex_fixed_pow_int(i, -1, FB32).im, -(1LL << 32));
+    /* The promotion in Q32.32. */
+    unimath_complex_fixed r = unimath_csqrt_fixed(TO_Q32(-1.0));
+    check_dbl_tol("csqrt_fixed(-1).im", FROM_Q32(r.im), 1.0, 1e-6);
+    check_int("csqrt_fixed(-1).re is zero", r.re, 0);
+    unimath_complex_fixed rt = unimath_complex_fixed_sqrt(
+        unimath_complex_fixed_from_int(-3, -4, FB32));
+    check_dbl_tol("cx_fixed_sqrt(-3-4i).re", FROM_Q32(rt.re), 1.0, 1e-6);
+    check_dbl_tol("cx_fixed_sqrt(-3-4i).im", FROM_Q32(rt.im), -2.0, 1e-6);
+  }
+  {
+    const int FB32 = 32;
+    /* Never raises: a zero divisor and a malformed frac_bits both return the
+     * zero complex rather than trapping. */
+    unimath_complex_fixed one = unimath_complex_fixed_from_int(1, 0, FB32);
+    unimath_complex_fixed zero = unimath_complex_fixed_from_int(0, 0, FB32);
+    unimath_complex_fixed q = unimath_complex_fixed_div(one, zero, FB32);
+    check_int("cx_fixed_div by zero .re", q.re, 0);
+    check_int("cx_fixed_div by zero .im", q.im, 0);
+    check_int("cx_fixed_mul rejects frac_bits > 63",
+              unimath_complex_fixed_mul(one, one, 64).re, 0);
+    check_int("cx_fixed_mul rejects a negative frac_bits",
+              unimath_complex_fixed_mul(one, one, -1).re, 0);
+    check_int("cx_fixed_norm2 rejects a bad frac_bits",
+              unimath_complex_fixed_norm2(one, -1), 0);
   }
 
   unimath_cleanup();
