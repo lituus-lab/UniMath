@@ -65,9 +65,49 @@ print(domain.sqrt())               # interval enclosing [2, 3]
 | `Rational` | Exact reduced fractions backed by `BigInt` |
 | `Fixed` | Signed Q-format fixed-point numbers |
 | `Interval` | Directed-rounding intervals enclosing the true result |
+| `BigComplex` | Complex numbers with arbitrary-precision components |
+| `RationalComplex` | Exact Gaussian rationals, unbounded |
+| `FixedComplex` | Complex numbers in Q-format fixed point |
 
 The core types support familiar Python operators such as `+`, `-`, `*`,
 comparisons, and the division operations appropriate to each type.
+
+## Complex numbers
+
+The square root of a negative number is not real, and neither is the
+logarithm. `sqrt` and `log` return a complex there instead of raising, and the
+argument's type decides which complex:
+
+```python
+from unimath import sqrt, log, BigFloat, Rational
+
+sqrt(-1)                     # 1j
+sqrt(4)                      # 2.0
+log(-1)                      # 3.141592653589793j
+sqrt(BigFloat(-1.0))         # BigComplex(0.0, 1.0)
+sqrt(Rational(-1))           # RationalComplex(...)
+```
+
+Complex arithmetic over `float64` takes and returns Python's builtin
+`complex`, so results drop straight into `cmath` or NumPy:
+
+```python
+from unimath import ComplexMath
+
+cm = ComplexMath()
+cm.abs(3 + 4j)                                   # 5.0
+cm.sqrt(-3 - 4j)                                 # (1-2j)
+cm.div(complex(1e300, 1e300), complex(1e300, 1e300))  # (1+0j), not NaN
+```
+
+The multi-precision, exact and fixed-point backends have their own classes.
+`BigComplex` carries the full transcendental set; `RationalComplex` keeps
+`+ - * /`, `conj`, `norm2` and integer powers exact and offers `abs`/`sqrt` as
+the only approximations, since a root leaves the rationals.
+
+Square roots and logarithms take principal values, with the branch cut along
+the negative real axis. Signed zero is not distinguished: a negative real
+always yields the `+i` root.
 
 ## Mathematical functions
 
@@ -81,6 +121,7 @@ comparisons, and the division operations appropriate to each type.
 | Big-float mathematics | `FloatMath` |
 | Rational mathematics | `RationalMath` |
 | Fixed-point mathematics | `MathRouter` |
+| Complex mathematics (float64) | `ComplexMath` |
 | Mathematical constants | `Constants` |
 | Range reduction | `Reduction` |
 | Numeric conversions | `Conversions` |

@@ -93,6 +93,45 @@ ia = Interval(1.0, 2.0)
 ib = Interval(3.0, 4.0)
 print("ia + ib =", ia + ib)
 print("sqrt([4, 9]) =", Interval(4.0, 9.0).sqrt())"""),
+    ("md", """## Complex
+
+The square root of a negative number is not real, and neither is the
+logarithm. `unimath.sqrt` and `unimath.log` return a complex there instead of
+raising, and the argument's type decides which one: a `float` gives a `float`
+or a builtin `complex`, a `BigFloat` gives a `BigFloat` or a `BigComplex`, and
+so on down the backends.
+
+The Nim core cannot do this — it resolves return types at compile time, so it
+exposes a separately named `csqrt`. Python decides per value, so the choice
+lives here."""),
+    ("code", """from unimath import sqrt, log
+
+print("sqrt(-1) =", sqrt(-1))
+print("sqrt(4)  =", sqrt(4))
+print("log(-1)  =", log(-1))"""),
+    ("md", """Arithmetic over `float64` takes and returns Python's builtin `complex`, so
+results feed straight into `cmath` or NumPy. Division uses Smith's algorithm:
+the textbook `(ac+bd)/(c²+d²)` overflows to NaN long before the quotient
+itself does."""),
+    ("code", """from unimath import ComplexMath
+
+cm = ComplexMath()
+print("abs(3+4i)   =", cm.abs(3 + 4j))
+print("sqrt(-3-4i) =", cm.sqrt(-3 - 4j))
+print("exp(i*pi)   =", cm.exp(complex(0, 3.141592653589793)))
+huge = complex(1e300, 1e300)
+print("huge/huge   =", cm.div(huge, huge))"""),
+    ("md", """The other backends have their own classes. `RationalComplex` keeps
+`+ - * /`, `conj`, `norm2` and integer powers exact — a Gaussian rational
+never leaves its field — while `BigComplex` carries the full transcendental
+set at arbitrary precision."""),
+    ("code", """from unimath import BigComplex, RationalComplex, Rational
+
+z = RationalComplex(Rational(1, 2), Rational(3, 4))
+print("norm2(1/2+3/4i) =", z.norm2())
+print("(1/2+3/4i)^2    =", z ** 2)
+print("abs(3+4i) big   =", float(BigComplex(3, 4).abs()))
+print("ln(-1) big      =", complex(BigComplex(-1, 0).ln()))"""),
 ]
 
 
