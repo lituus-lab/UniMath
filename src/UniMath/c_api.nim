@@ -33,6 +33,8 @@ import ./rational_math
 import ./math_router
 import ./conversions
 import ./native_float
+import ./complex
+import ./complex_math
 
 const UniMathVersionC: cstring = "1.0.0"
 
@@ -129,6 +131,63 @@ type
   F64PairC {.bycopy, exportc: "unimath_f64_pair".} = object
     first*: float64
     second*: float64
+
+# Complex[float64] does the same: two doubles, no handle, so nothing to
+# destroy. A BigFloat-backed complex would need the pinned-ref treatment.
+type
+  ComplexC {.bycopy, exportc: "unimath_complex".} = object
+    re*: float64
+    im*: float64
+
+proc cxOf(z: ComplexC): Complex[float64] {.inline.} =
+  complex(z.re, z.im)
+
+proc cxTo(z: Complex[float64]): ComplexC {.inline.} =
+  ComplexC(re: z.re, im: z.im)
+
+const NaNComplexC = ComplexC(re: NaN, im: NaN)
+
+# A Fixed-backed complex is two raw Q-format words, by value like the Fixed
+# scalars themselves.
+type
+  ComplexFixedC {.bycopy, exportc: "unimath_complex_fixed".} = object
+    re*: int64
+    im*: int64
+
+# BigFloat- and Rational-backed complexes carry heap components, so they follow
+# the handle discipline of their scalars: a pinned ref the C host owns until
+# `*_destroy`.
+type
+  AbiComplexBigFloat = ref Complex[BigFloat]
+  AbiComplexRational = ref Complex[Rational[BigInt]]
+
+proc pinCxFloat(z: Complex[BigFloat]): pointer =
+  let r = new(AbiComplexBigFloat)
+  r[] = z
+  GC_ref(r)
+  cast[pointer](r)
+
+proc cxfOf(h: pointer): Complex[BigFloat] {.inline.} =
+  if h == nil: return complex(bfOf(nil), bfOf(nil))
+  cast[AbiComplexBigFloat](h)[]
+
+proc unrefCxFloat(h: pointer) {.inline.} =
+  if h != nil: GC_unref(cast[AbiComplexBigFloat](h))
+
+proc pinCxRat(z: Complex[Rational[BigInt]]): pointer =
+  let r = new(AbiComplexRational)
+  r[] = z
+  GC_ref(r)
+  cast[pointer](r)
+
+proc cxrOf(h: pointer): Complex[Rational[BigInt]] {.inline.} =
+  if h == nil:
+    let z = initRational(initBigInt(0), initBigInt(1))
+    return complex(z, z)
+  cast[AbiComplexRational](h)[]
+
+proc unrefCxRat(h: pointer) {.inline.} =
+  if h != nil: GC_unref(cast[AbiComplexRational](h))
 
 # Internal init-once flag. Declared OUTSIDE the `{.push exportc, cdecl, dynlib.}`
 # block so it is NOT exported as an undocumented C symbol (a writable `bool`
@@ -1361,5 +1420,457 @@ proc unimath_interval_from_bigint(h: pointer): IntervalC =
   if h == nil: return IntervalC(lo: NaN, hi: NaN)
   let i = toInterval(bigOf(h))
   IntervalC(lo: i.lower, hi: i.upper)
+
+# ------------------------------------------------------------------------------
+# Complex — value type (re, im doubles). Never raises: a domain error (division
+# by zero, log of zero, a pole of tan/tanh) returns the NaN complex as a
+# sentinel. Test it with `unimath_complex_is_nan`, not `==`: NaN compares
+# unequal to itself.
+#
+# Branch cuts: principal values, `unimath_complex_arg` in (-pi, pi], the cut
+# along the negative real axis. A negative real yields the +i root, so
+# `unimath_csqrt(-1.0)` is 0+1i.
+# ------------------------------------------------------------------------------
+
+proc unimath_complex_from_f64(re, im: float64): ComplexC =
+  ComplexC(re: re, im: im)
+
+proc unimath_complex_re(z: ComplexC): float64 = z.re
+proc unimath_complex_im(z: ComplexC): float64 = z.im
+
+proc unimath_complex_is_nan(z: ComplexC): cint =
+  ## 1 when either component is NaN — the sentinel check for every entry point
+  ## below that can hit a domain error.
+  cint(z.re != z.re or z.im != z.im)
+
+proc unimath_complex_add(a, b: ComplexC): ComplexC =
+  cxTo(cxOf(a) + cxOf(b))
+
+proc unimath_complex_sub(a, b: ComplexC): ComplexC =
+  cxTo(cxOf(a) - cxOf(b))
+
+proc unimath_complex_mul(a, b: ComplexC): ComplexC =
+  cxTo(cxOf(a) * cxOf(b))
+
+proc unimath_complex_div(a, b: ComplexC): ComplexC =
+  ## The NaN complex on a zero divisor. Guarded up front rather than left to
+  ## an `except`: catching a Defect only works while the library is built with
+  ## `--panics:off`, and a cheap precondition needs no such dependency.
+  if b.re == 0.0 and b.im == 0.0: return NaNComplexC
+  cxTo(cxOf(a) / cxOf(b))
+
+proc unimath_complex_neg(a: ComplexC): ComplexC =
+  cxTo(-cxOf(a))
+
+proc unimath_complex_conj(a: ComplexC): ComplexC =
+  cxTo(conj(cxOf(a)))
+
+proc unimath_complex_inv(a: ComplexC): ComplexC =
+  ## `1/a`. The NaN complex on zero.
+  if a.re == 0.0 and a.im == 0.0: return NaNComplexC
+  cxTo(inv(cxOf(a)))
+
+proc unimath_complex_abs(a: ComplexC): float64 =
+  ## Modulus. Scaled by the larger component, so it stays finite where
+  ## `sqrt(norm2)` would overflow.
+  abs(cxOf(a))
+
+proc unimath_complex_norm2(a: ComplexC): float64 =
+  ## Squared modulus `re*re + im*im` — overflows to +Inf where `abs` does not.
+  norm2(cxOf(a))
+
+proc unimath_complex_arg(a: ComplexC): float64 =
+  ## Principal argument in (-pi, pi]. `arg(0)` is 0.
+  arg(cxOf(a))
+
+proc unimath_complex_rect(r, theta: float64): ComplexC =
+  ## Polar to Cartesian.
+  cxTo(rect(r, theta))
+
+proc unimath_complex_sqrt(a: ComplexC): ComplexC =
+  cxTo(sqrt(cxOf(a)))
+
+proc unimath_complex_exp(a: ComplexC): ComplexC =
+  cxTo(exp(cxOf(a)))
+
+proc unimath_complex_ln(a: ComplexC): ComplexC =
+  ## The NaN complex on zero — no branch of the complex log is finite there.
+  if a.re == 0.0 and a.im == 0.0: return NaNComplexC
+  cxTo(ln(cxOf(a)))
+
+proc unimath_complex_sin(a: ComplexC): ComplexC =
+  cxTo(sin(cxOf(a)))
+
+proc unimath_complex_cos(a: ComplexC): ComplexC =
+  cxTo(cos(cxOf(a)))
+
+proc unimath_complex_tan(a: ComplexC): ComplexC =
+  ## The NaN complex at a pole (zero cosine).
+  let c = cos(cxOf(a))
+  if c.re == 0.0 and c.im == 0.0: return NaNComplexC
+  cxTo(sin(cxOf(a)) / c)
+
+proc unimath_complex_sinh(a: ComplexC): ComplexC =
+  cxTo(sinh(cxOf(a)))
+
+proc unimath_complex_cosh(a: ComplexC): ComplexC =
+  cxTo(cosh(cxOf(a)))
+
+proc unimath_complex_tanh(a: ComplexC): ComplexC =
+  ## The NaN complex at a pole (zero hyperbolic cosine).
+  let c = cosh(cxOf(a))
+  if c.re == 0.0 and c.im == 0.0: return NaNComplexC
+  cxTo(sinh(cxOf(a)) / c)
+
+proc unimath_complex_pow_int(a: ComplexC, n: cint): ComplexC =
+  ## Integer power by binary exponentiation. `n == 0` is 1 for every base; a
+  ## negative `n` on a zero base is the NaN complex.
+  if n < 0 and a.re == 0.0 and a.im == 0.0: return NaNComplexC
+  cxTo(pow(cxOf(a), int(n)))
+
+proc unimath_complex_pow(a, b: ComplexC): ComplexC =
+  ## Principal `a^b = exp(b * ln a)`. A zero base is the NaN complex — use
+  ## `unimath_complex_pow_int` for the `0^0 == 1` convention.
+  if a.re == 0.0 and a.im == 0.0: return NaNComplexC
+  cxTo(pow(cxOf(a), cxOf(b)))
+
+proc unimath_csqrt(x: float64): ComplexC =
+  ## Square root of a REAL, returned as a complex: `unimath_csqrt(-1.0)` is
+  ## 0+1i where the root has no real value. `unimath_sqrt_newton_f64` keeps
+  ## its NaN-on-negative contract.
+  cxTo(csqrt(x))
+
+proc unimath_cln(x: float64): ComplexC =
+  ## Logarithm of a REAL that promotes instead of failing: `unimath_cln(-1.0)`
+  ## is 0 + pi*i. Zero is the NaN complex.
+  if x == 0.0: return NaNComplexC
+  cxTo(cln(x))
+
+# ------------------------------------------------------------------------------
+# Complex over BigFloat — handle = pinned `ref Complex[BigFloat]`, the same
+# discipline as the BigFloat scalars. This is the multi-precision complex path:
+# every function of the float64 section above, at the precision the components
+# carry. Never raises: NULL in -> NULL out; a domain error returns NULL.
+# ------------------------------------------------------------------------------
+
+proc unimath_complex_bigfloat_from_bigfloat(re, im: pointer): pointer =
+  ## Builds from two BigFloat handles, which the caller still owns and must
+  ## destroy separately: the components are copied in, not adopted.
+  if re == nil or im == nil: return nil
+  pinCxFloat(complex(bfOf(re), bfOf(im)))
+
+proc unimath_complex_bigfloat_from_f64(re, im: float64): pointer =
+  pinCxFloat(complex(initBigFloat(re), initBigFloat(im)))
+
+proc unimath_complex_bigfloat_re(h: pointer): pointer =
+  ## A NEW BigFloat handle for the real part; destroy it separately.
+  if h == nil: return nil
+  pinFloat(cxfOf(h).re)
+
+proc unimath_complex_bigfloat_im(h: pointer): pointer =
+  if h == nil: return nil
+  pinFloat(cxfOf(h).im)
+
+proc unimath_complex_bigfloat_is_zero(h: pointer): cint =
+  if h == nil: return 0
+  cint(cxfOf(h).isZero)
+
+proc unimath_complex_bigfloat_add(a, b: pointer): pointer =
+  if a == nil or b == nil: return nil
+  pinCxFloat(cxfOf(a) + cxfOf(b))
+
+proc unimath_complex_bigfloat_sub(a, b: pointer): pointer =
+  if a == nil or b == nil: return nil
+  pinCxFloat(cxfOf(a) - cxfOf(b))
+
+proc unimath_complex_bigfloat_mul(a, b: pointer): pointer =
+  if a == nil or b == nil: return nil
+  pinCxFloat(cxfOf(a) * cxfOf(b))
+
+proc unimath_complex_bigfloat_div(a, b: pointer): pointer =
+  ## NULL on a zero divisor.
+  if a == nil or b == nil or cxfOf(b).isZero: return nil
+  pinCxFloat(cxfOf(a) / cxfOf(b))
+
+proc unimath_complex_bigfloat_neg(a: pointer): pointer =
+  if a == nil: return nil
+  pinCxFloat(-cxfOf(a))
+
+proc unimath_complex_bigfloat_conj(a: pointer): pointer =
+  if a == nil: return nil
+  pinCxFloat(conj(cxfOf(a)))
+
+proc unimath_complex_bigfloat_inv(a: pointer): pointer =
+  if a == nil or cxfOf(a).isZero: return nil
+  pinCxFloat(inv(cxfOf(a)))
+
+proc unimath_complex_bigfloat_abs(a: pointer): pointer =
+  ## Modulus as a NEW BigFloat handle.
+  if a == nil: return nil
+  pinFloat(abs(cxfOf(a)))
+
+proc unimath_complex_bigfloat_norm2(a: pointer): pointer =
+  ## Squared modulus as a NEW BigFloat handle.
+  if a == nil: return nil
+  pinFloat(norm2(cxfOf(a)))
+
+proc unimath_complex_bigfloat_arg(a: pointer): pointer =
+  ## Principal argument as a NEW BigFloat handle.
+  if a == nil: return nil
+  pinFloat(arg(cxfOf(a)))
+
+proc unimath_complex_bigfloat_sqrt(a: pointer): pointer =
+  if a == nil: return nil
+  pinCxFloat(sqrt(cxfOf(a)))
+
+proc unimath_complex_bigfloat_exp(a: pointer): pointer =
+  if a == nil: return nil
+  pinCxFloat(exp(cxfOf(a)))
+
+proc unimath_complex_bigfloat_ln(a: pointer): pointer =
+  ## NULL on zero.
+  if a == nil or cxfOf(a).isZero: return nil
+  pinCxFloat(ln(cxfOf(a)))
+
+proc unimath_complex_bigfloat_sin(a: pointer): pointer =
+  if a == nil: return nil
+  pinCxFloat(sin(cxfOf(a)))
+
+proc unimath_complex_bigfloat_cos(a: pointer): pointer =
+  if a == nil: return nil
+  pinCxFloat(cos(cxfOf(a)))
+
+proc unimath_complex_bigfloat_pow_int(a: pointer, n: cint): pointer =
+  ## NULL on a negative `n` with a zero base; `n == 0` is 1 for every base.
+  if a == nil: return nil
+  if n < 0 and cxfOf(a).isZero: return nil
+  pinCxFloat(pow(cxfOf(a), int(n)))
+
+proc unimath_complex_bigfloat_pow(a, b: pointer): pointer =
+  ## Principal `a^b = exp(b * ln a)`. NULL on a zero base.
+  if a == nil or b == nil or cxfOf(a).isZero: return nil
+  pinCxFloat(pow(cxfOf(a), cxfOf(b)))
+
+proc unimath_csqrt_bigfloat(h: pointer): pointer =
+  ## Square root of a REAL BigFloat, returned as a complex handle instead of
+  ## failing on a negative argument.
+  if h == nil: return nil
+  pinCxFloat(csqrt(bfOf(h)))
+
+proc unimath_cln_bigfloat(h: pointer): pointer =
+  ## Logarithm of a REAL BigFloat as a complex handle. NULL on zero.
+  if h == nil or bfOf(h).isZero: return nil
+  pinCxFloat(cln(bfOf(h)))
+
+proc unimath_complex_bigfloat_destroy(h: pointer) =
+  unrefCxFloat(h)
+
+# ------------------------------------------------------------------------------
+# Complex over Rational[BigInt] — handle = pinned `ref Complex[Rational[BigInt]]`.
+# The EXACT complex path: `+ - * /`, `conj`, `norm2` and integer powers are
+# exact Gaussian-rational arithmetic, unbounded. `abs` and `sqrt` are the only
+# approximate entries (they take a root, which leaves the field); no exp/ln/
+# sin/cos here, since each would compound two truncated rational series per
+# component -- use the BigFloat complex above for transcendentals.
+# Never raises: NULL in -> NULL out.
+# ------------------------------------------------------------------------------
+
+proc unimath_complex_rational_from_rational(re, im: pointer): pointer =
+  ## Builds from two Rational handles, which the caller still owns.
+  if re == nil or im == nil: return nil
+  pinCxRat(complex(ratOf(re), ratOf(im)))
+
+proc unimath_complex_rational_from_i64(re_num, re_den, im_num,
+                                       im_den: int64): pointer =
+  ## NULL if either denominator is zero.
+  if re_den == 0 or im_den == 0: return nil
+  pinCxRat(complex(initRational(initBigInt(re_num), initBigInt(re_den)),
+                   initRational(initBigInt(im_num), initBigInt(im_den))))
+
+proc unimath_complex_rational_re(h: pointer): pointer =
+  ## A NEW Rational handle for the real part; destroy it separately.
+  if h == nil: return nil
+  pinRational(cxrOf(h).re)
+
+proc unimath_complex_rational_im(h: pointer): pointer =
+  if h == nil: return nil
+  pinRational(cxrOf(h).im)
+
+proc unimath_complex_rational_is_zero(h: pointer): cint =
+  if h == nil: return 0
+  cint(cxrOf(h).isZero)
+
+proc unimath_complex_rational_add(a, b: pointer): pointer =
+  if a == nil or b == nil: return nil
+  pinCxRat(cxrOf(a) + cxrOf(b))
+
+proc unimath_complex_rational_sub(a, b: pointer): pointer =
+  if a == nil or b == nil: return nil
+  pinCxRat(cxrOf(a) - cxrOf(b))
+
+proc unimath_complex_rational_mul(a, b: pointer): pointer =
+  if a == nil or b == nil: return nil
+  pinCxRat(cxrOf(a) * cxrOf(b))
+
+proc unimath_complex_rational_div(a, b: pointer): pointer =
+  ## Exact. NULL on a zero divisor.
+  if a == nil or b == nil or cxrOf(b).isZero: return nil
+  pinCxRat(cxrOf(a) / cxrOf(b))
+
+proc unimath_complex_rational_neg(a: pointer): pointer =
+  if a == nil: return nil
+  pinCxRat(-cxrOf(a))
+
+proc unimath_complex_rational_conj(a: pointer): pointer =
+  if a == nil: return nil
+  pinCxRat(conj(cxrOf(a)))
+
+proc unimath_complex_rational_inv(a: pointer): pointer =
+  if a == nil or cxrOf(a).isZero: return nil
+  pinCxRat(inv(cxrOf(a)))
+
+proc unimath_complex_rational_norm2(a: pointer): pointer =
+  ## EXACT squared modulus as a NEW Rational handle.
+  if a == nil: return nil
+  pinRational(norm2(cxrOf(a)))
+
+proc unimath_complex_rational_abs(a: pointer): pointer =
+  ## APPROXIMATE modulus as a NEW Rational handle: a square root generally
+  ## leaves the rationals, so this is the Newton iterate, not the exact value.
+  if a == nil: return nil
+  pinRational(abs(cxrOf(a)))
+
+proc unimath_complex_rational_sqrt(a: pointer): pointer =
+  ## APPROXIMATE principal square root — see `unimath_complex_rational_abs`.
+  if a == nil: return nil
+  pinCxRat(sqrt(cxrOf(a)))
+
+proc unimath_complex_rational_pow_int(a: pointer, n: cint): pointer =
+  ## EXACT integer power. NULL on a negative `n` with a zero base.
+  if a == nil: return nil
+  if n < 0 and cxrOf(a).isZero: return nil
+  pinCxRat(pow(cxrOf(a), int(n)))
+
+proc unimath_csqrt_rational(h: pointer): pointer =
+  ## Square root of a REAL Rational as a complex handle. Approximate in
+  ## magnitude, exact in which axis it lands on -- a negative input yields a
+  ## purely imaginary result.
+  if h == nil: return nil
+  pinCxRat(csqrt(ratOf(h)))
+
+proc unimath_complex_rational_destroy(h: pointer) =
+  unrefCxRat(h)
+
+# ------------------------------------------------------------------------------
+# Complex over Fixed — two raw Q-format words, by value, like the Fixed
+# scalars. `frac_bits` is the shared fractional width of both components.
+# add/sub/neg/conj are scale-invariant; mul/div/norm2/pow take `frac_bits`.
+# `abs` and `sqrt` are Q32.32 only, matching `unimath_fixed_sqrt`.
+#
+# Never raises: results clamp to the int64 range through an exact BigInt
+# intermediate, and division by zero returns the zero complex.
+# ------------------------------------------------------------------------------
+
+proc unimath_complex_fixed_from_int(re, im: int64,
+    frac_bits: cint): ComplexFixedC =
+  ComplexFixedC(re: unimath_fixed_from_int(re, frac_bits),
+                im: unimath_fixed_from_int(im, frac_bits))
+
+proc unimath_complex_fixed_re(z: ComplexFixedC): int64 = z.re
+proc unimath_complex_fixed_im(z: ComplexFixedC): int64 = z.im
+
+proc unimath_complex_fixed_add(a, b: ComplexFixedC): ComplexFixedC =
+  ComplexFixedC(re: unimath_fixed_add(a.re, b.re),
+                im: unimath_fixed_add(a.im, b.im))
+
+proc unimath_complex_fixed_sub(a, b: ComplexFixedC): ComplexFixedC =
+  ComplexFixedC(re: unimath_fixed_sub(a.re, b.re),
+                im: unimath_fixed_sub(a.im, b.im))
+
+proc unimath_complex_fixed_neg(a: ComplexFixedC): ComplexFixedC =
+  ComplexFixedC(re: unimath_fixed_sub(0, a.re),
+                im: unimath_fixed_sub(0, a.im))
+
+proc unimath_complex_fixed_conj(a: ComplexFixedC): ComplexFixedC =
+  ComplexFixedC(re: a.re, im: unimath_fixed_sub(0, a.im))
+
+proc unimath_complex_fixed_mul(a, b: ComplexFixedC,
+                               frac_bits: cint): ComplexFixedC =
+  ## `(ac - bd) >> f`, `(ad + bc) >> f`. The products are formed as exact
+  ## BigInts before the shift, so no intermediate overflows on the way to a
+  ## representable result.
+  if frac_bits < 0 or frac_bits > MaxFracBits:
+    return ComplexFixedC(re: 0, im: 0)
+  let f = Natural(int(frac_bits))
+  let ar = initBigInt(a.re)
+  let ai = initBigInt(a.im)
+  let br = initBigInt(b.re)
+  let bi = initBigInt(b.im)
+  ComplexFixedC(re: clampToInt64((ar * br - ai * bi) shr f),
+                im: clampToInt64((ar * bi + ai * br) shr f))
+
+proc unimath_complex_fixed_div(a, b: ComplexFixedC,
+                               frac_bits: cint): ComplexFixedC =
+  ## The textbook quotient over an exact BigInt denominator — no Smith scaling
+  ## needed, since `c^2 + d^2` cannot overflow a BigInt. The zero complex on a
+  ## zero divisor.
+  if frac_bits < 0 or frac_bits > MaxFracBits:
+    return ComplexFixedC(re: 0, im: 0)
+  if b.re == 0 and b.im == 0:
+    return ComplexFixedC(re: 0, im: 0)
+  let f = Natural(int(frac_bits))
+  let ar = initBigInt(a.re)
+  let ai = initBigInt(a.im)
+  let br = initBigInt(b.re)
+  let bi = initBigInt(b.im)
+  let den = br * br + bi * bi
+  ComplexFixedC(re: clampToInt64(((ar * br + ai * bi) shl f) div den),
+                im: clampToInt64(((ai * br - ar * bi) shl f) div den))
+
+proc unimath_complex_fixed_norm2(a: ComplexFixedC, frac_bits: cint): int64 =
+  ## `(re^2 + im^2) >> f`, clamped.
+  if frac_bits < 0 or frac_bits > MaxFracBits: return 0
+  let ar = initBigInt(a.re)
+  let ai = initBigInt(a.im)
+  clampToInt64((ar * ar + ai * ai) shr Natural(int(frac_bits)))
+
+proc unimath_complex_fixed_abs(a: ComplexFixedC): int64 =
+  ## Q32.32 modulus, matching `unimath_fixed_sqrt`'s fixed scale.
+  abs(complex(fxOf(a.re), fxOf(a.im))).data
+
+proc unimath_complex_fixed_arg(a: ComplexFixedC): int64 =
+  ## Q32.32 principal argument, via the CORDIC `atan2`.
+  arg(complex(fxOf(a.re), fxOf(a.im))).data
+
+proc unimath_complex_fixed_sqrt(a: ComplexFixedC): ComplexFixedC =
+  ## Q32.32 principal square root.
+  let r = sqrt(complex(fxOf(a.re), fxOf(a.im)))
+  ComplexFixedC(re: r.re.data, im: r.im.data)
+
+proc unimath_complex_fixed_pow_int(a: ComplexFixedC, n: cint,
+                                   frac_bits: cint): ComplexFixedC =
+  ## Binary exponentiation over the raw words. `n == 0` is 1; a negative `n`
+  ## inverts at the end, and a zero base then yields the zero complex.
+  if frac_bits < 0 or frac_bits > MaxFracBits:
+    return ComplexFixedC(re: 0, im: 0)
+  let one = ComplexFixedC(re: unimath_fixed_from_int(1, frac_bits), im: 0)
+  if n == 0: return one
+  var base = a
+  var k = if n < 0: -int(n) else: int(n)
+  var acc = one
+  while k > 0:
+    if (k and 1) == 1:
+      acc = unimath_complex_fixed_mul(acc, base, frac_bits)
+    base = unimath_complex_fixed_mul(base, base, frac_bits)
+    k = k shr 1
+  if n < 0:
+    return unimath_complex_fixed_div(one, acc, frac_bits)
+  acc
+
+proc unimath_csqrt_fixed(q: int64): ComplexFixedC =
+  ## Square root of a REAL Q32.32 value, returned as a complex instead of
+  ## clamping a negative input to zero.
+  let r = csqrt(fxOf(q))
+  ComplexFixedC(re: r.re.data, im: r.im.data)
 
 {.pop.}
