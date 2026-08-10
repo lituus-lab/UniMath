@@ -11,6 +11,12 @@ on:
 permissions:
   contents: read
 
+# A newer push makes the previous run's answer irrelevant: cancel it rather
+# than pay for both.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   dco:
     name: DCO sign-off
@@ -41,8 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       # Mirrors tools/hooks/spdx_check.sh: every tracked Nim/C/Python source must
       # carry an SPDX-License-Identifier header in its first 5 lines.
       - name: Every Nim/C/Python source carries an SPDX header
@@ -57,14 +62,16 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
       - run: nimble install -y
       - run: nimble testCi
       - run: nimble testCiRelease
+      # The example demos are part of the documented surface but no test
+      # pulled them in; build and run them so a broken example fails CI.
+      - run: nimble example
 
   cabi:
     name: C ABI (${{ matrix.os }})
@@ -75,8 +82,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -84,8 +90,11 @@ jobs:
       # gcc arrives with Nim's MinGW, GNU make does not ship on the runner image.
       - name: Install GNU make (Windows)
         if: runner.os == 'Windows'
-        run: choco install make --no-progress
+        run: choco install make --no-progress -y
       - run: nimble ctest
+      # nimble ctest only builds the static lib (clibStatic); the shared lib
+      # this job uploads below needs its own explicit build step.
+      - run: nimble clib
       - name: Upload Library
         uses: actions/upload-artifact@v7
         with:
@@ -111,8 +120,7 @@ jobs:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -126,9 +134,12 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - run: nimble pyLib
-      - run: cd py && python3 setup.py build_ext --inplace
-      - run: cd py && python3 -m pytest -q
-      - run: cd py && python3 setup.py bdist_wheel
+      # `python3` isn't guaranteed on a Windows runner (actions/setup-python
+      # only puts `python.exe` on PATH there); this job's matrix spans
+      # windows-latest.
+      - run: cd py && python setup.py build_ext --inplace
+      - run: cd py && python -m pytest -q
+      - run: cd py && python setup.py bdist_wheel
       - name: Repair Wheel (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -162,8 +173,7 @@ jobs:
       # No setup-nim-action on purpose: proves the published header and lib work
       # on a machine without Nim, using only the test source from the checkout.
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: actions/download-artifact@v8
         with:
           name: libUniMath-${{ matrix.os }}
@@ -200,8 +210,7 @@ jobs:
       # Neither Nim nor libUniMath exists here: whatever the extension needs
       # at runtime must have travelled inside the wheel.
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
@@ -240,11 +249,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
+      # checkVGraph compiles tools/vgraph.nim, which imports contracts (its
+      # layerOf/layerOfModule postconditions) -- needs deps resolved first.
+      - run: nimble install -y
       - run: nimble lint
       - run: nimble checkVGraph
 
@@ -253,8 +264,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -304,8 +314,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
