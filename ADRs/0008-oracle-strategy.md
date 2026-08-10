@@ -21,6 +21,12 @@ native libraries not available on every CI OS.
     `libmpfr`; built by `nimble buildOracles`).
   - `gmp_oracle.c` — GMP reference for `BigInt` / `Rational` (C, needs
     `libgmp`; built by `nimble buildOracles`).
+  - `mpc_oracle.c` — MPC reference for the `Complex` transcendentals (C,
+    needs `libmpc`; built by `nimble buildOracles`). MPC is MPFR's complex
+    counterpart, same authors and build system, and takes the same principal
+    branch cuts, so no convention shim is needed. LGPL like MPFR and GMP: it
+    is linked only by this oracle binary, which is gitignored and never
+    shipped, so UniMath stays Apache-2.0.
   - `eft_oracle.py` — decimal EFT reference (Python, needs no build).
   - `oracles/oracle.nim` — Nim bridge that pipes inputs to the C oracles and
     reads back the reference result.

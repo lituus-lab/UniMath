@@ -337,3 +337,133 @@ proc eftOracle*(queries: openArray[(string, float64, float64)];
     if p.len < 2:
       raise newException(ValueError, "bad eft oracle output line: " & line)
     result.add((parseFloat(p[0]), parseFloat(p[1])))
+
+# =============================================================================
+# MPC complex oracle
+# =============================================================================
+#
+# MPC is MPFR's complex counterpart (same authors, same build system), so the
+# reference for `Complex[float64]` is independent of the library under test in
+# exactly the way ADR-0008 asks. Values cross as the raw IEEE-754 bit patterns
+# of their components -- exact, no decimal round-trip.
+#
+# The branch cuts agree by construction: MPC takes the principal values, arg
+# in (-pi, pi], cut along the negative real axis, which is what `complex_math`
+# documents. MPC honours signed zero and UniMath deliberately does not, so
+# never send a negative zero imaginary part.
+
+proc mpcExe*: string = oraclesDir / "mpc_oracle"
+
+const
+  MpcUnaryOps = ["sqrt", "exp", "log", "sin", "cos", "tan", "sinh", "cosh",
+                 "tanh"]
+  MpcBinOps = ["add", "sub", "mul", "div", "pow"]
+  MpcRealOps = ["abs", "arg"]
+
+proc checkMpcOp(op: string, allowed: openArray[string]) =
+  if op notin allowed:
+    raise newException(ValueError, "mpc oracle: unknown op '" & op & "'")
+
+proc bitsOf(x: float64): string {.inline.} = $cast[uint64](x)
+
+proc parseComplexLine(line: string): (float64, float64) =
+  let p = line.splitWhitespace()
+  if p.len < 2:
+    raise newException(ValueError, "bad mpc oracle output line: " & line)
+  (cast[float64](parseUInt(p[0]).uint64), cast[float64](parseUInt(p[1]).uint64))
+
+proc mpcRefBatch*(queries: openArray[(string, int, float64, float64)]):
+    seq[(float64, float64)] =
+  ## Batch of correctly-rounded complex references. Each query is
+  ## (op, prec, re, im): the round-to-nearest-even of op(re + im*i) to a pair
+  ## of binary64s, computed by MPC at `prec` bits. Domain errors (log of the
+  ## complex zero) make the oracle exit non-zero and raise here.
+  if queries.len == 0: return
+  var input = ""
+  for (op, prec, re, im) in queries:
+    checkMpcOp(op, MpcUnaryOps)
+    input.add(op & " " & $prec & " " & bitsOf(re) & " " & bitsOf(im) & "\n")
+  let lines = runCOracle(mpcExe(), input)
+  if lines.len != queries.len:
+    raise newException(ValueError, "mpc_oracle returned " & $lines.len &
+      " results for " & $queries.len & " queries:\n" & lines.join("\n"))
+  for line in lines:
+    result.add parseComplexLine(line)
+
+proc mpcRef*(op: string, prec: int, re, im: float64): (float64, float64) {.inline.} =
+  ## Single correctly-rounded complex reference for op(re + im*i).
+  mpcRefBatch(@[(op, prec, re, im)])[0]
+
+proc mpcBinRefBatch*(queries: openArray[(string, int, float64, float64,
+                                         float64, float64)]):
+    seq[(float64, float64)] =
+  ## Batch of correctly-rounded references for the binary ops. Each query is
+  ## (op, prec, a_re, a_im, b_re, b_im); `op` in {add, sub, mul, div, pow}.
+  ## Division by the complex zero, and `pow` of a zero base, are domain errors.
+  if queries.len == 0: return
+  var input = ""
+  for (op, prec, aRe, aIm, bRe, bIm) in queries:
+    checkMpcOp(op, MpcBinOps)
+    input.add("bin " & op & " " & $prec & " " & bitsOf(aRe) & " " &
+              bitsOf(aIm) & " " & bitsOf(bRe) & " " & bitsOf(bIm) & "\n")
+  let lines = runCOracle(mpcExe(), input)
+  if lines.len != queries.len:
+    raise newException(ValueError, "mpc_oracle bin returned " & $lines.len &
+      " results for " & $queries.len & " queries:\n" & lines.join("\n"))
+  for line in lines:
+    result.add parseComplexLine(line)
+
+proc mpcBinRef*(op: string, prec: int, aRe, aIm, bRe, bIm: float64):
+    (float64, float64) {.inline.} =
+  mpcBinRefBatch(@[(op, prec, aRe, aIm, bRe, bIm)])[0]
+
+proc mpcRealRefBatch*(queries: openArray[(string, int, float64, float64)]):
+    seq[float64] =
+  ## Batch of correctly-rounded REAL references: `abs` (modulus) and `arg`
+  ## (principal argument) of the complex argument.
+  if queries.len == 0: return
+  var input = ""
+  for (op, prec, re, im) in queries:
+    checkMpcOp(op, MpcRealOps)
+    input.add("real " & op & " " & $prec & " " & bitsOf(re) & " " &
+              bitsOf(im) & "\n")
+  let lines = runCOracle(mpcExe(), input)
+  if lines.len != queries.len:
+    raise newException(ValueError, "mpc_oracle real returned " & $lines.len &
+      " results for " & $queries.len & " queries:\n" & lines.join("\n"))
+  for line in lines:
+    result.add cast[float64](parseUInt(line).uint64)
+
+proc mpcRealRef*(op: string, prec: int, re, im: float64): float64 {.inline.} =
+  mpcRealRefBatch(@[(op, prec, re, im)])[0]
+
+proc mpcErrBatch*(queries: openArray[(string, float64, float64, float64,
+                                      float64)]):
+    seq[(float64, float64)] =
+  ## Batch of exact error measurements. Each query is
+  ## (op, cand_re, cand_im, re, im): the candidate is compared to the 2048-bit
+  ## exact value R = op(re + im*i). Returns one (abs_err, rel_err) pair per
+  ## query, both measured as complex moduli and computed without the rounding
+  ## a float64 subtraction would add.
+  if queries.len == 0: return
+  var input = ""
+  for (op, candRe, candIm, re, im) in queries:
+    checkMpcOp(op, MpcUnaryOps)
+    # The precision field is ignored in err mode (it always accumulates at
+    # ACC_PREC), but the protocol keeps the slot so every line parses alike.
+    input.add("err " & op & " 2048 " & bitsOf(candRe) & " " & bitsOf(candIm) &
+              " " & bitsOf(re) & " " & bitsOf(im) & "\n")
+  let lines = runCOracle(mpcExe(), input)
+  if lines.len != queries.len:
+    raise newException(ValueError, "mpc_oracle err returned " & $lines.len &
+      " lines for " & $queries.len & " queries:\n" & lines.join("\n"))
+  for line in lines:
+    let p = line.splitWhitespace()
+    if p.len < 2:
+      raise newException(ValueError, "bad mpc err output line: " & line)
+    result.add((parseFloat(p[0]), parseFloat(p[1])))
+
+proc mpcErr*(op: string, candRe, candIm, re, im: float64):
+    (float64, float64) {.inline.} =
+  ## Single exact (abs_err, rel_err) pair for a candidate vs op(re + im*i).
+  mpcErrBatch(@[(op, candRe, candIm, re, im)])[0]
