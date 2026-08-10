@@ -259,6 +259,128 @@ cdef extern from "UniMath.h":
     unimath_interval unimath_interval_from_rational(unimath_rational h)
     unimath_interval unimath_interval_from_bigint(unimath_bigint h)
 
+    # ---- complex over float64 (value type) ----
+    ctypedef struct unimath_complex:
+        double re
+        double im
+
+    unimath_complex unimath_complex_from_f64(double re, double im)
+    int unimath_complex_is_nan(unimath_complex z)
+    unimath_complex unimath_complex_add(unimath_complex a, unimath_complex b)
+    unimath_complex unimath_complex_sub(unimath_complex a, unimath_complex b)
+    unimath_complex unimath_complex_mul(unimath_complex a, unimath_complex b)
+    unimath_complex unimath_complex_div(unimath_complex a, unimath_complex b)
+    unimath_complex unimath_complex_neg(unimath_complex a)
+    unimath_complex unimath_complex_conj(unimath_complex a)
+    unimath_complex unimath_complex_inv(unimath_complex a)
+    double unimath_complex_abs(unimath_complex a)
+    double unimath_complex_norm2(unimath_complex a)
+    double unimath_complex_arg(unimath_complex a)
+    unimath_complex unimath_complex_rect(double r, double theta)
+    unimath_complex unimath_complex_sqrt(unimath_complex a)
+    unimath_complex unimath_complex_exp(unimath_complex a)
+    unimath_complex unimath_complex_ln(unimath_complex a)
+    unimath_complex unimath_complex_sin(unimath_complex a)
+    unimath_complex unimath_complex_cos(unimath_complex a)
+    unimath_complex unimath_complex_tan(unimath_complex a)
+    unimath_complex unimath_complex_sinh(unimath_complex a)
+    unimath_complex unimath_complex_cosh(unimath_complex a)
+    unimath_complex unimath_complex_tanh(unimath_complex a)
+    unimath_complex unimath_complex_pow_int(unimath_complex a, int n)
+    unimath_complex unimath_complex_pow(unimath_complex a, unimath_complex b)
+    unimath_complex unimath_csqrt(double x)
+    unimath_complex unimath_cln(double x)
+
+    # ---- complex over BigFloat (handle) ----
+    ctypedef void *unimath_complex_bigfloat
+
+    unimath_complex_bigfloat unimath_complex_bigfloat_from_bigfloat(
+        unimath_bigfloat re, unimath_bigfloat im)
+    unimath_complex_bigfloat unimath_complex_bigfloat_from_f64(double re, double im)
+    unimath_bigfloat unimath_complex_bigfloat_re(unimath_complex_bigfloat h)
+    unimath_bigfloat unimath_complex_bigfloat_im(unimath_complex_bigfloat h)
+    int unimath_complex_bigfloat_is_zero(unimath_complex_bigfloat h)
+    unimath_complex_bigfloat unimath_complex_bigfloat_add(
+        unimath_complex_bigfloat a, unimath_complex_bigfloat b)
+    unimath_complex_bigfloat unimath_complex_bigfloat_sub(
+        unimath_complex_bigfloat a, unimath_complex_bigfloat b)
+    unimath_complex_bigfloat unimath_complex_bigfloat_mul(
+        unimath_complex_bigfloat a, unimath_complex_bigfloat b)
+    unimath_complex_bigfloat unimath_complex_bigfloat_div(
+        unimath_complex_bigfloat a, unimath_complex_bigfloat b)
+    unimath_complex_bigfloat unimath_complex_bigfloat_neg(unimath_complex_bigfloat a)
+    unimath_complex_bigfloat unimath_complex_bigfloat_conj(unimath_complex_bigfloat a)
+    unimath_complex_bigfloat unimath_complex_bigfloat_inv(unimath_complex_bigfloat a)
+    unimath_bigfloat unimath_complex_bigfloat_abs(unimath_complex_bigfloat a)
+    unimath_bigfloat unimath_complex_bigfloat_norm2(unimath_complex_bigfloat a)
+    unimath_bigfloat unimath_complex_bigfloat_arg(unimath_complex_bigfloat a)
+    unimath_complex_bigfloat unimath_complex_bigfloat_sqrt(unimath_complex_bigfloat a)
+    unimath_complex_bigfloat unimath_complex_bigfloat_exp(unimath_complex_bigfloat a)
+    unimath_complex_bigfloat unimath_complex_bigfloat_ln(unimath_complex_bigfloat a)
+    unimath_complex_bigfloat unimath_complex_bigfloat_sin(unimath_complex_bigfloat a)
+    unimath_complex_bigfloat unimath_complex_bigfloat_cos(unimath_complex_bigfloat a)
+    unimath_complex_bigfloat unimath_complex_bigfloat_pow_int(
+        unimath_complex_bigfloat a, int n)
+    unimath_complex_bigfloat unimath_complex_bigfloat_pow(
+        unimath_complex_bigfloat a, unimath_complex_bigfloat b)
+    unimath_complex_bigfloat unimath_csqrt_bigfloat(unimath_bigfloat h)
+    unimath_complex_bigfloat unimath_cln_bigfloat(unimath_bigfloat h)
+    void unimath_complex_bigfloat_destroy(unimath_complex_bigfloat h)
+
+    # ---- complex over Rational[BigInt] (handle) ----
+    ctypedef void *unimath_complex_rational
+
+    unimath_complex_rational unimath_complex_rational_from_rational(
+        unimath_rational re, unimath_rational im)
+    unimath_complex_rational unimath_complex_rational_from_i64(
+        long long re_num, long long re_den, long long im_num, long long im_den)
+    unimath_rational unimath_complex_rational_re(unimath_complex_rational h)
+    unimath_rational unimath_complex_rational_im(unimath_complex_rational h)
+    int unimath_complex_rational_is_zero(unimath_complex_rational h)
+    unimath_complex_rational unimath_complex_rational_add(
+        unimath_complex_rational a, unimath_complex_rational b)
+    unimath_complex_rational unimath_complex_rational_sub(
+        unimath_complex_rational a, unimath_complex_rational b)
+    unimath_complex_rational unimath_complex_rational_mul(
+        unimath_complex_rational a, unimath_complex_rational b)
+    unimath_complex_rational unimath_complex_rational_div(
+        unimath_complex_rational a, unimath_complex_rational b)
+    unimath_complex_rational unimath_complex_rational_neg(unimath_complex_rational a)
+    unimath_complex_rational unimath_complex_rational_conj(unimath_complex_rational a)
+    unimath_complex_rational unimath_complex_rational_inv(unimath_complex_rational a)
+    unimath_rational unimath_complex_rational_norm2(unimath_complex_rational a)
+    unimath_rational unimath_complex_rational_abs(unimath_complex_rational a)
+    unimath_complex_rational unimath_complex_rational_sqrt(unimath_complex_rational a)
+    unimath_complex_rational unimath_complex_rational_pow_int(
+        unimath_complex_rational a, int n)
+    unimath_complex_rational unimath_csqrt_rational(unimath_rational h)
+    void unimath_complex_rational_destroy(unimath_complex_rational h)
+
+    # ---- complex over Fixed (value type, raw Q-format words) ----
+    ctypedef struct unimath_complex_fixed:
+        long long re
+        long long im
+
+    unimath_complex_fixed unimath_complex_fixed_from_int(
+        long long re, long long im, int frac_bits)
+    unimath_complex_fixed unimath_complex_fixed_add(
+        unimath_complex_fixed a, unimath_complex_fixed b)
+    unimath_complex_fixed unimath_complex_fixed_sub(
+        unimath_complex_fixed a, unimath_complex_fixed b)
+    unimath_complex_fixed unimath_complex_fixed_neg(unimath_complex_fixed a)
+    unimath_complex_fixed unimath_complex_fixed_conj(unimath_complex_fixed a)
+    unimath_complex_fixed unimath_complex_fixed_mul(
+        unimath_complex_fixed a, unimath_complex_fixed b, int frac_bits)
+    unimath_complex_fixed unimath_complex_fixed_div(
+        unimath_complex_fixed a, unimath_complex_fixed b, int frac_bits)
+    long long unimath_complex_fixed_norm2(unimath_complex_fixed a, int frac_bits)
+    unimath_complex_fixed unimath_complex_fixed_pow_int(
+        unimath_complex_fixed a, int n, int frac_bits)
+    long long unimath_complex_fixed_abs(unimath_complex_fixed a)
+    long long unimath_complex_fixed_arg(unimath_complex_fixed a)
+    unimath_complex_fixed unimath_complex_fixed_sqrt(unimath_complex_fixed a)
+    unimath_complex_fixed unimath_csqrt_fixed(long long q)
+
 
 # Unary BigFloat transcendental (handle in, handle out) — the FloatMath._unary
 # helper dispatches over this signature.
@@ -1838,3 +1960,570 @@ cdef class Conversions:
     def interval_from_bigint(self, value):
         cdef BigInt b = _coerce(value)
         return Interval._wrap(unimath_interval_from_bigint(b._h))
+
+
+# ------------------------------------------------------------------------------
+# Complex. Four backends, matching the C ABI: float64 through Python's builtin
+# `complex`, plus BigComplex (multi-precision), RationalComplex (exact) and
+# FixedComplex (raw Q-format).
+# ------------------------------------------------------------------------------
+
+cdef unimath_complex _to_c(value) except *:
+    cdef double re, im
+    cdef object z = complex(value)
+    re = z.real
+    im = z.imag
+    return unimath_complex_from_f64(re, im)
+
+
+cdef _from_c(unimath_complex r):
+    # None on a domain error, matching FloatMath/RationalMath: the C ABI hands
+    # back the NaN complex rather than raising.
+    if unimath_complex_is_nan(r):
+        return None
+    return complex(r.re, r.im)
+
+
+cdef class ComplexMath:
+    """Complex arithmetic and transcendentals over float64, in and out as
+    Python's builtin `complex` — so results interoperate with `cmath` and
+    NumPy directly.
+
+    Branch cuts: principal values, `arg` in (-pi, pi], the cut along the
+    negative real axis. `sqrt(-1+0j)` is `1j`. Signed zero is not honoured.
+
+    Domain errors (division by zero, log of zero, a pole of tan/tanh) return
+    `None` rather than raising — the C ABI never raises."""
+
+    def __init__(self):
+        _ensure_init()
+
+    def add(self, a, b):
+        return _from_c(unimath_complex_add(_to_c(a), _to_c(b)))
+
+    def sub(self, a, b):
+        return _from_c(unimath_complex_sub(_to_c(a), _to_c(b)))
+
+    def mul(self, a, b):
+        return _from_c(unimath_complex_mul(_to_c(a), _to_c(b)))
+
+    def div(self, a, b):
+        """Smith's algorithm: stays finite where `(a*c+b*d)/(c*c+d*d)` would
+        overflow to NaN. `None` on a zero divisor."""
+        return _from_c(unimath_complex_div(_to_c(a), _to_c(b)))
+
+    def neg(self, a):
+        return _from_c(unimath_complex_neg(_to_c(a)))
+
+    def conj(self, a):
+        return _from_c(unimath_complex_conj(_to_c(a)))
+
+    def inv(self, a):
+        return _from_c(unimath_complex_inv(_to_c(a)))
+
+    def abs(self, a):
+        """Modulus, scaled by the larger component: finite where `norm2`
+        overflows."""
+        return unimath_complex_abs(_to_c(a))
+
+    def norm2(self, a):
+        """Squared modulus — overflows to +Inf where `abs` does not."""
+        return unimath_complex_norm2(_to_c(a))
+
+    def arg(self, a):
+        return unimath_complex_arg(_to_c(a))
+
+    def polar(self, a):
+        cdef unimath_complex z = _to_c(a)
+        return (unimath_complex_abs(z), unimath_complex_arg(z))
+
+    def rect(self, r, theta):
+        return _from_c(unimath_complex_rect(<double>r, <double>theta))
+
+    def sqrt(self, a):
+        return _from_c(unimath_complex_sqrt(_to_c(a)))
+
+    def exp(self, a):
+        return _from_c(unimath_complex_exp(_to_c(a)))
+
+    def ln(self, a):
+        return _from_c(unimath_complex_ln(_to_c(a)))
+
+    def sin(self, a):
+        return _from_c(unimath_complex_sin(_to_c(a)))
+
+    def cos(self, a):
+        return _from_c(unimath_complex_cos(_to_c(a)))
+
+    def tan(self, a):
+        return _from_c(unimath_complex_tan(_to_c(a)))
+
+    def sinh(self, a):
+        return _from_c(unimath_complex_sinh(_to_c(a)))
+
+    def cosh(self, a):
+        return _from_c(unimath_complex_cosh(_to_c(a)))
+
+    def tanh(self, a):
+        return _from_c(unimath_complex_tanh(_to_c(a)))
+
+    def pow_int(self, a, int n):
+        """Binary exponentiation. `n == 0` is 1 for every base, zero included;
+        a negative `n` on a zero base is `None`."""
+        return _from_c(unimath_complex_pow_int(_to_c(a), n))
+
+    def pow(self, a, b):
+        """Principal `a**b = exp(b * ln a)`. `None` on a zero base."""
+        return _from_c(unimath_complex_pow(_to_c(a), _to_c(b)))
+
+
+cdef class BigComplex:
+    """Multi-precision complex over the UniMath C ABI (BigFloat components).
+    The C host owns the GC-pinned handle; freed in __dealloc__."""
+    cdef unimath_complex_bigfloat _h
+
+    def __cinit__(self):
+        self._h = NULL
+
+    def __dealloc__(self):
+        if self._h != NULL:
+            unimath_complex_bigfloat_destroy(self._h)
+            self._h = NULL
+
+    @staticmethod
+    cdef BigComplex _wrap(unimath_complex_bigfloat h):
+        if h == NULL:
+            return None
+        cdef BigComplex r = BigComplex.__new__(BigComplex)
+        r._h = h
+        return r
+
+    def __init__(self, re, im=0):
+        cdef BigFloat fre, fim
+        _ensure_init()
+        if self._h != NULL:
+            unimath_complex_bigfloat_destroy(self._h)
+            self._h = NULL
+        if isinstance(re, complex):
+            if im != 0:
+                raise TypeError("pass either a complex or a (re, im) pair")
+            fre = _coerce_bigfloat(re.real)
+            fim = _coerce_bigfloat(re.imag)
+        else:
+            fre = _coerce_bigfloat(re)
+            fim = _coerce_bigfloat(im)
+        self._h = unimath_complex_bigfloat_from_bigfloat(fre._h, fim._h)
+
+    @property
+    def re(self):
+        return BigFloat._wrap(unimath_complex_bigfloat_re(self._h))
+
+    @property
+    def im(self):
+        return BigFloat._wrap(unimath_complex_bigfloat_im(self._h))
+
+    def is_zero(self):
+        return bool(unimath_complex_bigfloat_is_zero(self._h))
+
+    def __complex__(self):
+        return complex(float(self.re), float(self.im))
+
+    def __repr__(self):
+        return "BigComplex(%r, %r)" % (float(self.re), float(self.im))
+
+    def __add__(self, other):
+        cdef BigComplex o = _coerce_bigcomplex(other)
+        return BigComplex._wrap(unimath_complex_bigfloat_add(self._h, o._h))
+
+    def __sub__(self, other):
+        cdef BigComplex o = _coerce_bigcomplex(other)
+        return BigComplex._wrap(unimath_complex_bigfloat_sub(self._h, o._h))
+
+    def __mul__(self, other):
+        cdef BigComplex o = _coerce_bigcomplex(other)
+        return BigComplex._wrap(unimath_complex_bigfloat_mul(self._h, o._h))
+
+    def __truediv__(self, other):
+        cdef BigComplex o = _coerce_bigcomplex(other)
+        cdef unimath_complex_bigfloat h = unimath_complex_bigfloat_div(self._h, o._h)
+        if h == NULL:
+            raise ZeroDivisionError("BigComplex division by zero")
+        return BigComplex._wrap(h)
+
+    def __neg__(self):
+        return BigComplex._wrap(unimath_complex_bigfloat_neg(self._h))
+
+    def conj(self):
+        return BigComplex._wrap(unimath_complex_bigfloat_conj(self._h))
+
+    def inv(self):
+        cdef unimath_complex_bigfloat h = unimath_complex_bigfloat_inv(self._h)
+        if h == NULL:
+            raise ZeroDivisionError("BigComplex has no inverse at zero")
+        return BigComplex._wrap(h)
+
+    def abs(self):
+        return BigFloat._wrap(unimath_complex_bigfloat_abs(self._h))
+
+    def norm2(self):
+        return BigFloat._wrap(unimath_complex_bigfloat_norm2(self._h))
+
+    def arg(self):
+        return BigFloat._wrap(unimath_complex_bigfloat_arg(self._h))
+
+    def sqrt(self):
+        return BigComplex._wrap(unimath_complex_bigfloat_sqrt(self._h))
+
+    def exp(self):
+        return BigComplex._wrap(unimath_complex_bigfloat_exp(self._h))
+
+    def ln(self):
+        cdef unimath_complex_bigfloat h = unimath_complex_bigfloat_ln(self._h)
+        if h == NULL:
+            raise ValueError("ln: complex zero has no logarithm")
+        return BigComplex._wrap(h)
+
+    def sin(self):
+        return BigComplex._wrap(unimath_complex_bigfloat_sin(self._h))
+
+    def cos(self):
+        return BigComplex._wrap(unimath_complex_bigfloat_cos(self._h))
+
+    def __pow__(self, other, modulo):
+        cdef BigComplex o
+        if modulo is not None:
+            raise TypeError("BigComplex does not support modular exponentiation")
+        if isinstance(other, int):
+            return BigComplex._wrap(
+                unimath_complex_bigfloat_pow_int(self._h, <int>other))
+        o = _coerce_bigcomplex(other)
+        return BigComplex._wrap(unimath_complex_bigfloat_pow(self._h, o._h))
+
+
+cdef BigComplex _coerce_bigcomplex(value):
+    if isinstance(value, BigComplex):
+        return value
+    if isinstance(value, complex):
+        return BigComplex(value.real, value.imag)
+    return BigComplex(value, 0)
+
+
+cdef class RationalComplex:
+    """Exact Gaussian rational over the UniMath C ABI (Rational[BigInt]
+    components, unbounded). `+ - * /`, `conj`, `norm2` and integer powers are
+    exact; `abs` and `sqrt` are the only approximate methods, since a root
+    generally leaves the field. No exp/ln/sin/cos — use BigComplex."""
+    cdef unimath_complex_rational _h
+
+    def __cinit__(self):
+        self._h = NULL
+
+    def __dealloc__(self):
+        if self._h != NULL:
+            unimath_complex_rational_destroy(self._h)
+            self._h = NULL
+
+    @staticmethod
+    cdef RationalComplex _wrap(unimath_complex_rational h):
+        if h == NULL:
+            return None
+        cdef RationalComplex r = RationalComplex.__new__(RationalComplex)
+        r._h = h
+        return r
+
+    def __init__(self, re, im=0):
+        cdef Rational rre, rim
+        _ensure_init()
+        if self._h != NULL:
+            unimath_complex_rational_destroy(self._h)
+            self._h = NULL
+        rre = _coerce_rational(re)
+        rim = _coerce_rational(im)
+        self._h = unimath_complex_rational_from_rational(rre._h, rim._h)
+
+    @property
+    def re(self):
+        return Rational._wrap(unimath_complex_rational_re(self._h))
+
+    @property
+    def im(self):
+        return Rational._wrap(unimath_complex_rational_im(self._h))
+
+    def is_zero(self):
+        return bool(unimath_complex_rational_is_zero(self._h))
+
+    def __complex__(self):
+        return complex(float(self.re), float(self.im))
+
+    def __repr__(self):
+        return "RationalComplex(%r, %r)" % (self.re, self.im)
+
+    def __add__(self, other):
+        cdef RationalComplex o = _coerce_rationalcomplex(other)
+        return RationalComplex._wrap(unimath_complex_rational_add(self._h, o._h))
+
+    def __sub__(self, other):
+        cdef RationalComplex o = _coerce_rationalcomplex(other)
+        return RationalComplex._wrap(unimath_complex_rational_sub(self._h, o._h))
+
+    def __mul__(self, other):
+        cdef RationalComplex o = _coerce_rationalcomplex(other)
+        return RationalComplex._wrap(unimath_complex_rational_mul(self._h, o._h))
+
+    def __truediv__(self, other):
+        cdef RationalComplex o = _coerce_rationalcomplex(other)
+        cdef unimath_complex_rational h = unimath_complex_rational_div(self._h, o._h)
+        if h == NULL:
+            raise ZeroDivisionError("RationalComplex division by zero")
+        return RationalComplex._wrap(h)
+
+    def __neg__(self):
+        return RationalComplex._wrap(unimath_complex_rational_neg(self._h))
+
+    def conj(self):
+        return RationalComplex._wrap(unimath_complex_rational_conj(self._h))
+
+    def inv(self):
+        cdef unimath_complex_rational h = unimath_complex_rational_inv(self._h)
+        if h == NULL:
+            raise ZeroDivisionError("RationalComplex has no inverse at zero")
+        return RationalComplex._wrap(h)
+
+    def norm2(self):
+        """EXACT squared modulus."""
+        return Rational._wrap(unimath_complex_rational_norm2(self._h))
+
+    def abs(self):
+        """APPROXIMATE modulus (Newton iterate: a root leaves the rationals)."""
+        return Rational._wrap(unimath_complex_rational_abs(self._h))
+
+    def sqrt(self):
+        """APPROXIMATE principal square root — see `abs`."""
+        return RationalComplex._wrap(unimath_complex_rational_sqrt(self._h))
+
+    def __pow__(self, other, modulo):
+        """EXACT integer power."""
+        if modulo is not None:
+            raise TypeError("RationalComplex does not support modular exponentiation")
+        if not isinstance(other, int):
+            raise TypeError("RationalComplex supports integer exponents only")
+        cdef unimath_complex_rational h = unimath_complex_rational_pow_int(
+            self._h, <int>other)
+        if h == NULL:
+            raise ZeroDivisionError("a negative power of the zero complex")
+        return RationalComplex._wrap(h)
+
+
+cdef RationalComplex _coerce_rationalcomplex(value):
+    if isinstance(value, RationalComplex):
+        return value
+    if isinstance(value, complex):
+        raise TypeError("a float64 complex is not exact; build from Rationals")
+    return RationalComplex(value, 0)
+
+
+cdef class FixedComplex:
+    """Complex over fixed point — two raw Q-format words sharing one
+    `frac_bits`. A value type, nothing to destroy. `abs`, `arg` and `sqrt` are
+    Q32.32 only, matching the scalar `Fixed` transcendentals."""
+    cdef long long _re
+    cdef long long _im
+    cdef int _fb
+
+    def __init__(self, re, im=0, int frac_bits=32):
+        cdef unimath_complex_fixed z
+        _ensure_init()
+        self._fb = frac_bits
+        if isinstance(re, float) or isinstance(im, float):
+            # A float argument is scaled directly, so 0.5 does not truncate to 0.
+            self._re = <long long>(float(re) * <double>(<long long>1 << frac_bits))
+            self._im = <long long>(float(im) * <double>(<long long>1 << frac_bits))
+        else:
+            z = unimath_complex_fixed_from_int(<long long>re, <long long>im, frac_bits)
+            self._re = z.re
+            self._im = z.im
+
+    @staticmethod
+    cdef FixedComplex _from_raw(unimath_complex_fixed z, int frac_bits):
+        cdef FixedComplex r = FixedComplex.__new__(FixedComplex)
+        r._re = z.re
+        r._im = z.im
+        r._fb = frac_bits
+        return r
+
+    cdef unimath_complex_fixed _c(self):
+        cdef unimath_complex_fixed z
+        z.re = self._re
+        z.im = self._im
+        return z
+
+    @property
+    def frac_bits(self):
+        return self._fb
+
+    @property
+    def raw_re(self):
+        return self._re
+
+    @property
+    def raw_im(self):
+        return self._im
+
+    @property
+    def re(self):
+        return <double>self._re / <double>(<long long>1 << self._fb)
+
+    @property
+    def im(self):
+        return <double>self._im / <double>(<long long>1 << self._fb)
+
+    def __complex__(self):
+        return complex(self.re, self.im)
+
+    def __repr__(self):
+        return "FixedComplex(%r, %r, frac_bits=%d)" % (self.re, self.im, self._fb)
+
+    cdef FixedComplex _check(self, other):
+        cdef FixedComplex o
+        if isinstance(other, FixedComplex):
+            o = <FixedComplex>other
+            if o._fb != self._fb:
+                raise ValueError("frac_bits mismatch")
+            return o
+        return FixedComplex(other, 0, self._fb)
+
+    def __add__(self, other):
+        cdef FixedComplex o = self._check(other)
+        return FixedComplex._from_raw(
+            unimath_complex_fixed_add(self._c(), o._c()), self._fb)
+
+    def __sub__(self, other):
+        cdef FixedComplex o = self._check(other)
+        return FixedComplex._from_raw(
+            unimath_complex_fixed_sub(self._c(), o._c()), self._fb)
+
+    def __mul__(self, other):
+        cdef FixedComplex o = self._check(other)
+        return FixedComplex._from_raw(
+            unimath_complex_fixed_mul(self._c(), o._c(), self._fb), self._fb)
+
+    def __truediv__(self, other):
+        cdef FixedComplex o = self._check(other)
+        if o._re == 0 and o._im == 0:
+            raise ZeroDivisionError("FixedComplex division by zero")
+        return FixedComplex._from_raw(
+            unimath_complex_fixed_div(self._c(), o._c(), self._fb), self._fb)
+
+    def __neg__(self):
+        return FixedComplex._from_raw(
+            unimath_complex_fixed_neg(self._c()), self._fb)
+
+    def conj(self):
+        return FixedComplex._from_raw(
+            unimath_complex_fixed_conj(self._c()), self._fb)
+
+    def norm2(self):
+        """Squared modulus, as a float in the same scale."""
+        cdef long long q = unimath_complex_fixed_norm2(self._c(), self._fb)
+        return <double>q / <double>(<long long>1 << self._fb)
+
+    def abs(self):
+        """Q32.32 modulus."""
+        if self._fb != 32:
+            raise ValueError("abs is Q32.32 only")
+        return _from_q32(unimath_complex_fixed_abs(self._c()))
+
+    def arg(self):
+        """Q32.32 principal argument."""
+        if self._fb != 32:
+            raise ValueError("arg is Q32.32 only")
+        return _from_q32(unimath_complex_fixed_arg(self._c()))
+
+    def sqrt(self):
+        """Q32.32 principal square root."""
+        if self._fb != 32:
+            raise ValueError("sqrt is Q32.32 only")
+        return FixedComplex._from_raw(
+            unimath_complex_fixed_sqrt(self._c()), 32)
+
+    def __pow__(self, other, modulo):
+        if modulo is not None:
+            raise TypeError("FixedComplex does not support modular exponentiation")
+        if not isinstance(other, int):
+            raise TypeError("FixedComplex supports integer exponents only")
+        return FixedComplex._from_raw(
+            unimath_complex_fixed_pow_int(self._c(), <int>other, self._fb),
+            self._fb)
+
+
+# ------------------------------------------------------------------------------
+# Promotion. Python resolves types per value, so these can do what the Nim
+# core cannot: return a complex when the real answer does not exist, and the
+# real type otherwise.
+# ------------------------------------------------------------------------------
+
+def sqrt(x):
+    """Square root, complex where the real root does not exist: `sqrt(-1)` is
+    `1j`, `sqrt(4)` is `2.0`. Works over every backend — a `BigFloat` yields a `BigFloat` or a
+    `BigComplex`, a `Rational` a `Rational` or a `RationalComplex`, a `Fixed` a
+    `Fixed` or a `FixedComplex`. A `complex` argument always yields a
+    `complex`."""
+    cdef unimath_complex r
+    cdef unimath_complex_bigfloat hb
+    cdef unimath_complex_rational hr
+    cdef unimath_complex_fixed hf
+    cdef BigComplex bc
+    cdef RationalComplex rc
+    _ensure_init()
+    if isinstance(x, complex):
+        return ComplexMath().sqrt(x)
+    if isinstance(x, BigComplex):
+        return (<BigComplex>x).sqrt()
+    if isinstance(x, RationalComplex):
+        return (<RationalComplex>x).sqrt()
+    if isinstance(x, FixedComplex):
+        return (<FixedComplex>x).sqrt()
+    if isinstance(x, BigFloat):
+        hb = unimath_csqrt_bigfloat((<BigFloat>x)._h)
+        bc = BigComplex._wrap(hb)
+        return bc.re if bc.im.is_zero() else bc
+    if isinstance(x, Rational):
+        hr = unimath_csqrt_rational((<Rational>x)._h)
+        rc = RationalComplex._wrap(hr)
+        return rc.re if rc.im.is_zero() else rc
+    if isinstance(x, Fixed):
+        hf = unimath_csqrt_fixed((<Fixed>x)._raw)
+        if hf.im == 0:
+            return Fixed._from_raw(hf.re, 32)
+        return FixedComplex._from_raw(hf, 32)
+    r = unimath_csqrt(<double>x)
+    return r.re if r.im == 0.0 else complex(r.re, r.im)
+
+
+def log(x):
+    """Natural logarithm, complex on the negative side: `log(-1)` is `pi*1j`,
+    `log(1)` is `0.0`. Defined for `int`/`float`/`complex` and `BigFloat`;
+    `Rational` and `Fixed` have no promoting logarithm on the C ABI — their
+    real `ln` (RationalMath.ln, MathRouter.ln) stays type-preserving.
+    Raises `ValueError` at zero, as `math.log` does."""
+    cdef unimath_complex r
+    cdef unimath_complex_bigfloat hb
+    cdef BigComplex bc
+    _ensure_init()
+    if isinstance(x, complex):
+        v = ComplexMath().ln(x)
+        if v is None:
+            raise ValueError("log: complex zero has no logarithm")
+        return v
+    if isinstance(x, BigComplex):
+        return (<BigComplex>x).ln()
+    if isinstance(x, BigFloat):
+        hb = unimath_cln_bigfloat((<BigFloat>x)._h)
+        if hb == NULL:
+            raise ValueError("log: zero has no logarithm")
+        bc = BigComplex._wrap(hb)
+        return bc.re if bc.im.is_zero() else bc
+    if float(x) == 0.0:
+        raise ValueError("log: zero has no logarithm")
+    r = unimath_cln(<double>x)
+    return r.re if r.im == 0.0 else complex(r.re, r.im)
