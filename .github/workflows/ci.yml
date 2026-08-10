@@ -17,8 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0, persist-credentials: false }
       - name: Every commit must carry a Signed-off-by trailer
         run: |
           set -e
@@ -40,7 +40,9 @@ jobs:
     name: SPDX headers
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # Mirrors tools/hooks/spdx_check.sh: every tracked Nim/C/Python source must
       # carry an SPDX-License-Identifier header in its first 5 lines.
       - name: Every Nim/C/Python source carries an SPDX header
@@ -54,7 +56,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -70,7 +74,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -81,7 +87,7 @@ jobs:
         run: choco install make --no-progress
       - run: nimble ctest
       - name: Upload Library
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: libUniMath-${{ matrix.os }}
           # The header ships with the lib: a C ABI artifact without it is not
@@ -101,12 +107,14 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
       - run: nimble install -y
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
       - run: pip install -U setuptools wheel Cython pytest
@@ -134,7 +142,7 @@ jobs:
           pip install delvewheel
           delvewheel repair py/dist/*.whl -w py/dist/repaired/
       - name: Upload Python Wheel
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unimath-wheel-${{ matrix.os }}
           path: py/dist/repaired/*.whl
@@ -150,8 +158,10 @@ jobs:
     steps:
       # No setup-nim-action on purpose: proves the published header and lib work
       # on a machine without Nim, using only the test source from the checkout.
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
         with:
           name: libUniMath-${{ matrix.os }}
           path: artifact
@@ -183,11 +193,13 @@ jobs:
     steps:
       # Neither Nim nor libUniMath exists here: whatever the extension needs
       # at runtime must have travelled inside the wheel.
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: unimath-wheel-${{ matrix.os }}
           path: dist
@@ -221,7 +233,9 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -232,7 +246,9 @@ jobs:
     name: Docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -241,7 +257,7 @@ jobs:
       # nimib runs the book's code against this build: a stale book fails here.
       - run: nimble docs
       - name: Upload Docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docs
           path: pages/
@@ -263,16 +279,16 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: docs
           path: pages
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: pages
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   coverage:
     name: Coverage
@@ -281,7 +297,9 @@ jobs:
     # suppresses no error, so 1.x and 2.x agree.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -289,7 +307,7 @@ jobs:
       - run: nimble install -y
       - run: nimble coverage
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-html
           path: |
