@@ -20,10 +20,11 @@ UniMath is a single repo with a documented internal layer DAG enforced by
 `vgraph.cfg [layers]` (lowest → highest):
 
 ```text
-arithmetic  fixed  float  rational  interval      type layers (interval is a leaf)
+arithmetic  fixed  float  rational  interval  complex   type layers (interval, complex are leaves)
 eft                                            thin re-export of UniAccurate (ADR-0006)
 roots  exponential  trigonometry  hyperbolic  special     generic + fixed cores
 constants  reduction  float_math  rational_math  conversions  math_router   dispatch/integration
+complex_math                       complex transcendentals over any backend (ADR-0009)
 c_api                                                          per-package C ABI (ADR-0007)
 ```
 
