@@ -17,16 +17,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       # A tag disagreeing with the package version ships artifacts whose
       # embedded version lies. Refuse before anything is built.
       - run: |
           set -eu
           tag="${GITHUB_REF_NAME#v}"
           declared=$(grep -m1 '^version' UniMath.nimble | cut -d'"' -f2)
-          echo "tag=$tag declared=$declared"
+          declared_py=$(grep -m1 '^version = ' py/pyproject.toml | cut -d'"' -f2)
+          # Prefix-agnostic on purpose: the macro is UNIMATH_VERSION in one repo
+          # and UC_VERSION in another.
+          declared_h=$(grep -m1 -E '^#define [A-Z_]+_VERSION "' include/UniMath.h | cut -d'"' -f2)
+          echo "tag=$tag nimble=$declared python=$declared_py header=$declared_h"
           test "$tag" = "$declared"
+          test "$tag" = "$declared_py"
+          test "$tag" = "$declared_h"
+
+  test:
+    name: Nim tests (${{ matrix.os }})
+    needs: guard
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - run: nimble install -y
+      - run: nimble testCi
+      - run: nimble testCiRelease
 
   cabi:
     name: C ABI (${{ matrix.os }})
@@ -38,8 +61,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -74,8 +96,7 @@ jobs:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
@@ -83,18 +104,22 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -U setuptools wheel Cython
+      - run: pip install -U setuptools wheel Cython pytest
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - run: nimble pyLib
-      - run: cd py && python3 setup.py bdist_wheel
+      # Build the extension in-place and run the test suite before packaging a
+      # wheel -- a release wheel that fails its own tests is worse than no wheel.
+      - run: cd py && python setup.py build_ext --inplace
+      - run: cd py && python -m pytest -q
+      - run: cd py && python setup.py bdist_wheel
       - name: Repair Wheel
         shell: bash
         run: |
           set -eu
           case "$RUNNER_OS" in
-            Linux)   pip install auditwheel && auditwheel repair py/dist/*.whl -w dist/ ;;
-            macOS)   pip install delocate   && delocate-wheel py/dist/*.whl -w dist/ ;;
+            Linux)   pip install auditwheel && LD_LIBRARY_PATH="$GITHUB_WORKSPACE" auditwheel repair py/dist/*.whl -w dist/ ;;
+            macOS)   pip install delocate   && DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE" delocate-wheel py/dist/*.whl -w dist/ ;;
             Windows) pip install delvewheel && delvewheel repair py/dist/*.whl -w dist/ ;;
           esac
       - uses: actions/upload-artifact@v7
@@ -108,8 +133,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+        with: { persist-credentials: false }
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -117,7 +141,7 @@ jobs:
       # Vendors the Nim source into py/_nimsrc/ (setup.py's vendor_nim_source),
       # so `pip install --no-binary` can build it on a platform/Python version
       # with no prebuilt wheel -- nimble/nim must be on the installer's PATH.
-      - run: cd py && python3 setup.py sdist
+      - run: cd py && python setup.py sdist
       - uses: actions/upload-artifact@v7
         with:
           name: sdist
@@ -125,7 +149,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    needs: [cabi, wheels]
+    needs: [test, cabi, wheels]
     runs-on: ubuntu-latest
     permissions:
       # softprops/action-gh-release creates the release and uploads the assets.
@@ -135,14 +159,14 @@ jobs:
         with:
           path: artifacts
       - run: ls -R artifacts
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: artifacts/**/*
           generate_release_notes: true
 
   publish-pypi:
     name: Publish to PyPI
-    needs: [wheels, sdist]
+    needs: [test, wheels, sdist]
     runs-on: ubuntu-latest
     environment:
       name: pypi
