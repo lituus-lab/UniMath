@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 lituus-lab
-# Linux/macOS only: the speed benchmark links libmpfr + libgmp via pkg-config.
+# Linux/macOS only: the speed benchmark links libmpc + libmpfr + libgmp via
+# pkg-config.
 # POSIX-portable (`?=` only, no `ifeq`/`.if`): GNU make and BSD make share no
 # conditional syntax, so overrides come from the command line instead, which
 # takes precedence over `?=` on every make flavor.
@@ -18,7 +19,7 @@ LIB    := $(ROOT)/libUniMath.a
 BIN    ?= bench_speed
 RUN    ?= ./$(BIN)
 RM_F   ?= rm -f
-PKG    ?= mpfr gmp
+PKG    ?= mpc mpfr gmp
 LIBS   ?= -lm
 
 .PHONY: all run clean
