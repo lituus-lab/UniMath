@@ -58,20 +58,22 @@ proc main() =
       stderr.writeLine("[readme] missing " & path & " -- run `nimble bench` first")
       quit(1)
     body &= "**" & title & "**\n\n" & readFile(path) & "\n"
-  # Optional: nimble benchSpeed (needs libmpfr/libgmp, Linux/macOS only) --
+  # Optional: nimble benchSpeed (needs libmpc/libmpfr/libgmp, Linux/macOS) --
   # raw captured stdout, verbatim, since it's already a fixed-width printf
   # table and reformatting it risks misreading a column.
   const speedPath = "bench/.md_speed.txt"
   if fileExists(speedPath):
-    body &= "**UniMath vs GMP/MPFR** (`nimble benchSpeed`) -- `orc` is the " &
-      "GMP/MPFR oracle (`-reuse`: init once and overwrite, the fastest " &
-      "idiomatic oracle usage; `-alloc`: init+free every call, matching " &
-      "UniMath's per-op handle allocation). `uni/orc-alloc` is the ratio; " &
-      "below 1.0 would mean UniMath is faster -- it is not, here:\n\n```text\n" &
+    body &= "**UniMath vs GMP/MPFR/MPC** (`nimble benchSpeed`) -- `orc` is " &
+      "the native oracle (`-reuse`: init once and overwrite, the fastest " &
+      "idiomatic usage; `-alloc`: init+free every call, matching UniMath's " &
+      "per-op handle allocation). The ratio column names which one it " &
+      "divides by: the handle surfaces are measured against `orc-alloc`, " &
+      "the by-value `Complex[float64]` against `orc-reuse`, since it " &
+      "allocates nothing. Below 1.0 means UniMath is faster:\n\n```\n" &
       readFile(speedPath).strip() & "\n```\n\n"
   else:
     stderr.writeLine("[readme] no " & speedPath &
-      " -- run `nimble benchSpeed > bench/.md_speed.txt` too if libmpfr/libgmp are available")
+      " -- run `nimble benchSpeed > bench/.md_speed.txt` too if libmpc/libmpfr/libgmp are available")
   spliceReadme(machineSlug(), body)
 
 when isMainModule:

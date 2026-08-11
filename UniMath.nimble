@@ -126,9 +126,9 @@ task benchmarkNativeFloatBaseline, "Run and aggregate the native float64 baselin
   putEnv("UNIMATH_BENCH_BUILD", "-d:release --mm:orc")
   exec "./build/run_native_float_baseline"
 
-task benchReadme, "bench (+ benchSpeed if libmpfr/libgmp are available), splice into README.md":
+task benchReadme, "bench (+ benchSpeed if libmpc/libmpfr/libgmp are available), splice into README.md":
   exec "nimble bench"
-  let (_, pkgCode) = gorgeEx("pkg-config --exists mpfr gmp")
+  let (_, pkgCode) = gorgeEx("pkg-config --exists mpc mpfr gmp")
   if pkgCode == 0:
     # Build only (no `make run`), then execute directly so the captured file
     # is the C binary's own stdout, not nimble/make's build chatter too.
@@ -136,7 +136,7 @@ task benchReadme, "bench (+ benchSpeed if libmpfr/libgmp are available), splice 
     exec "make -C bench bench_speed"
     exec "./bench/bench_speed > bench/.md_speed.txt"
   else:
-    echo "benchReadme: no libmpfr/libgmp -- skipping the GMP/MPFR comparison"
+    echo "benchReadme: no libmpc/libmpfr/libgmp -- skipping the oracle comparison"
   exec "nim c -r --path:src bench/export_readme.nim"
 
 # Nim takes `-o:` literally and appends no platform extension.
@@ -189,11 +189,12 @@ task cexample, "C demo":
   exec "nimble clibStatic"
   exec makeExe & " -C examples/c" & winMakeVars("demo")
 
-# Head-to-head speed vs the native GMP/MPFR oracles at matching precision.
-# Linux/macOS only (needs libmpfr/libgmp via pkg-config); NOT in the default
-# gate — run `nimble benchSpeed` explicitly. Builds the static lib, compiles
-# bench/bench_speed.c against it + libmpfr + libgmp, and runs the comparison.
-task benchSpeed, "UniMath-vs-GMP/MPFR speed benchmark (needs libmpfr/libgmp; not in the default gate)":
+# Head-to-head speed vs the native GMP/MPFR/MPC oracles at matching precision.
+# Linux/macOS only (needs libmpc/libmpfr/libgmp via pkg-config); NOT in the
+# default gate — run `nimble benchSpeed` explicitly. Builds the static lib,
+# compiles bench/bench_speed.c against it + libmpc + libmpfr + libgmp, and runs
+# the comparison.
+task benchSpeed, "UniMath-vs-GMP/MPFR/MPC speed benchmark (needs libmpc/libmpfr/libgmp; not in the default gate)":
   exec "nimble clibStatic"
   exec makeExe & " -C bench"
 
