@@ -149,6 +149,20 @@ suite "MPC oracle — the ulp envelope":
         if ulp > 2.0:
           echo op, "(", re, ",", im, ") is ", ulp, " ulp out"
 
+  test "ln holds componentwise against the unit circle, not just in modulus":
+    # Re(ln z) = ln|z| tends to zero there while |ln z| does not, so a
+    # modulus-relative bound says nothing about it: it read 1.3 ulp while the
+    # real part was 4.6e-5 out. Both are asserted here, the real part against
+    # MPC's own correctly-rounded component.
+    for k in [0, 3, 6, 9, 12]:
+      let d = pow(10.0, -float64(k))
+      let z = complex((1.0 + d) * cos(0.7), (1.0 + d) * sin(0.7))
+      let got = ln(z)
+      let (_, rel) = mpcErr("log", got.re, got.im, z.re, z.im)
+      check rel * pow(2.0, 52.0) <= 2.0
+      let (wr, _) = mpcRef("log", RefPrec, z.re, z.im)
+      check relErr(got.re, wr) <= 1e-15
+
 suite "MPC oracle — exact error mode":
   test "the reported error of a correct candidate is a few ulps at most":
     for (re, im) in Points:
