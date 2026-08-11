@@ -124,11 +124,11 @@ suite "MPC oracle — the promoting entry points land on the reference":
     check relErr(got.im, wi) <= UlpTol
 
 suite "MPC oracle — the ulp envelope":
-  test "every function stays inside two ulp of the reference":
+  test "every function stays inside four ulp of the reference":
     # A bound, not a tolerance: it fails on a regression rather than absorbing
     # one. The measured maxima over 400 random points spanning 1e-3 to 1e2 in
-    # modulus are sqrt 0.79, exp 1.06, sin 1.04, cos 1.06, tan 1.73,
-    # sinh 0.86, cosh 0.96, tanh 1.81.
+    # modulus are sqrt 1.58, exp 2.12, sin 2.08, cos 2.12, tan 3.46,
+    # sinh 1.72, cosh 1.92, tanh 3.62.
     const Unary = ["sqrt", "exp", "sin", "cos", "tan", "sinh", "cosh", "tanh"]
     for op in Unary:
       for (re, im) in Points:
@@ -142,12 +142,27 @@ suite "MPC oracle — the ulp envelope":
           of "cosh": cosh(complex(re, im))
           else: tanh(complex(re, im))
         let (_, rel) = mpcErr(op, got.re, got.im, re, im)
-        # One binary64 ulp is at least 2^-53 of the value, so this converts a
-        # relative error into a lower bound in ulps -- never flattering.
-        let ulp = rel * pow(2.0, 52.0)
-        check ulp <= 2.0
-        if ulp > 2.0:
+        # One binary64 ulp is at least 2^-53 of the value, so scaling by 2^53
+        # can only overstate the count: the check never passes an error it
+        # should have caught. 2^52 would be the flattering direction.
+        let ulp = rel * pow(2.0, 53.0)
+        check ulp <= 4.0
+        if ulp > 4.0:
           echo op, "(", re, ",", im, ") is ", ulp, " ulp out"
+
+  test "ln holds componentwise against the unit circle, not just in modulus":
+    # Re(ln z) = ln|z| tends to zero there while |ln z| does not, so a
+    # modulus-relative bound says nothing about it: it read 1.3 ulp while the
+    # real part was 4.6e-5 out. Both are asserted here, the real part against
+    # MPC's own correctly-rounded component.
+    for k in [0, 3, 6, 9, 12]:
+      let d = pow(10.0, -float64(k))
+      let z = complex((1.0 + d) * cos(0.7), (1.0 + d) * sin(0.7))
+      let got = ln(z)
+      let (_, rel) = mpcErr("log", got.re, got.im, z.re, z.im)
+      check rel * pow(2.0, 53.0) <= 4.0
+      let (wr, _) = mpcRef("log", RefPrec, z.re, z.im)
+      check relErr(got.re, wr) <= 1e-15
 
 suite "MPC oracle — exact error mode":
   test "the reported error of a correct candidate is a few ulps at most":

@@ -130,6 +130,15 @@ suite "Complex over BigFloat":
     check abs(toFloat64(r.im) - 1.0) < 1e-12
   test "ln of a negative real lands on the cut":
     check abs(toFloat64(cln(initBigFloat(-1.0, 128)).im) - PI) < 1e-12
+  test "the logarithm's series budget follows the component's own width":
+    # |z|^2 near 1/2 is where `lnAbs` hands `ln1pGeneric` its largest argument.
+    # A term count fixed at 20 stops around 69 bits whatever the component
+    # carries: at |z|^2 == 0.6 a 256-bit BigFloat came out 4e-26 out. Away from
+    # |z| == 1 the real part is O(1) and does not cancel, so the scalar `ln` is
+    # a sound reference at this radius.
+    let x = sqrt(initBigFloat(0.6, 256))
+    let got = ln(complex(x, initBigFloat(0.0, 256))).re
+    check abs(toFloat64(got - ln(x))) < 1e-40
 
 suite "Complex is not a RealField":
   test "the ordered-field generics reject Complex":
@@ -138,3 +147,35 @@ suite "Complex is not a RealField":
     check not compiles(sqrtNewtonGeneric(complex(1.0, 0.0)))
   test "abs returns the component, not a Complex":
     check abs(complex(3.0, 4.0)) is float64
+
+suite "Complex logarithm against the unit circle":
+  test "the real part keeps its own scale as |z| approaches 1":
+    # Re(ln z) = ln|z| tends to zero there while |z| tends to one, so a naive
+    # ln(abs(z)) loses a digit per power of ten between them: it was 4.6e-5
+    # out at |z| - 1 == 1e-12, and once |z| rounds to 1 it returns a flat 0.
+    #
+    # z = 1 + i*2^-k has |z|^2 - 1 == 2^-2k EXACTLY, so the reference carries
+    # no construction rounding of its own -- building z from cos/sin instead
+    # would perturb |z| by an ulp and swamp the very quantity under test.
+    for k in 10 .. 30:
+      let t2 = pow(2.0, -float64(2 * k))
+      let z = complex(1.0, pow(2.0, -float64(k)))
+      # ln|z| = ln(1 + t2)/2, series truncated past t2^3/3 (relative t2^3/4,
+      # below 1e-18 across this range).
+      let want = 0.5 * (t2 - t2 * t2 / 2.0 + t2 * t2 * t2 / 3.0)
+      check abs(ln(z).re - want) <= 1e-14 * abs(want)
+  test "exactly on the unit circle the real part is exactly zero":
+    # Only the four axis points are exactly on the circle in binary; anything
+    # from cos/sin is an ulp off it and would test the rounding instead.
+    for z in [complex(1.0, 0.0), complex(0.0, 1.0),
+              complex(-1.0, 0.0), complex(0.0, -1.0)]:
+      check ln(z).re == 0.0
+  test "the imaginary part is still the argument":
+    for k in [2, 8, 14]:
+      let d = pow(10.0, -float64(k))
+      let z = complex((1.0 + d) * cos(0.7), (1.0 + d) * sin(0.7))
+      check abs(ln(z).im - 0.7) < 1e-15
+  test "far from the unit circle nothing regressed":
+    for m in [1e-8, 1e-3, 10.0, 1e8]:
+      let z = complex(m * cos(0.4), m * sin(0.4))
+      check abs(ln(z).re - ln(m)) <= 1e-15 * abs(ln(m))

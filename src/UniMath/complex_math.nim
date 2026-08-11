@@ -30,12 +30,10 @@
 ## Domain guards (`ln` of zero, `tan` at a pole, division by zero) are body
 ## paths that survive `-d:release`.
 ##
-## `arg`/`polar`/`rect`/`exp`/`ln`/`cln`/`sin`/`cos`/`tan`/`sinh`/`cosh`/`tanh`
-## and the complex `pow` are `proc`, not `func`: the `BigFloat` transcendentals
-## they delegate to read module-level caches, which Nim's effect system flags as
-## global-state access. `arg` and the private `piOf` reach them through
-## `arctan2`, and `polar` through `arg`. A purity annotation only — the caches
-## are immutable after module init.
+## Whatever reaches a `BigFloat` transcendental is a `proc`: those read
+## module-level caches, which Nim's effect system counts as global state. The
+## caches are immutable after module init, so nothing about the values changes
+## — only what the compiler will let the signature claim.
 import contracts
 import std/math
 import ./arithmetic
@@ -44,6 +42,11 @@ import ./float_math
 import ./rational_math
 import ./math_router
 import ./roots
+# `twoSquare`/`twoSum`: `lnAbs` needs |z|^2 - 1 exactly where it nears zero.
+import ./eft
+# `ln1pGeneric` only: `lnAbs` needs ln(1+x) for an x that may be far below the
+# component's epsilon, which no backend's own `ln` provides.
+import ./exponential/logarithm_generic
 
 # ------------------------------------------------------------------------------
 # Modulus, argument, polar form
@@ -146,15 +149,103 @@ proc exp*[T](z: Complex[T]): Complex[T] {.contractual.} =
     let e = exp(z.re)
     complex(e * cos(z.im), e * sin(z.im))
 
+const LnAbsMinTerms = 20
+  ## Floor on the series length for the `ln1pGeneric` call in `lnAbs`. The
+  ## argument is bounded so that `u = s / (2 + s)` stays within 1/3, reached at
+  ## `s == -1/2` — that is, at `|z|^2 == 1/2`, where the first dropped term is
+  ## `2 * (1/3)^41 / 41`, some 69 bits down. Far below a `float64` ulp, and
+  ## past what any other bounded component here resolves.
+
+proc lnAbsTerms[T](s: T): int {.inline.} =
+  ## Series length that carries the component's own resolution rather than the
+  ## fixed 69 bits the floor buys. Driving `2 * |u|^(2n+1) / (2n+1)` below
+  ## `2^-p` at the worst case `|u| = 1/3` needs `n >= p / (2 * log2 3)`, i.e.
+  ## roughly `p / 3`.
+  ##
+  ## Only `BigFloat` carries a `p` that varies, and it carries it as the width
+  ## of the value in hand — the same notion `float_math` budgets its own series
+  ## by. Measuring the series argument rather than `z` keeps the two in step: a
+  ## component holding four bits gets a four-bit answer from either.
+  when compiles(bitLength(s.mantissa)):
+    max(LnAbsMinTerms, bitLength(s.mantissa) div 3 + 4)
+  else:
+    LnAbsMinTerms
+
+func unitResidual[T](a, b: T): T {.inline.} =
+  ## `a*a + b*b - 1`, kept accurate where that difference is near zero.
+  ##
+  ## The obvious rewrite `(a-1)*(a+1) + b*b` only helps when `a` alone sits
+  ## near 1. On the unit circle at 40 degrees both components are near 0.7 and
+  ## it is the two squares that cancel against each other, each carrying its
+  ## own rounding into a result some twelve orders of magnitude smaller.
+  ##
+  ## Where the component supports the error-free transforms, both squares and
+  ## their sum are therefore taken exactly and the discarded low parts are
+  ## added back. `s1 - 1` is exact by Sterbenz whenever `s1` is in `[1/2, 2]`,
+  ## which is the only range where the caller uses this branch, so nothing is
+  ## lost on the way out. Elsewhere -- `BigFloat`, `Rational`, `Fixed`, none of
+  ## which have `twoSquare` -- the algebraic form is used; the exact backends
+  ## do not round at all, and `BigFloat` has the spare bits to absorb it.
+  mixin twoSquare, twoSum
+  let one = fromInt(T, 1)
+  when compiles(twoSquare(a)):
+    let (pa, ea) = twoSquare(a)
+    let (pb, eb) = twoSquare(b)
+    let (s1, es) = twoSum(pa, pb)
+    ((s1 - one) + es) + (ea + eb)
+  else:
+    (a - one) * (a + one) + b * b
+
+proc lnAbs[T](z: Complex[T]): T =
+  ## `ln|z|`, never by forming `|z|` and taking its logarithm.
+  ##
+  ## A `proc`, not a `func`, for the reason the module header gives: the
+  ## `BigFloat` `ln` it delegates to reads module-level caches.
+  ##
+  ## Near the unit circle `ln|z|` tends to zero while `|z|` tends to one, so
+  ## `ln(abs(z))` loses a digit for every power of ten between them: on
+  ## `float64` the real part came out 4.6e-5 wrong at `|z| - 1 == 1e-12`. The
+  ## first branch instead hands `|z|^2 - 1` straight to `ln1p` as the small
+  ## quantity it is, and computes it without cancellation.
+  ##
+  ## The second branch drops the square root as well: `ln(a) + ln1p((b/a)^2)/2`
+  ## has an exactly-zero second term when `b` is zero, where `ln(sqrt(a*a +
+  ## b*b))` would pay for a squaring and a root first.
+  ##
+  ## Non-contracted private helper (`ensure:` may only call non-contracted
+  ## procs). Assumes `z != 0`; `ln` checks that.
+  mixin abs, ln
+  let one = fromInt(T, 1)
+  let two = fromInt(T, 2)
+  let half = one / two
+  var a = abs(z.re)
+  var b = abs(z.im)
+  if a < b:
+    swap(a, b)
+  # `b <= a` gives `a^2 <= |z|^2 <= 2*a^2`, so `|z|` can only approach 1 while
+  # `a` is in `[1/sqrt(2), 1]`. Testing `[1/2, 2]` covers that with room to
+  # spare and keeps `unitResidual` away from the squaring overflow that
+  # `a == 1e300` would otherwise cause.
+  if half <= a and a <= two:
+    let s = unitResidual(a, b)
+    if -half <= s and s <= half:
+      return half * ln1pGeneric(s, lnAbsTerms(s))
+  # Here the result is carried by `ln(a)` and the second term is a bounded
+  # correction, so its own relative error cannot reach the answer: the
+  # component's plain `ln` serves, and costs one call instead of a series.
+  let r = b / a
+  return ln(a) + half * ln(one + r * r)
+
 proc ln*[T](z: Complex[T]): Complex[T] {.contractual.} =
-  ## Principal logarithm `ln|z| + i arg(z)`. Raises `ValueError` on zero (body
-  ## path, survives release) — the real `ln` does the same, and no branch of
-  ## the complex log is finite there. Approximate.
+  ## Principal logarithm `ln|z| + i arg(z)`, accurate componentwise: the real
+  ## part goes through `lnAbs`, which does not cancel against the unit circle.
+  ## Raises `ValueError` on zero (body path, survives release) — the real `ln`
+  ## does the same, and no branch of the complex log is finite there.
+  ## Approximate.
   body:
-    mixin ln
     if z.isZero:
       raise newException(ValueError, "ln: complex zero has no logarithm")
-    complex(ln(abs(z)), arg(z))
+    complex(lnAbs(z), arg(z))
 
 proc cln*[T](x: T): Complex[T] {.contractual.} =
   ## Logarithm of a **real**, returned as a complex: `cln(-1.0)` is `0 + pi*i`
