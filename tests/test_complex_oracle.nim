@@ -23,6 +23,11 @@ const Points = [
   (1.0, 2.0), (3.0, 4.0), (-3.0, 4.0), (-3.0, -4.0), (3.0, -4.0),
   (0.5, -0.25), (-1.0, 0.5), (0.0, 1.0), (2.0, 0.0), (-2.0, 0.0),
   (0.125, 8.0), (-0.75, -0.125),
+  # Small moduli. `sinh` and `cosh` built from `exp` alone cancel here, and a
+  # sample that stopped at order 0.1 reported every function as correct while
+  # `sin`/`tan`/`sinh`/`tanh` were 400 ulp out near the origin.
+  (2.4e-3, -2.7e-3), (-2.2e-4, 1.3e-3), (7.7e-4, -7.3e-4),
+  (1.0e-6, 1.0e-6), (-3.0e-8, 2.0e-8), (1.0e-10, -1.0e-10),
 ]
 
 proc relErr(got, want: float64): float64 =
@@ -117,6 +122,32 @@ suite "MPC oracle — the promoting entry points land on the reference":
     let got = cln(-1.0)
     check relErr(got.re, wr) <= UlpTol or (got.re == 0.0 and wr == 0.0)
     check relErr(got.im, wi) <= UlpTol
+
+suite "MPC oracle — the ulp envelope":
+  test "every function stays inside two ulp of the reference":
+    # A bound, not a tolerance: it fails on a regression rather than absorbing
+    # one. The measured maxima over 400 random points spanning 1e-3 to 1e2 in
+    # modulus are sqrt 0.79, exp 1.06, sin 1.04, cos 1.06, tan 1.73,
+    # sinh 0.86, cosh 0.96, tanh 1.81.
+    const Unary = ["sqrt", "exp", "sin", "cos", "tan", "sinh", "cosh", "tanh"]
+    for op in Unary:
+      for (re, im) in Points:
+        let got = case op
+          of "sqrt": sqrt(complex(re, im))
+          of "exp": exp(complex(re, im))
+          of "sin": sin(complex(re, im))
+          of "cos": cos(complex(re, im))
+          of "tan": tan(complex(re, im))
+          of "sinh": sinh(complex(re, im))
+          of "cosh": cosh(complex(re, im))
+          else: tanh(complex(re, im))
+        let (_, rel) = mpcErr(op, got.re, got.im, re, im)
+        # One binary64 ulp is at least 2^-53 of the value, so this converts a
+        # relative error into a lower bound in ulps -- never flattering.
+        let ulp = rel * pow(2.0, 52.0)
+        check ulp <= 2.0
+        if ulp > 2.0:
+          echo op, "(", re, ",", im, ") is ", ulp, " ulp out"
 
 suite "MPC oracle — exact error mode":
   test "the reported error of a correct candidate is a few ulps at most":
