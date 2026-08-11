@@ -5,7 +5,7 @@ Isolated benchmark suite for UniMath. **Not part of the default gate**
 
 ```bash
 nimble bench          # Nim self-timing: perf + precision parity
-nimble benchSpeed     # C: UniMath vs native GMP/MPFR (needs libmpfr/libgmp)
+nimble benchSpeed     # C: UniMath vs native GMP/MPFR/MPC (needs libmpc/libmpfr/libgmp)
 ```
 
 Both `bench` targets build with `-d:release` so the `NimContracts`
@@ -23,9 +23,19 @@ plus `libmpfr`/`libgmp` via pkg-config — Linux/macOS only.
   compares the 256-bit `BigFloat` result against the float64 `math` oracle and
   reports the absolute error.
 - `bench_speed.c` — head-to-head speed of the UniMath C ABI against the native
-  GMP/MPFR oracles at matching precision (256-bit `BigFloat`; BigInt operand
-  sizes built identically on both sides). Prints ns/op for each side and the
-  `uni/orc-alloc` ratio (`<1.0` means UniMath is faster).
+  GMP/MPFR/MPC oracles at matching precision (256-bit `BigFloat` and
+  complex-256; 53-bit MPC against the float64 complex; BigInt operand sizes
+  built identically on both sides). Prints ns/op for each side and the ratio,
+  where `<1.0` means UniMath is faster.
+
+  The oracle is timed two ways. `orc-reuse` initialises the result once and
+  overwrites it every iteration, which is the fastest idiomatic usage;
+  `orc-alloc` initialises and frees it per call, matching what a UniMath
+  handle costs. Which one the ratio uses follows the UniMath ABI under test:
+  the handle surfaces (`BigInt`, `BigFloat`, `Complex[BigFloat]`) are compared
+  against `orc-alloc`, while `Complex[float64]` crosses by value and allocates
+  nothing, so it is compared against `orc-reuse` — charging MPC for an
+  allocation UniMath never performs would flatter the ratio.
 
 ## Reading the numbers
 

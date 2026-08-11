@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 lituus-lab
-/* Head-to-head speed benchmark: the UniMath C ABI vs the native GMP/MPFR
- * oracles at matching precision. One binary links libUniMath.a + libmpfr +
- * libgmp, runs identical workloads through both, and prints ns/op plus the
- * UniMath/oracle ratio (<1.0 means UniMath is faster).
+/* Head-to-head speed benchmark: the UniMath C ABI vs the native GMP/MPFR/MPC
+ * oracles at matching precision. One binary links libUniMath.a + libmpc +
+ * libmpfr + libgmp, runs identical workloads through both, and prints ns/op
+ * plus the UniMath/oracle ratio (<1.0 means UniMath is faster).
  *
  * Fairness notes (also in bench/README.md):
  *   - UniMath's handle ABI allocates a new result per op and the caller frees
@@ -15,6 +15,13 @@
  *     mpfr_init2(.., 256)). BigInt operand sizes are matched by construction.
  *   - `g_sink` accumulates a checksum of every result so the -O2 optimizer
  *     cannot dead-code-eliminate the pure bodies.
+ *   - The complex sections are split by ABI shape, because the fair oracle
+ *     column differs. `Complex[float64]` crosses the boundary BY VALUE and
+ *     allocates nothing, so its match is MPC-reuse, and MPC runs at 53 bits to
+ *     hold the precision equal. `Complex[BigFloat]` is handle-based like the
+ *     BigFloat scalars, so its match is MPC-alloc at 256 bits. Comparing the
+ *     float64 row against a 256-bit oracle would flatter UniMath by three
+ *     orders of magnitude and mean nothing.
  *
  * Build: `nimble benchSpeed` (needs libmpfr/libgmp via pkg-config; not in the
  * default gate). */
@@ -25,6 +32,7 @@
 #include <math.h>
 #include <gmp.h>
 #include <mpfr.h>
+#include <mpc.h>
 #include "UniMath.h"
 
 static long double g_sink = 0.0;
@@ -42,6 +50,12 @@ static double timeit(bench_fn f, void *ctx, long iters) {
   f(ctx, iters);
   double t1 = now_s();
   return ((t1 - t0) * 1e9) / (double)iters;
+}
+
+static void row_reuse(const char *name, double um, double reuse, double alloc) {
+  printf("  %-22s | uni %10.2f | orc-reuse %10.2f | orc-alloc %10.2f"
+         " | uni/orc-reuse %.2f\n",
+         name, um, reuse, alloc, um / reuse);
 }
 
 static void row(const char *name, double um, double reuse, double alloc) {
@@ -153,6 +167,116 @@ MPFR_ALLOC(mpfr_exp_alloc, mpfr_exp)
 MPFR_ALLOC(mpfr_ln_alloc, mpfr_log)
 MPFR_ALLOC(mpfr_sqrt_alloc, mpfr_sqrt)
 
+/* ---- Complex over float64: value ABI vs MPC at 53 bits ----
+ * `unimath_complex` is two doubles in registers, so there is no handle to
+ * free and no allocation to match; MPC-reuse is the comparable model. MPC is
+ * held at 53 bits so both sides carry the same precision. */
+typedef struct { unimath_complex a, b; } UmCx;
+#define UM_CX1(NAME, API)                                                      \
+  static void NAME(void *p, long n) {                                          \
+    UmCx *c = p;                                                               \
+    for (long i = 0; i < n; i++) {                                             \
+      unimath_complex r = API(c->a);                                           \
+      g_sink += (long double)r.re;                                             \
+    }                                                                          \
+  }
+#define UM_CX2(NAME, API)                                                      \
+  static void NAME(void *p, long n) {                                          \
+    UmCx *c = p;                                                               \
+    for (long i = 0; i < n; i++) {                                             \
+      unimath_complex r = API(c->a, c->b);                                     \
+      g_sink += (long double)r.re;                                             \
+    }                                                                          \
+  }
+UM_CX2(um_cx_mul, unimath_complex_mul)
+UM_CX2(um_cx_div, unimath_complex_div)
+UM_CX1(um_cx_sqrt, unimath_complex_sqrt)
+UM_CX1(um_cx_exp, unimath_complex_exp)
+UM_CX1(um_cx_ln, unimath_complex_ln)
+UM_CX1(um_cx_sin, unimath_complex_sin)
+
+/* ---- Complex over BigFloat: handle ABI vs MPC at 256 bits ---- */
+typedef struct { unimath_complex_bigfloat a, b; } UmCxBf;
+#define UM_CXBF1(NAME, API)                                                    \
+  static void NAME(void *p, long n) {                                          \
+    UmCxBf *c = p;                                                             \
+    for (long i = 0; i < n; i++) {                                             \
+      unimath_complex_bigfloat r = API(c->a);                                  \
+      g_sink += (long double)(unsigned long long)(size_t)r;                    \
+      unimath_complex_bigfloat_destroy(r);                                     \
+    }                                                                          \
+  }
+#define UM_CXBF2(NAME, API)                                                    \
+  static void NAME(void *p, long n) {                                          \
+    UmCxBf *c = p;                                                             \
+    for (long i = 0; i < n; i++) {                                             \
+      unimath_complex_bigfloat r = API(c->a, c->b);                            \
+      g_sink += (long double)(unsigned long long)(size_t)r;                    \
+      unimath_complex_bigfloat_destroy(r);                                     \
+    }                                                                          \
+  }
+UM_CXBF2(um_cxbf_mul, unimath_complex_bigfloat_mul)
+UM_CXBF2(um_cxbf_div, unimath_complex_bigfloat_div)
+UM_CXBF1(um_cxbf_sqrt, unimath_complex_bigfloat_sqrt)
+UM_CXBF1(um_cxbf_exp, unimath_complex_bigfloat_exp)
+UM_CXBF1(um_cxbf_ln, unimath_complex_bigfloat_ln)
+UM_CXBF1(um_cxbf_sin, unimath_complex_bigfloat_sin)
+
+/* ---- MPC, both precisions. `prec` travels in the context so one macro pair
+ * serves the 53-bit and the 256-bit sections. ---- */
+typedef struct { mpc_t a, b, r; } MpcReuse;
+typedef struct { mpc_t a, b; mpfr_prec_t prec; } MpcAlloc;
+#define MPC_REUSE1(NAME, API)                                                  \
+  static void NAME(void *p, long n) {                                          \
+    MpcReuse *c = p;                                                           \
+    for (long i = 0; i < n; i++) {                                             \
+      API(c->r, c->a, MPC_RNDNN);                                              \
+      g_sink += (long double)mpfr_get_d(mpc_realref(c->r), MPFR_RNDN);         \
+    }                                                                          \
+  }
+#define MPC_REUSE2(NAME, API)                                                  \
+  static void NAME(void *p, long n) {                                          \
+    MpcReuse *c = p;                                                           \
+    for (long i = 0; i < n; i++) {                                             \
+      API(c->r, c->a, c->b, MPC_RNDNN);                                        \
+      g_sink += (long double)mpfr_get_d(mpc_realref(c->r), MPFR_RNDN);         \
+    }                                                                          \
+  }
+#define MPC_ALLOC1(NAME, API)                                                  \
+  static void NAME(void *p, long n) {                                          \
+    MpcAlloc *c = p;                                                           \
+    mpc_t r;                                                                   \
+    for (long i = 0; i < n; i++) {                                             \
+      mpc_init2(r, c->prec);                                                   \
+      API(r, c->a, MPC_RNDNN);                                                 \
+      g_sink += (long double)mpfr_get_d(mpc_realref(r), MPFR_RNDN);            \
+      mpc_clear(r);                                                            \
+    }                                                                          \
+  }
+#define MPC_ALLOC2(NAME, API)                                                  \
+  static void NAME(void *p, long n) {                                          \
+    MpcAlloc *c = p;                                                           \
+    mpc_t r;                                                                   \
+    for (long i = 0; i < n; i++) {                                             \
+      mpc_init2(r, c->prec);                                                   \
+      API(r, c->a, c->b, MPC_RNDNN);                                           \
+      g_sink += (long double)mpfr_get_d(mpc_realref(r), MPFR_RNDN);            \
+      mpc_clear(r);                                                            \
+    }                                                                          \
+  }
+MPC_REUSE2(mpc_mul_reuse, mpc_mul)
+MPC_REUSE2(mpc_div_reuse, mpc_div)
+MPC_REUSE1(mpc_sqrt_reuse, mpc_sqrt)
+MPC_REUSE1(mpc_exp_reuse, mpc_exp)
+MPC_REUSE1(mpc_ln_reuse, mpc_log)
+MPC_REUSE1(mpc_sin_reuse, mpc_sin)
+MPC_ALLOC2(mpc_mul_alloc, mpc_mul)
+MPC_ALLOC2(mpc_div_alloc, mpc_div)
+MPC_ALLOC1(mpc_sqrt_alloc, mpc_sqrt)
+MPC_ALLOC1(mpc_exp_alloc, mpc_exp)
+MPC_ALLOC1(mpc_ln_alloc, mpc_log)
+MPC_ALLOC1(mpc_sin_alloc, mpc_sin)
+
 /* Build a ~1024-bit BigInt by squaring a 60-bit seed four times (60 -> 120 ->
  * 240 -> 480 -> 960 bits). Same construction on both sides -> same operands. */
 static unimath_bigint um_big1024(void) {
@@ -187,9 +311,9 @@ static void gmp_big512(mpz_t out) {
 
 int main(void) {
   if (!unimath_init()) { printf("unimath_init failed\n"); return 1; }
-  printf("UniMath %s vs GMP/MPFR (256-bit BigFloat); ns/op, lower is faster\n",
+  printf("UniMath %s vs GMP/MPFR/MPC; ns/op, lower is faster\n",
          unimath_version());
-  printf("  ratio = UniMath / oracle-alloc  (<1.0 => UniMath faster)\n");
+  printf("  ratio = UniMath / oracle  (<1.0 => UniMath faster); BigFloat and complex-256 at 256 bits\n");
   printf("%s\n", "  ----------------------------------------------------------------------------------------------");
 
   /* BigInt mul 64-bit */
@@ -256,6 +380,73 @@ int main(void) {
           timeit(ops[i].reuse, &g, ops[i].n), timeit(ops[i].alloc, &ga, ops[i].n));
       unimath_bigfloat_destroy(u.x);
       mpfr_clear(g.x); mpfr_clear(g.r); mpfr_clear(ga.x);
+    }
+  }
+
+  /* Complex over float64 vs MPC at 53 bits. Ratio against orc-reuse: the
+     value ABI allocates nothing, so orc-alloc would charge MPC for a model
+     UniMath never pays for. */
+  {
+    printf("  -- complex, float64 value ABI vs MPC at 53 bits"
+           " (ratio vs orc-reuse) --\n");
+    struct { const char *name; int binary; bench_fn um, reuse, alloc; long n; } ops[] = {
+      {"Complex mul f64",  1, um_cx_mul,  mpc_mul_reuse,  mpc_mul_alloc,  200000},
+      {"Complex div f64",  1, um_cx_div,  mpc_div_reuse,  mpc_div_alloc,  200000},
+      {"Complex sqrt f64", 0, um_cx_sqrt, mpc_sqrt_reuse, mpc_sqrt_alloc, 100000},
+      {"Complex exp f64",  0, um_cx_exp,  mpc_exp_reuse,  mpc_exp_alloc,  100000},
+      {"Complex ln f64",   0, um_cx_ln,   mpc_ln_reuse,   mpc_ln_alloc,   100000},
+      {"Complex sin f64",  0, um_cx_sin,  mpc_sin_reuse,  mpc_sin_alloc,  100000},
+    };
+    for (size_t i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
+      (void)ops[i].binary;
+      UmCx u = {unimath_complex_from_f64(1.5, 0.75),
+                unimath_complex_from_f64(3.0, -1.25)};
+      MpcReuse g;
+      mpc_init2(g.a, 53); mpc_init2(g.b, 53); mpc_init2(g.r, 53);
+      mpc_set_d_d(g.a, 1.5, 0.75, MPC_RNDNN);
+      mpc_set_d_d(g.b, 3.0, -1.25, MPC_RNDNN);
+      MpcAlloc ga;
+      mpc_init2(ga.a, 53); mpc_init2(ga.b, 53); ga.prec = 53;
+      mpc_set_d_d(ga.a, 1.5, 0.75, MPC_RNDNN);
+      mpc_set_d_d(ga.b, 3.0, -1.25, MPC_RNDNN);
+      row_reuse(ops[i].name, timeit(ops[i].um, &u, ops[i].n),
+                timeit(ops[i].reuse, &g, ops[i].n),
+                timeit(ops[i].alloc, &ga, ops[i].n));
+      mpc_clear(g.a); mpc_clear(g.b); mpc_clear(g.r);
+      mpc_clear(ga.a); mpc_clear(ga.b);
+    }
+  }
+  /* Complex over BigFloat vs MPC at 256 bits. Handle ABI on both sides, so
+     the ratio is against orc-alloc as elsewhere in this file. */
+  {
+    printf("  -- complex, BigFloat handle ABI vs MPC at 256 bits"
+           " (ratio vs orc-alloc) --\n");
+    struct { const char *name; bench_fn um, reuse, alloc; long n; } ops[] = {
+      {"Complex mul 256",  um_cxbf_mul,  mpc_mul_reuse,  mpc_mul_alloc,  20000},
+      {"Complex div 256",  um_cxbf_div,  mpc_div_reuse,  mpc_div_alloc,  20000},
+      {"Complex sqrt 256", um_cxbf_sqrt, mpc_sqrt_reuse, mpc_sqrt_alloc, 5000},
+      {"Complex exp 256",  um_cxbf_exp,  mpc_exp_reuse,  mpc_exp_alloc,  2000},
+      {"Complex ln 256",   um_cxbf_ln,   mpc_ln_reuse,   mpc_ln_alloc,   5000},
+      {"Complex sin 256",  um_cxbf_sin,  mpc_sin_reuse,  mpc_sin_alloc,  2000},
+    };
+    for (size_t i = 0; i < sizeof(ops) / sizeof(ops[0]); i++) {
+      UmCxBf u = {unimath_complex_bigfloat_from_f64(1.5, 0.75),
+                  unimath_complex_bigfloat_from_f64(3.0, -1.25)};
+      MpcReuse g;
+      mpc_init2(g.a, 256); mpc_init2(g.b, 256); mpc_init2(g.r, 256);
+      mpc_set_d_d(g.a, 1.5, 0.75, MPC_RNDNN);
+      mpc_set_d_d(g.b, 3.0, -1.25, MPC_RNDNN);
+      MpcAlloc ga;
+      mpc_init2(ga.a, 256); mpc_init2(ga.b, 256); ga.prec = 256;
+      mpc_set_d_d(ga.a, 1.5, 0.75, MPC_RNDNN);
+      mpc_set_d_d(ga.b, 3.0, -1.25, MPC_RNDNN);
+      row(ops[i].name, timeit(ops[i].um, &u, ops[i].n),
+          timeit(ops[i].reuse, &g, ops[i].n),
+          timeit(ops[i].alloc, &ga, ops[i].n));
+      unimath_complex_bigfloat_destroy(u.a);
+      unimath_complex_bigfloat_destroy(u.b);
+      mpc_clear(g.a); mpc_clear(g.b); mpc_clear(g.r);
+      mpc_clear(ga.a); mpc_clear(ga.b);
     }
   }
 
