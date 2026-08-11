@@ -170,14 +170,25 @@ proc cln*[T](x: T): Complex[T] {.contractual.} =
 # ------------------------------------------------------------------------------
 
 proc coshSinh[T](x: T): (T, T) {.inline.} =
-  ## `(cosh x, sinh x)` from `exp` alone. `float_math` ships no `sinh`/`cosh`
-  ## for `BigFloat`, and requiring them of the component would shrink the set of
-  ## usable backends for no gain. Non-contracted private helper.
-  mixin exp
-  let two = fromInt(T, 2)
-  let e = exp(x)
-  let ei = fromInt(T, 1) / e
-  ((e + ei) / two, (e - ei) / two)
+  ## `(cosh x, sinh x)` for the component. Prefers the component's own
+  ## `sinh`/`cosh` where they exist, and falls back to `exp` otherwise.
+  ##
+  ## The fallback is only safe for a component with precision to spare.
+  ## `(e - 1/e) / 2` cancels catastrophically as `x` approaches zero: both
+  ## terms tend to 1 while their difference tends to `2x`, so the relative
+  ## error grows like `1/x`. Measured against MPC on `float64`, that reached
+  ## 400 ulp near the origin. `float64` (`std/math`), `Fixed` (`math_router`)
+  ## and `Rational` (`rational_math`) all ship `sinh`/`cosh`, so only
+  ## `BigFloat` takes the fallback, where 256 bits absorb the lost digits well
+  ## below what a `float64` result can see. Non-contracted private helper.
+  mixin exp, sinh, cosh
+  when compiles((sinh(x), cosh(x))):
+    (cosh(x), sinh(x))
+  else:
+    let two = fromInt(T, 2)
+    let e = exp(x)
+    let ei = fromInt(T, 1) / e
+    ((e + ei) / two, (e - ei) / two)
 
 proc sin*[T](z: Complex[T]): Complex[T] {.contractual.} =
   ## `sin(a+bi) = sin a cosh b + i cos a sinh b`. Approximate.
