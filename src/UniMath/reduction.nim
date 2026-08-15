@@ -13,10 +13,9 @@
 ## This module holds the reduction infrastructure shared by the `float_math`
 ## transcendentals (commit 23): power-of-two scaling, the cached `pi`/`2*pi`,
 ## `floor`/`round` over `BigFloat`, and `reduceModTwoPi` (the trig stage-1
-## reduction `r = x - round(x/2pi)·2pi` into `[-pi, pi]`). The octant-fold
-## caches (`pi/2`, `pi/4`, `3pi/4`) and `ln(2)` are built in `float_math` where
-## the transcendentals consume them, so nothing here is dead ahead of its
-## consumer.
+## reduction `r = x - round(x/2pi)·2pi` into `[-pi, pi]`). Precision-keyed pi,
+## its octant multiples, and `ln(2)` are cached in `float_math`, next to their
+## consumers.
 ##
 ## The cache-reading procs are `proc` (not `func`): reading a module-level `let`
 ## is flagged as global-state access by Nim's strict effect system, so the
