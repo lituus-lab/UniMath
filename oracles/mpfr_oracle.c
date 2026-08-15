@@ -72,6 +72,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <gmp.h>
+#define MPFR_USE_FILE
 #include <mpfr.h>
 
 /* Accumulator precision: 2048 bits. A float64 argument is an exact rational;
@@ -268,3 +269,4 @@ int main(void) {
   mpfr_clears(x, r, a, y, errv, relv, ulpv, minnorm, (mpfr_ptr)0);
   return 0;
 }
+
