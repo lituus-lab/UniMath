@@ -97,6 +97,12 @@ suite "BigUInt":
     check (initBigUInt(0'u64) * initBigUInt(123'u64)) == initBigUInt(0'u64)
     let a = initBigUInt(1_000_000'u64)
     check (a * initBigUInt(1_000_000'u64)) == initBigUInt(1_000_000_000_000'u64)
+  test "mulInto preserves value aliases":
+    var a = initBigUInt(@[MaxLimb, OneLimb])
+    let alias = a
+    mulInto(a, initBigUInt(10'u64))
+    check alias == initBigUInt(@[MaxLimb, OneLimb])
+    check a == alias * initBigUInt(10'u64)
   test "divMod reconstruction":
     let a = initBigUInt(1_000_000_017'u64)
     let b = initBigUInt(7'u64)

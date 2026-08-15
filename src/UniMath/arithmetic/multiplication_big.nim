@@ -86,3 +86,9 @@ func mul*(a, b: BigUInt, algo: MulAlgorithm = Auto): BigUInt {.contractual.} =
 func `*`*(a, b: BigUInt): BigUInt {.inline.} =
   mul(a, b)
 
+proc mulInto*(acc: var BigUInt, k: BigUInt) {.contractual.} =
+  ## Replace `acc` by its product with `k`. Nim does not expose uniqueness for
+  ## seq payloads, so the value API preserves aliases through the allocating
+  ## multiplication path. Ownership-aware frontends may specialize safely.
+  body:
+    acc = acc * k

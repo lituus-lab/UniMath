@@ -216,6 +216,33 @@ proc unimath_bigint_mul(a, b: pointer): pointer =
   if a == nil or b == nil: return nil
   pin(bigOf(a) * bigOf(b))
 
+proc unimath_bigint_mul_into(acc, k: pointer): pointer =
+  ## Consume the accumulator handle and return its replacement. The owned box
+  ## is reused; a distinct single-limb multiplier also reuses its limb buffer.
+  if acc == nil: return nil
+  if k == nil:
+    unrefBigInt(acc)
+    return nil
+  let target = cast[AbiBigInt](acc)
+  if acc == k:
+    target[] = target[] * target[]
+    return acc
+  let factor = bigOf(k)
+  if factor.isZero or target[].isZero:
+    target[] = initBigInt(0)
+  elif factor.mag.limbs.len == 1:
+    let multiplier = factor.mag.limbs[0]
+    var carry = ZeroLimb
+    for i in 0 ..< target[].mag.limbs.len:
+      target[].mag.limbs[i] = mulAdd(target[].mag.limbs[i], multiplier,
+        ZeroLimb, carry)
+    if carry != ZeroLimb:
+      target[].mag.limbs.add(carry)
+    target[].isNegative = target[].isNegative != factor.isNegative
+  else:
+    target[] = target[] * factor
+  acc
+
 proc unimath_bigint_div(a, b: pointer): pointer =
   ## Truncated-toward-zero quotient (matches the signed `div`). NULL on
   ## division by zero or a nil handle.

@@ -154,6 +154,17 @@ int main(void) {
   unimath_bigint_destroy(x);
   unimath_bigint_destroy(y);
 
+  {
+    unimath_bigint acc = unimath_bigint_from_i64(1);
+    for (long long i = 2; i <= 20; i++) {
+      unimath_bigint factor = unimath_bigint_from_i64(i);
+      acc = unimath_bigint_mul_into(acc, factor);
+      unimath_bigint_destroy(factor);
+    }
+    check_str("mul_into factorial(20)", dec_of("20!", acc),
+      "2432902008176640000");
+  }
+
   unimath_bigint n = unimath_bigint_from_decimal("1000000000000000000000");
   unimath_bigint d = unimath_bigint_from_decimal("7");
   check_str("div", dec_of("n/d", unimath_bigint_div(n, d)), "142857142857142857142");
