@@ -17,7 +17,7 @@ const RefPrec = 53 # single rounding to binary64
                    # of the correctly-rounded float64. (Correctly rounded is <= 0.5.)
 const UlpBound = 1.0
 
-proc bf(x: float64): BigFloat = initBigFloat(x, 256)
+proc bf(x: float64, precision = 256): BigFloat = initBigFloat(x, precision)
 
 proc checkTransc(op: string, cand, x: float64) =
   let refVal = mpfrRef(op, RefPrec, x)
@@ -26,6 +26,11 @@ proc checkTransc(op: string, cand, x: float64) =
   check ulp <= UlpBound
 
 suite "float_math vs MPFR — sin/cos":
+  test "default budgets are correctly rounded":
+    for precision in [256, 320, 384]:
+      for x in [0.5, 1.0, 1.5, -0.7]:
+        checkTransc("sin", toFloat64(sin(bf(x, precision))), x)
+        checkTransc("cos", toFloat64(cos(bf(x, precision))), x)
   test "small arguments are correctly rounded":
     for x in [0.5, 1.0, 1.5, 2.0, 3.0, -0.7, -2.3]:
       checkTransc("sin", toFloat64(sin(bf(x), 40)), x)
@@ -35,6 +40,9 @@ suite "float_math vs MPFR — sin/cos":
     check toFloat64(cos(bf(0.0), 40)) == mpfrRef("cos", RefPrec, 0.0)
 
 suite "float_math vs MPFR — exp/ln":
+  test "default exp budget is correctly rounded":
+    for x in [0.5, 1.0, 2.0, -3.0]:
+      checkTransc("exp", toFloat64(exp(bf(x))), x)
   test "exp":
     for x in [0.5, 1.0, 2.0, 5.0, -3.0, 10.0]:
       checkTransc("exp", toFloat64(exp(bf(x), 40)), x)
