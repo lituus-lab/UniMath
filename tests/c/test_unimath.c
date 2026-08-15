@@ -712,12 +712,15 @@ int main(void) {
   check_fix_unary("fixed_exp(1)", unimath_fixed_exp, 1.0, exp(1.0), 1e-3);
   check_fix_unary("fixed_ln(1)", unimath_fixed_ln, 1.0, 0.0, 1e-4);
   check_fix_unary("fixed_ln(1.5)", unimath_fixed_ln, 1.5, log(1.5), 1e-4);
+  check_fix_unary("fixed_ln(1000)", unimath_fixed_ln, 1000.0, log(1000.0), 3e-8);
   check_fix_unary("fixed_sqrt(4)", unimath_fixed_sqrt, 4.0, 2.0, 1e-6);
   check_fix_unary("fixed_sqrt(2)", unimath_fixed_sqrt, 2.0, sqrt(2.0), 1e-6);
   check_fix_unary("fixed_atan(1)", unimath_fixed_atan, 1.0, C_PI / 4, 1e-3);
   check_fix_unary("fixed_sinh(1)", unimath_fixed_sinh, 1.0, sinh(1.0), 1e-3);
   check_fix_unary("fixed_cosh(1)", unimath_fixed_cosh, 1.0, cosh(1.0), 1e-3);
   check_fix_unary("fixed_tanh(1)", unimath_fixed_tanh, 1.0, tanh(1.0), 1e-3);
+  check_fix_unary("fixed_tanh(1.25)", unimath_fixed_tanh, 1.25, tanh(1.25), 2e-8);
+  check_fix_unary("fixed_tanh(3)", unimath_fixed_tanh, 3.0, tanh(3.0), 2e-8);
   {
     long long qy = TO_Q32(1.0);
     long long qx = TO_Q32(1.0);
