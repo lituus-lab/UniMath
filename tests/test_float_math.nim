@@ -91,6 +91,33 @@ suite "float_math — arctan/arctan2":
     check abs(toFloat64(arctan2(bf(1.0), bf(0.0), Terms)) - PI / 2) < Tol
     check abs(toFloat64(arctan2(bf(0.0), bf(-1.0), Terms)) - PI) < Tol
     check toFloat64(arctan2(bf(0.0), bf(0.0), Terms)) == 0.0
+  test "default term budget follows argument and precision":
+    for pair in [(5.0, 13.0), (1.0, 3.0), (2.0, 9.0)]:
+      let y = bf(pair[0])
+      let x = bf(pair[1])
+      let ratio = y / x
+      check abs(tan(arctan2(y, x)) - ratio) < bf(1e-70)
+
+suite "float_math — full-precision identities":
+  test "default exp and ln retain the carried precision":
+    for x in [0.5, 2.0, 7.0]:
+      let value = bf(x)
+      check abs(ln(exp(value)) - value) < bf(1e-65)
+  test "default sin and cos retain the carried precision":
+    for x in [0.5, 1.5]:
+      let value = bf(x)
+      let s = sin(value)
+      let c = cos(value)
+      check abs(s * s + c * c - bf(1.0)) < bf(1e-65)
+  test "512-bit defaults retain more than 256 bits":
+    let tolerance = bf(1e-140, 512)
+    let value = bf(0.7, 512)
+    check abs(ln(exp(value)) - value) < tolerance
+    let s = sin(value)
+    let c = cos(value)
+    check abs(s * s + c * c - bf(1.0, 512)) < tolerance
+    let ratio = bf(5.0, 512) / bf(13.0, 512)
+    check abs(tan(arctan(ratio)) - ratio) < tolerance
 
 suite "float_math — domain guards":
   test "ln(0) raises ValueError":

@@ -284,17 +284,29 @@ unimath_bigfloat unimath_bigfloat_reduce(unimath_bigfloat h);
  * Range-reduced BigFloat transcendentals. Each returns a new handle (destroy
  * with `unimath_bigfloat_destroy`); NULL in -> NULL out. Domain errors map to
  * NULL (never raises): ln/pow of a non-positive base, sqrt of a negative, tan
- * at a cos-zero singularity. */
+ * at a cos-zero singularity. Default calls derive their series budget from
+ * the reduced argument and carried precision. The `_terms` variants use an
+ * explicit positive budget; terms <= 0 selects the derived default. */
 unimath_bigfloat unimath_bigfloat_sin(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_sin_terms(unimath_bigfloat h, int terms);
 unimath_bigfloat unimath_bigfloat_cos(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_cos_terms(unimath_bigfloat h, int terms);
 unimath_bigfloat unimath_bigfloat_tan(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_tan_terms(unimath_bigfloat h, int terms);
 unimath_bigfloat unimath_bigfloat_exp(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_exp_terms(unimath_bigfloat h, int terms);
 unimath_bigfloat unimath_bigfloat_ln(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_ln_terms(unimath_bigfloat h, int terms);
 unimath_bigfloat unimath_bigfloat_sqrt(unimath_bigfloat h);
 unimath_bigfloat unimath_bigfloat_arctan(unimath_bigfloat h);
+unimath_bigfloat unimath_bigfloat_arctan_terms(unimath_bigfloat h, int terms);
 unimath_bigfloat unimath_bigfloat_arctan2(unimath_bigfloat y, unimath_bigfloat x);
+unimath_bigfloat unimath_bigfloat_arctan2_terms(unimath_bigfloat y,
+  unimath_bigfloat x, int terms);
 unimath_bigfloat unimath_bigfloat_pow_int(unimath_bigfloat h, int n);
 unimath_bigfloat unimath_bigfloat_pow(unimath_bigfloat h, unimath_bigfloat e);
+unimath_bigfloat unimath_bigfloat_pow_terms(unimath_bigfloat h,
+  unimath_bigfloat e, int terms);
 
 /* ---- rational_math ----
  * Rational[BigInt] transcendentals (exact per term, truncated). Each returns a

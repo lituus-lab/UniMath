@@ -18,13 +18,12 @@
 ## primitive or a `BigFloat` comparison delegating to the contracted `cmp`
 ## (recursion doctrine). The precision envelope is documented per-proc and
 ## verified externally against the MPFR oracle. Domain guards (`ln`/`pow`/`tan`
-## singularities) are body `raise`s that survive `-d:release`. The cache-reading
-## procs (`sin`/`cos`/`exp`/`ln`/`tan`/`pow`) are `proc` (not `func`): reading
-## the module-level octant/`ln(2)` caches is flagged as global-state access by
-## Nim's strict effect system, so they cannot carry `.noSideEffect`. The caches
-## are immutable after module init — a purity annotation only.
+## singularities) are body `raise`s that survive `-d:release`. Pi and `ln(2)`
+## are memoized by precision in lazily populated thread-local caches, avoiding
+## shared mutable state. Cache-reading entry points are `proc` because Nim's
+## strict effect system rejects global-state access from `func`.
 import contracts
-import std/math
+import std/[math, tables]
 import ./float
 import ./arithmetic
 import ./constants
@@ -36,75 +35,181 @@ const
   sqrt2F64* = 1.4142135623730951 ## sqrt(2) as a float64 (ln mantissa-halve threshold)
   tanPi8F64* = 0.4142135623730951 ## tan(pi/8) = sqrt(2)-1 (arctan reduce threshold)
 
-# Octant-fold caches and ln(2), built once at module load from the cached pi
-# (`piConst`) and the generic `lnGeneric`. `arctan`/`arctan2` are `func`s and
-# cannot read these (or `piConst`, a `proc`); they recompute pi via
-# `getPiBigFloat` (a pure `func`) instead.
-let halfPiCache: BigFloat = scaleByPow2(piConst(), -1)
-let quarterPiCache: BigFloat = scaleByPow2(piConst(), -2)
-let threeQuarterPiCache: BigFloat = halfPiCache + quarterPiCache
+func workingPrecision(x: BigFloat): int {.contractual, inline.} =
+  ensure:
+    result > 0
+  body:
+    if x.isZero: 256 else: bitLength(x.mantissa)
 
-# ln(2) at 256-bit precision via the atanh series (x = 1/3, the slow case, 200
-# terms for ~256 correct bits). Built directly from `lnGeneric` (not
-# recursively via `ln`, which needs ln(2) — circular).
-let ln2Cache: BigFloat = lnGeneric(initBigFloat(2.0, 256), 200)
+func getPiBigFloat*(precision: int = 256): BigFloat {.
+    contractual, noSideEffect.} =
+  ## Pi at the requested working precision via a pure Machin evaluation.
+  require:
+    precision > 0
+  ensure:
+    not result.isZero
+  body:
+    piBigFloat(precision, max(96, precision div 4 + 8))
 
-proc sin*(x: BigFloat, terms: int = 20): BigFloat {.contractual.} =
+func lnTwo(precision: int): BigFloat {.contractual.} =
+  ## `ln(2)` at the requested precision, without recursively calling `ln`.
+  require:
+    precision > 0
+  ensure:
+    not result.isZero
+  body:
+    lnGeneric(initBigFloat(2.0, precision), max(200, precision div 2 + 8))
+
+var
+  piCache {.threadvar.}: Table[int, BigFloat]
+  lnTwoCache {.threadvar.}: Table[int, BigFloat]
+
+proc cachedPi(precision: int): BigFloat {.contractual.} =
+  require:
+    precision > 0
+  ensure:
+    not result.isZero
+  body:
+    if piCache.len == 0:
+      piCache = initTable[int, BigFloat]()
+    if not piCache.hasKey(precision):
+      piCache[precision] = getPiBigFloat(precision)
+    piCache[precision]
+
+proc cachedLnTwo(precision: int): BigFloat {.contractual.} =
+  require:
+    precision > 0
+  ensure:
+    not result.isZero
+  body:
+    if lnTwoCache.len == 0:
+      lnTwoCache = initTable[int, BigFloat]()
+    if not lnTwoCache.hasKey(precision):
+      lnTwoCache[precision] = lnTwo(precision)
+    lnTwoCache[precision]
+
+func geometricTerms(a: BigFloat, precision, requested: int): int {.
+    contractual.} =
+  ## Terms for an odd geometric series whose next magnitude is
+  ## `|a|^(2k+1)`. An explicit positive budget is preserved.
+  require:
+    precision > 0
+  ensure:
+    result > 0
+  body:
+    if requested > 0: return requested
+    let magnitude = abs(toFloat64(a))
+    if magnitude == 0.0: return 1
+    if magnitude >= 1.0: return precision
+    max(1, int(ceil((float64(precision) * ln(2.0) / -ln(magnitude) - 1.0) /
+      2.0)) + 1)
+
+func factorialTerms(a: BigFloat, precision, requested: int,
+                    odd: bool): int {.contractual.} =
+  ## Terms for exp/sin/cos Taylor series, derived from the first omitted term.
+  require:
+    precision > 0
+  ensure:
+    result > 0
+  body:
+    if requested > 0: return requested
+    let magnitude = abs(toFloat64(a))
+    if magnitude == 0.0: return 1
+    let target = -float64(precision) * ln(2.0)
+    var terms = 1
+    while terms < precision:
+      let degree = if odd: 2 * terms + 1 else: 2 * terms
+      if float64(degree) * ln(magnitude) - lgamma(float64(degree + 1)) < target:
+        break
+      inc terms
+    terms + 1
+
+func exponentialTerms(a: BigFloat, precision, requested: int): int {.
+    contractual.} =
+  require:
+    precision > 0
+  ensure:
+    result > 0
+  body:
+    if requested > 0: return requested
+    let magnitude = abs(toFloat64(a))
+    if magnitude == 0.0: return 1
+    let target = -float64(precision) * ln(2.0)
+    var degree = 1
+    while degree < precision:
+      if float64(degree) * ln(magnitude) - lgamma(float64(degree + 1)) < target:
+        break
+      inc degree
+    degree + 1
+
+proc sin*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `sin(x)` with argument reduction: stage 1 reduces to `[-pi, pi]` (skipped
   ## when `|x| <= pi`), stage 2 folds `|r|` into `[0, pi/4]` via the four octant
   ## identities, restoring the sign of `r` (sin is odd). Approximate.
   body:
-    let pi = piConst()
-    let r = if x <= pi and x >= -pi: x else: reduceModTwoPi(x)
+    let precision = workingPrecision(x)
+    let pi = cachedPi(precision)
+    let halfPi = scaleByPow2(pi, -1)
+    let quarterPi = scaleByPow2(pi, -2)
+    let threeQuarterPi = halfPi + quarterPi
+    let twoPi = pi + pi
+    let r = if x <= pi and x >= -pi: x else:
+      x - roundBigFloat(x / twoPi, precision) * twoPi
     let a = abs(r)
     let neg = r.sign
 
-    if a <= quarterPiCache:
-      let s = sinTaylor(a, terms)
+    if a <= quarterPi:
+      let s = sinTaylor(a, factorialTerms(a, precision, terms, true))
       return if neg: -s else: s
-    elif a <= halfPiCache:
-      let u = halfPiCache - a # u in [0, pi/4]; sin(a) = cos(pi/2 - a)
-      let s = cosTaylor(u, terms)
+    elif a <= halfPi:
+      let u = halfPi - a # u in [0, pi/4]; sin(a) = cos(pi/2 - a)
+      let s = cosTaylor(u, factorialTerms(u, precision, terms, false))
       return if neg: -s else: s
-    elif a <= threeQuarterPiCache:
-      let u = a - halfPiCache # u in (0, pi/4]; sin(a) = cos(a - pi/2)
-      let s = cosTaylor(u, terms)
+    elif a <= threeQuarterPi:
+      let u = a - halfPi # u in (0, pi/4]; sin(a) = cos(a - pi/2)
+      let s = cosTaylor(u, factorialTerms(u, precision, terms, false))
       return if neg: -s else: s
     elif a <= pi:
       let u = pi - a # u in [0, pi/4); sin(pi - u) = sin(u)
-      let s = sinTaylor(u, terms)
+      let s = sinTaylor(u, factorialTerms(u, precision, terms, true))
       return if neg: -s else: s
     else:
       # Rounding spill: r = pi + eps (a few ulp past pi from stage 1).
       # sin(pi + u) = -sin(u); combined with the sign: -sign·sin(u).
       let u = a - pi
-      let s = sinTaylor(u, terms)
+      let s = sinTaylor(u, factorialTerms(u, precision, terms, true))
       return if neg: s else: -s
 
-proc cos*(x: BigFloat, terms: int = 20): BigFloat {.contractual.} =
+proc cos*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `cos(x)` with argument reduction (mirrors `sin`). Approximate.
   body:
-    let pi = piConst()
-    let r = if x <= pi and x >= -pi: x else: reduceModTwoPi(x)
+    let precision = workingPrecision(x)
+    let pi = cachedPi(precision)
+    let halfPi = scaleByPow2(pi, -1)
+    let quarterPi = scaleByPow2(pi, -2)
+    let threeQuarterPi = halfPi + quarterPi
+    let twoPi = pi + pi
+    let r = if x <= pi and x >= -pi: x else:
+      x - roundBigFloat(x / twoPi, precision) * twoPi
     let a = abs(r) # cos is even
 
-    if a <= quarterPiCache:
-      cosTaylor(a, terms)
-    elif a <= halfPiCache:
-      let u = halfPiCache - a # cos(pi/2 - u) = sin(u)
-      sinTaylor(u, terms)
-    elif a <= threeQuarterPiCache:
-      let u = a - halfPiCache # cos(pi/2 + u) = -sin(u)
-      -sinTaylor(u, terms)
+    if a <= quarterPi:
+      cosTaylor(a, factorialTerms(a, precision, terms, false))
+    elif a <= halfPi:
+      let u = halfPi - a # cos(pi/2 - u) = sin(u)
+      sinTaylor(u, factorialTerms(u, precision, terms, true))
+    elif a <= threeQuarterPi:
+      let u = a - halfPi # cos(pi/2 + u) = -sin(u)
+      -sinTaylor(u, factorialTerms(u, precision, terms, true))
     elif a <= pi:
       let u = pi - a # cos(pi - u) = -cos(u)
-      -cosTaylor(u, terms)
+      -cosTaylor(u, factorialTerms(u, precision, terms, false))
     else:
       # Rounding spill: cos(pi + u) = -cos(u).
       let u = a - pi
-      -cosTaylor(u, terms)
+      -cosTaylor(u, factorialTerms(u, precision, terms, false))
 
-proc exp*(x: BigFloat, terms: int = 30): BigFloat {.contractual.} =
+proc exp*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `exp(x)` by scaling-and-squaring: `exp(x) = exp(x/2^k)^(2^k)`, `k` chosen
   ## so `|x/2^k| <= 1/2`. The raw Taylor at `|x| ~ 700` destroys all precision
   ## (leading term `~1e304`); scaling brings the argument below `1/2` (fast
@@ -120,11 +225,11 @@ proc exp*(x: BigFloat, terms: int = 30): BigFloat {.contractual.} =
     if k < 0: k = 0
 
     let y = scaleByPow2(x, -k) # exact: exponent only, |y| <= 1/2
-    result = expTaylor(y, terms)
+    result = expTaylor(y, exponentialTerms(y, workingPrecision(x), terms))
     for _ in 1 .. k:
       result = result * result # recover the 2^k scaling
 
-proc ln*(x: BigFloat, terms: int = 30): BigFloat {.contractual.} =
+proc ln*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `ln(x)` with argument reduction: `ln(z) = ln(m) + E·ln(2)` with `m` brought
   ## into `[sqrt(1/2), sqrt(2)]` so the atanh series converges fast
   ## (`|(m-1)/(m+1)| <= 0.17`, ~5 bits/term). Raises `ValueError` for `x <= 0`
@@ -148,8 +253,11 @@ proc ln*(x: BigFloat, terms: int = 30): BigFloat {.contractual.} =
       m = scaleByPow2(m, -1) # exact: exponent only
       E += 1
 
-    let lnM = lnGeneric(m, terms) # ln(m), fast series
-    result = lnM + fromInt(BigFloat, E) * ln2Cache # E·ln(2); E is exact
+    let precision = workingPrecision(x)
+    let seriesArg = (m - one(BigFloat)) / (m + one(BigFloat))
+    let budget = geometricTerms(seriesArg, precision, terms)
+    let lnM = lnGeneric(m, budget) # ln(m), fast series
+    result = lnM + fromInt(BigFloat, E) * cachedLnTwo(precision)
 
 func sqrt*(x: BigFloat, iterations: int = 15): BigFloat {.contractual.} =
   ## `sqrt(x)` for `BigFloat` via Newton-Raphson on the reciprocal square root:
@@ -204,14 +312,7 @@ func sqrt*(x: BigFloat, iterations: int = 15): BigFloat {.contractual.} =
     result.exponent += int64(e div 2) + q
     result.normalize(p)
 
-func getPiBigFloat*(): BigFloat {.contractual, noSideEffect.} =
-  ## `pi` as a 256-bit `BigFloat` (Machin formula) — a pure recomputation for
-  ## the `func` transcendentals (`arctan`/`arctan2`) that cannot read the cached
-  ## `piConst` (a `proc`). A float64 literal would carry only ~53 correct bits.
-  body:
-    piBigFloat(256)
-
-proc tan*(x: BigFloat, terms: int = 20): BigFloat {.contractual.} =
+proc tan*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `tan(x) = sin(x)/cos(x)`. Raises `DivByZeroDefect` when `cos(x)` is zero at
   ## the current precision (neighborhood of `pi/2 + k·pi`). Body `raise`
   ## (survives release). Approximate.
@@ -241,7 +342,7 @@ func pow*(x: BigFloat, n: int): BigFloat {.contractual.} =
       base = base * base
       e = e shr 1
 
-proc pow*(x, y: BigFloat, terms: int = 30): BigFloat {.contractual.} =
+proc pow*(x, y: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `x^y = exp(y·ln(x))` for `x > 0` (raises `ValueError` otherwise). Body
   ## `raise` (survives release). Approximate.
   body:
@@ -250,7 +351,7 @@ proc pow*(x, y: BigFloat, terms: int = 30): BigFloat {.contractual.} =
       raise newException(ValueError, "pow: base <= 0 (non-integer exponent)")
     exp(y * ln(x, terms), terms)
 
-func arctan*(x: BigFloat, terms: int = 30): BigFloat {.contractual.} =
+proc arctan*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `arctan(x)` by Taylor series with argument reduction:
   ## - `|x| > 1`: `atan(x) = +/-(pi/2 - atan(1/|x|))`
   ## - `tan(pi/8) < |x| <= 1`: `atan(x) = +/-(pi/4 + atan((|x|-1)/(|x|+1)))`
@@ -262,31 +363,33 @@ func arctan*(x: BigFloat, terms: int = 30): BigFloat {.contractual.} =
     let one = one(BigFloat)
     let zero = zero(BigFloat)
     let ax = abs(x)
+    let precision = workingPrecision(x)
     if ax > one:
-      let halfPi = getPiBigFloat() / fromInt(BigFloat, 2)
+      let halfPi = scaleByPow2(cachedPi(precision), -1)
       let res = halfPi - arctan(one / ax, terms)
       return if x < zero: -res else: res
     if toFloat64(ax) > tanPi8F64: # tan(pi/8)
-      let quarterPi = getPiBigFloat() / fromInt(BigFloat, 4)
+      let quarterPi = scaleByPow2(cachedPi(precision), -2)
       let reduced = (ax - one) / (ax + one) # in (-0.415, 0]
-      let res = quarterPi + atanTaylor(reduced, terms)
+      let budget = geometricTerms(reduced, precision, terms)
+      let res = quarterPi + atanTaylor(reduced, budget)
       return if x < zero: -res else: res
-    return atanTaylor(x, terms)
+    return atanTaylor(x, geometricTerms(x, precision, terms))
 
-func arctan2*(y, x: BigFloat, terms: int = 30): BigFloat {.contractual.} =
+proc arctan2*(y, x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `arctan2(y, x)` via `arctan` with quadrant dispatch. The underlying
   ## `arctan` is approximate (see above). Approximate; verified vs MPFR.
   body:
     let zero = zero(BigFloat)
-    # `getPiBigFloat` is a full 256-bit Machin evaluation on every call, not a
-    # cached constant, so it stays out of the branch that never reads it.
+    # Pi is evaluated only in branches that need a quadrant adjustment.
     if x > zero:
       return arctan(y / x, terms)
     elif x < zero:
-      let pi = getPiBigFloat()
+      let pi = cachedPi(max(workingPrecision(x), workingPrecision(y)))
       if y >= zero: return arctan(y / x, terms) + pi
       else: return arctan(y / x, terms) - pi
     else: # x == 0
-      if y > zero: return getPiBigFloat() / fromInt(BigFloat, 2)
-      elif y < zero: return -(getPiBigFloat() / fromInt(BigFloat, 2))
+      let halfPi = scaleByPow2(cachedPi(workingPrecision(y)), -1)
+      if y > zero: return halfPi
+      elif y < zero: return -halfPi
       else: return zero

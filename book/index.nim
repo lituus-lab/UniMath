@@ -429,23 +429,26 @@ Range-reduced `BigFloat` transcendentals over the generic cores. The Taylor
 primitives converge only for small arguments, so `sin`/`cos` fold the argument
 into `[-pi/4, pi/4]` via the octant identities; `exp` scales by `2^k` and
 squares back; `ln` brings the mantissa into `[sqrt(1/2), sqrt(2)]` so the atanh
-series converges fast. The identities below hold to the working precision.
+series converges fast. With no explicit `terms` argument, each function derives
+its budget from the reduced argument and the precision carried by the value;
+passing a positive budget still overrides that choice. The identities below
+hold to the working precision.
 """
 
 nbCode:
-  echo "sin(1.0) = ", toFloat64(sin(initBigFloat(1.0), 30))
-  echo "cos(1.0) = ", toFloat64(cos(initBigFloat(1.0), 30))
-  let fmS = sin(initBigFloat(0.7), 30)
-  let fmC = cos(initBigFloat(0.7), 30)
+  echo "sin(1.0) = ", toFloat64(sin(initBigFloat(1.0)))
+  echo "cos(1.0) = ", toFloat64(cos(initBigFloat(1.0)))
+  let fmS = sin(initBigFloat(0.7))
+  let fmC = cos(initBigFloat(0.7))
   echo "sin^2 + cos^2 = ", toFloat64(fmS * fmS + fmC * fmC)
-  echo "exp(1.0) = ", toFloat64(exp(initBigFloat(1.0), 30))
-  echo "ln(2.0) = ", toFloat64(ln(initBigFloat(2.0), 30))
-  echo "ln(exp(1.0)) = ", toFloat64(ln(exp(initBigFloat(1.0), 30), 30))
+  echo "exp(1.0) = ", toFloat64(exp(initBigFloat(1.0)))
+  echo "ln(2.0) = ", toFloat64(ln(initBigFloat(2.0)))
+  echo "ln(exp(1.0)) = ", toFloat64(ln(exp(initBigFloat(1.0))))
   echo "sqrt(2.0) = ", toFloat64(sqrt(initBigFloat(2.0)))
-  echo "arctan(1.0) = ", toFloat64(arctan(initBigFloat(1.0), 30))
+  echo "arctan(1.0) = ", toFloat64(arctan(initBigFloat(1.0)))
   echo "arctan2(1,1) = ", toFloat64(arctan2(initBigFloat(1.0), initBigFloat(
-      1.0), 30))
-  echo "pow(2.0, 0.5) = ", toFloat64(pow(initBigFloat(2.0), initBigFloat(0.5), 30))
+      1.0)))
+  echo "pow(2.0, 0.5) = ", toFloat64(pow(initBigFloat(2.0), initBigFloat(0.5)))
   echo "pow_int(2.0, 10) = ", toFloat64(pow(initBigFloat(2.0), 10))
 
 nbText: """

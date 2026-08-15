@@ -903,10 +903,18 @@ proc unimath_bigfloat_sin(h: pointer): pointer =
   if h == nil: return nil
   pinFloat(sin(bfOf(h)))
 
+proc unimath_bigfloat_sin_terms(h: pointer, terms: cint): pointer =
+  if h == nil: return nil
+  pinFloat(sin(bfOf(h), terms.int))
+
 proc unimath_bigfloat_cos(h: pointer): pointer =
   ## `cos(x)` with octant range reduction.
   if h == nil: return nil
   pinFloat(cos(bfOf(h)))
+
+proc unimath_bigfloat_cos_terms(h: pointer, terms: cint): pointer =
+  if h == nil: return nil
+  pinFloat(cos(bfOf(h), terms.int))
 
 proc unimath_bigfloat_tan(h: pointer): pointer =
   ## `tan(x) = sin(x)/cos(x)`. NULL on a nil handle or a cos-zero singularity.
@@ -916,10 +924,21 @@ proc unimath_bigfloat_tan(h: pointer): pointer =
   except DivByZeroDefect:
     nil
 
+proc unimath_bigfloat_tan_terms(h: pointer, terms: cint): pointer =
+  if h == nil: return nil
+  try:
+    pinFloat(tan(bfOf(h), terms.int))
+  except DivByZeroDefect:
+    nil
+
 proc unimath_bigfloat_exp(h: pointer): pointer =
   ## `exp(x)` by scaling-and-squaring.
   if h == nil: return nil
   pinFloat(exp(bfOf(h)))
+
+proc unimath_bigfloat_exp_terms(h: pointer, terms: cint): pointer =
+  if h == nil: return nil
+  pinFloat(exp(bfOf(h), terms.int))
 
 proc unimath_bigfloat_ln(h: pointer): pointer =
   ## `ln(x)` with mantissa range reduction. NULL on a nil handle or `x <= 0`.
@@ -927,6 +946,12 @@ proc unimath_bigfloat_ln(h: pointer): pointer =
   let b = bfOf(h)
   if b <= zero(BigFloat): return nil
   pinFloat(ln(b))
+
+proc unimath_bigfloat_ln_terms(h: pointer, terms: cint): pointer =
+  if h == nil: return nil
+  let b = bfOf(h)
+  if b <= zero(BigFloat): return nil
+  pinFloat(ln(b, terms.int))
 
 proc unimath_bigfloat_sqrt(h: pointer): pointer =
   ## `sqrt(x)` via Newton iteration. NULL on a nil handle or a negative input.
@@ -940,10 +965,18 @@ proc unimath_bigfloat_arctan(h: pointer): pointer =
   if h == nil: return nil
   pinFloat(arctan(bfOf(h)))
 
+proc unimath_bigfloat_arctan_terms(h: pointer, terms: cint): pointer =
+  if h == nil: return nil
+  pinFloat(arctan(bfOf(h), terms.int))
+
 proc unimath_bigfloat_arctan2(y, x: pointer): pointer =
   ## `arctan2(y, x)` with quadrant dispatch. NULL if either handle is nil.
   if y == nil or x == nil: return nil
   pinFloat(arctan2(bfOf(y), bfOf(x)))
+
+proc unimath_bigfloat_arctan2_terms(y, x: pointer, terms: cint): pointer =
+  if y == nil or x == nil: return nil
+  pinFloat(arctan2(bfOf(y), bfOf(x), terms.int))
 
 proc unimath_bigfloat_pow_int(h: pointer, n: cint): pointer =
   ## `x^n`, integer exponent (repeated squaring). NULL on a nil handle.
@@ -957,6 +990,12 @@ proc unimath_bigfloat_pow(h, e: pointer): pointer =
   let b = bfOf(h)
   if not (b > zero(BigFloat)): return nil
   pinFloat(pow(b, bfOf(e)))
+
+proc unimath_bigfloat_pow_terms(h, e: pointer, terms: cint): pointer =
+  if h == nil or e == nil: return nil
+  let b = bfOf(h)
+  if not (b > zero(BigFloat)): return nil
+  pinFloat(pow(b, bfOf(e), terms.int))
 
 # ------------------------------------------------------------------------------
 # rational_math — Rational[BigInt] transcendentals (exact per term, truncated).
