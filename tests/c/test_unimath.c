@@ -63,14 +63,21 @@ static void check_enc(const char *name, unimath_interval got, double wantLo,
   }
 }
 
-/* Read a BigInt's decimal into a caller-owned malloc'd buffer. Returns NULL
- * if to_decimal reports the buffer is too small (should not happen at 256). */
+/* Read a BigInt's decimal into a caller-owned malloc'd buffer. */
 static char *bigint_dec(unimath_bigint h) {
   size_t cap = 256;
   char *buf = (char *)malloc(cap);
   if (buf == NULL) return NULL;
   int n = unimath_bigint_to_decimal(h, buf, cap);
   if (n < 0) { free(buf); return NULL; }
+  if ((size_t)n >= cap) {
+    char *larger = (char *)realloc(buf, (size_t)n + 1);
+    if (larger == NULL) { free(buf); return NULL; }
+    buf = larger;
+    cap = (size_t)n + 1;
+    n = unimath_bigint_to_decimal(h, buf, cap);
+    if (n < 0 || (size_t)n >= cap) { free(buf); return NULL; }
+  }
   return buf;
 }
 
@@ -136,6 +143,14 @@ int main(void) {
   check_str("add", dec_of("x+y", unimath_bigint_add(x, y)), "1000000000000");
   check_str("sub", dec_of("x-y", unimath_bigint_sub(x, y)), "999999999998");
   check_str("mul", dec_of("x*y", unimath_bigint_mul(x, y)), "999999999999");
+  {
+    char small[4] = "xxx";
+    check_int("to_decimal required size", unimath_bigint_to_decimal(x, small,
+      sizeof small), 12);
+    check_int("to_decimal zero-size query", unimath_bigint_to_decimal(x, small,
+      0), 12);
+    check_str("to_decimal small buffer unchanged", small, "xxx");
+  }
   unimath_bigint_destroy(x);
   unimath_bigint_destroy(y);
 

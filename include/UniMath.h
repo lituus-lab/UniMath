@@ -53,8 +53,10 @@ const char *unimath_get_error_string(int error_code);
 unimath_bigint unimath_bigint_from_i64(long long v);
 unimath_bigint unimath_bigint_from_decimal(const char *s);
 
-/* Write the NUL-terminated decimal into buf. Returns chars written
- * (excluding NUL), or -1 on a nil handle / nil buffer / buffer too small. */
+/* Write the NUL-terminated decimal into buf. Returns chars written (excluding
+ * NUL), the required character count when the buffer is too small, or -1 on a
+ * nil handle / nil buffer. A too-small buffer, including size == 0 with a
+ * non-NULL buf, is left unchanged and returns the required character count. */
 int unimath_bigint_to_decimal(unimath_bigint h, char *buf, size_t size);
 
 unimath_bigint unimath_bigint_add(unimath_bigint a, unimath_bigint b);

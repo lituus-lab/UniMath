@@ -192,11 +192,12 @@ proc unimath_bigint_from_decimal(s: cstring): pointer =
 
 proc unimath_bigint_to_decimal(h: pointer, buf: ptr char, size: csize_t): cint =
   ## Write the NUL-terminated decimal into `buf`. Returns chars written
-  ## (excluding NUL), or -1 on a nil handle / nil buffer / buffer too small
-  ## (caller retries with a larger buffer; nothing is written on -1).
-  if h == nil or buf == nil or size == 0: return cint(-1)
+  ## (excluding NUL), the required character count when the buffer is too
+  ## small, or -1 on a nil handle / nil buffer. A zero-sized non-nil buffer is
+  ## a size query. Nothing is written unless the buffer also holds the NUL.
+  if h == nil or buf == nil: return cint(-1)
   let s = toDecimal(bigOf(h))
-  if s.len + 1 > int(size): return cint(-1)
+  if csize_t(s.len) >= size: return cint(s.len)
   let dst = cast[ptr UncheckedArray[char]](buf)
   copyMem(addr dst[0], unsafeAddr s[0], s.len)
   dst[s.len] = '\0'
