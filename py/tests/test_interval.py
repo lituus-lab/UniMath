@@ -68,11 +68,11 @@ def test_ln_wholly_nonpositive_is_nan():
     assert math.isnan(r.lo) and math.isnan(r.hi)
 
 
-def test_sin_cos_full_enclosure():
+def test_sin_cos_distinguish_extrema():
     s = Interval(0.0, math.pi).sin()
-    assert s.lo == -1.0 and s.hi == 1.0
+    assert -1.0 < s.lo <= 0.0 and s.hi == 1.0
     c = Interval(-0.5, 0.5).cos()
-    assert c.lo == -1.0 and c.hi == 1.0
+    assert -1.0 < c.lo <= math.cos(0.5) and c.hi == 1.0
 
 
 def test_comparison_and_str():
