@@ -27,7 +27,12 @@ func mulRounded*(a, b: BigFloat, precision: int = DefaultPrecision,
 func divRounded*(a, b: BigFloat, precision: int = DefaultPrecision,
                  mode: RoundingMode = rmNearest): BigFloat
 
-func `*`*(a, b: BigFloat, precision: int = DefaultPrecision): BigFloat {.contractual.} =
+func operandPrecision(a, b: BigFloat): int {.inline.} =
+  ## Cheap non-contracted witness for inferred-precision postconditions.
+  max(if a.isZero: DefaultPrecision else: bitLength(a.mantissa),
+      if b.isZero: DefaultPrecision else: bitLength(b.mantissa))
+
+func `*`*(a, b: BigFloat, precision: int): BigFloat {.contractual.} =
   ## Multiplication, correctly rounded (round-to-nearest) via `mulRounded`.
   ensure:
     (a.isZero or b.isZero) == result.isZero
@@ -36,7 +41,15 @@ func `*`*(a, b: BigFloat, precision: int = DefaultPrecision): BigFloat {.contrac
   body:
     result = mulRounded(a, b, precision, rmNearest)
 
-func `+`*(a, b: BigFloat, precision: int = DefaultPrecision): BigFloat {.contractual.} =
+func `*`*(a, b: BigFloat): BigFloat {.contractual, inline.} =
+  ensure:
+    (a.isZero or b.isZero) == result.isZero
+    result.isZero or result.sign == (a.sign != b.sign)
+    result.isZero or bitLength(result.mantissa) == operandPrecision(a, b)
+  body:
+    mulRounded(a, b, operandPrecision(a, b), rmNearest)
+
+func `+`*(a, b: BigFloat, precision: int): BigFloat {.contractual.} =
   ## Addition with round-to-nearest. Alignment is exact (left shift of the
   ## larger-exponent mantissa — no bit lost), rounding once at normalization.
   ensure:
@@ -45,13 +58,27 @@ func `+`*(a, b: BigFloat, precision: int = DefaultPrecision): BigFloat {.contrac
   body:
     addRounded(a, b, precision, rmNearest)
 
-func `-`*(a, b: BigFloat, precision: int = DefaultPrecision): BigFloat {.contractual.} =
+func `+`*(a, b: BigFloat): BigFloat {.contractual, inline.} =
+  ensure:
+    (not (a.isZero and b.isZero)) or result.isZero
+    result.isZero or bitLength(result.mantissa) == operandPrecision(a, b)
+  body:
+    addRounded(a, b, operandPrecision(a, b), rmNearest)
+
+func `-`*(a, b: BigFloat, precision: int): BigFloat {.contractual.} =
   ## Subtraction with round-to-nearest (see `+`).
   ensure:
     (not (a.isZero and b.isZero)) or result.isZero
     result.isZero or bitLength(result.mantissa) == precision
   body:
     subRounded(a, b, precision, rmNearest)
+
+func `-`*(a, b: BigFloat): BigFloat {.contractual, inline.} =
+  ensure:
+    (not (a.isZero and b.isZero)) or result.isZero
+    result.isZero or bitLength(result.mantissa) == operandPrecision(a, b)
+  body:
+    subRounded(a, b, operandPrecision(a, b), rmNearest)
 
 func `-`*(a: BigFloat): BigFloat {.contractual.} =
   ## Unary negation. Zero is preserved (and stays non-negative).
@@ -71,7 +98,7 @@ func abs*(a: BigFloat): BigFloat {.contractual.} =
     result = a
     result.sign = false
 
-func `/`*(a, b: BigFloat, precision: int = DefaultPrecision): BigFloat {.contractual.} =
+func `/`*(a, b: BigFloat, precision: int): BigFloat {.contractual.} =
   ## Division, correctly rounded (round-to-nearest) via `divRounded` (guard +
   ## sticky remainder). Division by zero is a body `raise`.
   ensure:
@@ -80,6 +107,14 @@ func `/`*(a, b: BigFloat, precision: int = DefaultPrecision): BigFloat {.contrac
     result.isZero or bitLength(result.mantissa) == precision
   body:
     result = divRounded(a, b, precision, rmNearest)
+
+func `/`*(a, b: BigFloat): BigFloat {.contractual, inline.} =
+  ensure:
+    a.isZero == result.isZero
+    result.isZero or result.sign == (a.sign != b.sign)
+    result.isZero or bitLength(result.mantissa) == operandPrecision(a, b)
+  body:
+    divRounded(a, b, operandPrecision(a, b), rmNearest)
 
 # Directed-rounding operations. `rmUp` returns a bound >= the exact result,
 # `rmDown` a bound <=; `rmNearest`/`rmTrunc` are faithful to 1 ulp on the

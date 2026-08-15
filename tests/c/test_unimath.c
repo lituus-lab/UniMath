@@ -608,6 +608,14 @@ int main(void) {
   check_bf_unary("bigfloat_sqrt(2)", unimath_bigfloat_sqrt, 2.0, sqrt(2.0), 1e-12);
   check_bf_unary("bigfloat_arctan(1)", unimath_bigfloat_arctan, 1.0, C_PI / 4, 1e-12);
   {
+    void *x = unimath_bigfloat_from_f64(5.0 / 13.0);
+    void *r = unimath_bigfloat_arctan_terms(x, 120);
+    check_dbl_tol("bigfloat_arctan_terms(5/13)", unimath_bigfloat_to_f64(r),
+      atan(5.0 / 13.0), 1e-12);
+    unimath_bigfloat_destroy(x);
+    unimath_bigfloat_destroy(r);
+  }
+  {
     void *y = unimath_bigfloat_from_f64(1.0);
     void *x = unimath_bigfloat_from_f64(1.0);
     void *r = unimath_bigfloat_arctan2(y, x);
