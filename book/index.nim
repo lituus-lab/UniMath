@@ -175,9 +175,10 @@ nbText: """
 
 Directed-rounding intervals `Interval[T] = object` (lower, upper). Each binary
 op widens with `nextDown`/`nextUp` so the result encloses the exact value; `/`
-raises `DivByZeroDefect` when the divisor straddles zero. The transcendentals
-scan for critical points (extrema) inside the interval and fall back to the
-full `[-1, 1]` enclosure when one is enclosed.
+raises `DivByZeroDefect` when the divisor straddles zero. Trigonometric ranges
+scan maxima and minima independently. Transcendentals widen by two ulps for the
+host libm, or one ulp under `-d:correctlyRoundedLibm` when linked to a correctly
+rounded backend.
 """
 
 nbCode:
