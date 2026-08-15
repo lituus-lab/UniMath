@@ -1084,17 +1084,17 @@ proc unimath_fixed_atan2(y, x: int64): int64 =
   except CatchableError, Defect: 0
 
 proc unimath_fixed_sinh(q: int64): int64 =
-  ## `sinh(q)` (Q32.32) via hyperbolic CORDIC (in-domain), else clamps to 0.
+  ## `sinh(q)` (Q32.32) via exponentials; overflow clamps to 0.
   try: sinh(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_cosh(q: int64): int64 =
-  ## `cosh(q)` (Q32.32) via hyperbolic CORDIC (in-domain), else clamps to 0.
+  ## `cosh(q)` (Q32.32) via exponentials; overflow clamps to 0.
   try: cosh(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_tanh(q: int64): int64 =
-  ## `tanh(q)` (Q32.32) via hyperbolic CORDIC (in-domain), else clamps to 0.
+  ## `tanh(q)` (Q32.32) via a stable exponential identity over the full domain.
   try: tanh(fxOf(q)).data
   except CatchableError, Defect: 0
 

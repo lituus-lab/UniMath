@@ -5,8 +5,9 @@
 ## A single entry point per function that dispatches to the best core (CORDIC,
 ## Taylor, Chebyshev, Newton) based on the type and the `MathAlgo` selector. The
 ## default `Auto` picks the core the fixed-point kernels are tuned for: CORDIC
-## for `sin`/`cos`/`atan2`, Chebyshev for `tan`, hyperbolic-CORDIC for
-## `exp`/`sinh`/`cosh`/`tanh`, Newton for `sqrt`, Taylor for `ln`.
+## for `sin`/`cos`/`atan2`, Chebyshev for `tan`, hyperbolic-CORDIC for `exp`,
+## exponential identities for `sinh`/`cosh`/`tanh`, Newton for `sqrt`, and a
+## range-reduced atanh series for `ln`.
 ##
 ## Contracts: `{.contractual.}` + `body:` only — no inline `ensure:`. These are
 ## approximate-algorithm dispatch wrappers; an `ensure:` recomputing the result
@@ -190,25 +191,27 @@ func exp*[T; FracBits: static[int]](x: Fixed[T, FracBits];
 
 func ln*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
     contractual.} =
-  ## Natural logarithm via the area-hyperbolic-tangent series (`lnGeneric`):
-  ## `x = (z-1)/(z+1)`, `ln(z) = 2*(x + x^3/3 + x^5/5 + ...)`, which converges
-  ## for every positive `z` -- `(z-1)/(z+1)` maps `(0, inf)` into `(-1, 1)`
-  ## for any `z > 0`, so the series radius is never exceeded, unlike the plain
-  ## `lnTaylor(z - 1, ...)` this used before (only convergent for `z` within 1
-  ## of 1). That gap was real, not theoretical: `asinh(1)`/`acosh(1.5)`/
-  ## `atanh(0.5)` each compute a `ln` argument outside `lnTaylor`'s radius
-  ## (2.414, 2.618, 3) and returned wildly wrong values (-4.31 vs 0.881, -35.2
-  ## vs 0.962, -380 vs 0.549) -- confirmed by real execution, not caught by
-  ## any existing test (only `atanh`'s `|x| >= 1` domain-boundary case was
-  ## tested, never the in-domain numeric output of `asinh`/`acosh`/`atanh`).
-  ##
-  ## Precondition: `x > 0`. For `x <= 0` the result is undefined and this
-  ## function raises `ValueError` (body raise, survives release). Approximate.
+  ## Natural logarithm after exact power-of-two range reduction. Writing
+  ## `x = m*2^e` with `m` in `[1, 2)` bounds the atanh-series argument by `1/3`,
+  ## so the fixed 15-term budget is accurate across the representable domain.
+  ## Raises `ValueError` for `x <= 0`. Approximate.
   body:
     if x.data <= default(T):
       raise newException(ValueError,
         "ln: argument must be positive, got " & $x.data)
-    return logarithm_generic.lnGeneric(x, 15)
+    let one = toFixed[T, FracBits](1)
+    let two = toFixed[T, FracBits](2)
+    var m = x
+    var exponent = 0
+    while m >= two:
+      m = initFixed[T, FracBits](m.data shr 1)
+      inc exponent
+    while m < one:
+      m = initFixed[T, FracBits](m.data shl 1)
+      dec exponent
+    let lnMantissa = logarithm_generic.lnGeneric(m, 15)
+    let lnTwo = logarithm_generic.lnGeneric(two, 15)
+    return lnMantissa + toFixed[T, FracBits](exponent) * lnTwo
 
 # ------------------------------------------------------------------------------
 # Unified hyperbolic
@@ -216,21 +219,35 @@ func ln*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
 
 func sinh*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
     contractual.} =
-  ## `sinh(x)` via hyperbolic CORDIC. Approximate.
+  ## `sinh(x) = (exp(x) - exp(-x))/2`, without the CORDIC convergence limit.
   body:
-    return hyp_cordic.sinhCordic(x)
+    let two = toFixed[T, FracBits](2)
+    let lnTwo = ln(two)
+    return exp(x - lnTwo) - exp(-x - lnTwo)
 
 func cosh*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
     contractual.} =
-  ## `cosh(x)` via hyperbolic CORDIC. Approximate.
+  ## `cosh(x) = (exp(x) + exp(-x))/2`, without the CORDIC convergence limit.
   body:
-    return hyp_cordic.coshCordic(x)
+    let two = toFixed[T, FracBits](2)
+    let lnTwo = ln(two)
+    return exp(x - lnTwo) + exp(-x - lnTwo)
 
 func tanh*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
     contractual.} =
-  ## `tanh(x)` via hyperbolic CORDIC. Approximate.
+  ## Stable exponential form of `tanh`, without the CORDIC convergence limit.
   body:
-    return hyp_cordic.tanhCordic(x)
+    let one = toFixed[T, FracBits](1)
+    let two = toFixed[T, FracBits](2)
+    let saturation = toFixed[T, FracBits](
+      float64(FracBits + 1) * 0.34657359027997265)
+    if x >= saturation: return one
+    if x <= -saturation: return -one
+    if x.data >= default(T):
+      let e = exp(-(two * x))
+      return (one - e) / (one + e)
+    let e = exp(two * x)
+    return (e - one) / (e + one)
 
 func asinh*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
     contractual.} =

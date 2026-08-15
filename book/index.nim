@@ -485,12 +485,11 @@ nbText: """
 Auto-dispatch `Fixed[int64, 32]` (Q32.32) transcendentals. Each call selects a
 core by algorithm: CORDIC for `sin`/`cos`/`atan2`, Chebyshev for `tan`,
 hyperbolic-CORDIC scaling-and-squaring for `exp`, the area-hyperbolic-tangent
-series for `ln`, hyperbolic CORDIC for `sinh`/`cosh`/`tanh`, Newton for `sqrt`.
-The router is generic over `Fixed[T, FracBits]`; here it runs at Q32.32.
-`sinh`/`cosh`/`tanh` converge only for `|z| <= ~1.1182` (no periodic
-reduction); `exp`'s scaling-and-squaring lifts that to the Q32.32
-representable ceiling (`|z|` up to `~21.5`) by halving the argument into the
-convergence disk and squaring the result back.
+series after power-of-two reduction for `ln`, exponential identities for
+`sinh`/`cosh`/`tanh`, and Newton for `sqrt`. The router is generic over
+`Fixed[T, FracBits]`; here it runs at Q32.32. Exponential scaling and squaring
+removes the raw hyperbolic CORDIC convergence limit; `tanh` covers the full
+fixed-point domain and saturates only when the exact result rounds to `+/-1`.
 """
 
 nbCode:

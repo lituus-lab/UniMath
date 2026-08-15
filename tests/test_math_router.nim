@@ -2,10 +2,8 @@
 # Copyright 2026 lituus-lab
 ## `math_router` dispatch tests over `Fixed[int64, 32]` (Q32.32). `Auto`
 ## selects the fixed-point kernels: CORDIC for `sin`/`cos`/`atan2`, Chebyshev
-## for `tan`, hyperbolic-CORDIC for `exp`/`sinh`/`cosh`/`tanh`, Newton for
-## `sqrt`, Taylor for `ln`. Tolerances reflect the fixed-point + truncation
-## error (CORDIC ~1e-3 on Q32, Taylor/Newton tighter). The hyperbolic and
-## `exp` cores converge only for `|z| <= ~1.1182`, so in-domain args are used.
+## for `tan`, hyperbolic-CORDIC for `exp`, exponential identities for the
+## hyperbolics, Newton for `sqrt`, and range-reduced Taylor for `ln`.
 import std/[unittest, math]
 import UniMath
 import UniMath/math_router
@@ -44,6 +42,9 @@ suite "math_router — exp/ln":
   test "ln(1)=0, ln(1.5) (Taylor near 1)":
     check abs(toFloat64(ln(f(1.0)))) < 1e-6
     check abs(toFloat64(ln(f(1.5))) - ln(1.5)) < 1e-5
+  test "ln range reduction remains accurate far from 1":
+    for x in [6.0, 10.0, 100.0, 1000.0]:
+      check abs(toFloat64(ln(f(x))) - ln(x)) < 3e-8
 
 suite "math_router — sqrt (Newton)":
   test "sqrt":
@@ -51,7 +52,7 @@ suite "math_router — sqrt (Newton)":
     check abs(toFloat64(sqrt(f(2.0))) - sqrt(2.0)) < 1e-6
     check abs(toFloat64(sqrt(f(0.0)))) < 1e-6
 
-suite "math_router — hyperbolic (CORDIC, in-domain)":
+suite "math_router — hyperbolic":
   test "zeros":
     check abs(toFloat64(sinh(f(0.0)))) < 1e-3
     check abs(toFloat64(cosh(f(0.0))) - 1.0) < 1e-3
@@ -60,6 +61,13 @@ suite "math_router — hyperbolic (CORDIC, in-domain)":
     check abs(toFloat64(sinh(f(1.0))) - sinh(1.0)) < 1e-3
     check abs(toFloat64(cosh(f(1.0))) - cosh(1.0)) < 1e-3
     check abs(toFloat64(tanh(f(1.0))) - tanh(1.0)) < 1e-3
+  test "tanh has no CORDIC convergence limit":
+    for x in [1.25, 2.0, 3.0, -3.0]:
+      check abs(toFloat64(tanh(f(x))) - tanh(x)) < 2e-8
+  test "sinh and cosh scale before exponentiation":
+    for x in [22.0, -22.0]:
+      check abs(toFloat64(sinh(f(x))) - sinh(x)) / sinh(22.0) < 2e-7
+      check abs(toFloat64(cosh(f(x))) - cosh(x)) / cosh(22.0) < 2e-7
 
 suite "math_router — special":
   test "factorial(5) = 120":

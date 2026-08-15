@@ -314,9 +314,10 @@ unimath_rational unimath_rational_pow(unimath_rational h, unimath_rational e);
 /* ---- math_router ----
  * Fixed[int64, 32] (Q32.32) transcendentals via the auto-dispatch cores
  * (CORDIC / Chebyshev / Newton / Taylor). The raw Q32.32 word is the `data`
- * field of `Fixed[int64, 32]`. Never raises: a domain error or an out-of-
- * convergence argument (hyperbolic/`exp` CORDIC needs `|z| <= ~1.1182`) clamps
- * to `0`. `pow` needs `base > 0`; `ln` needs `q > 0`; `sqrt` needs `q >= 0`. */
+ * field of `Fixed[int64, 32]`. Never raises: a domain error or overflow clamps
+ * to `0`. `pow` needs `base > 0`; `ln` needs `q > 0`; `sqrt` needs `q >= 0`.
+ * The fixed sinh/cosh/tanh functions use range-reduced exponentials and have
+ * no CORDIC convergence limit. */
 long long unimath_fixed_sin(long long q);
 long long unimath_fixed_cos(long long q);
 long long unimath_fixed_tan(long long q);
