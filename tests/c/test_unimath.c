@@ -406,12 +406,12 @@ int main(void) {
   else { printf("FAIL interval ln negative should be NaN, got [%.17g, %.17g]\n", lnn.lo, lnn.hi); failures++; }
   /* sin over [0, pi] encloses the pi/2 maximum -> full [-1, 1] */
   unimath_interval sfull = unimath_interval_sin(unimath_interval_from_f64(0.0, C_PI));
-  if (sfull.lo == -1.0 && sfull.hi == 1.0) printf("ok   interval sin(0,pi) = [-1, 1]\n");
-  else { printf("FAIL interval sin(0,pi) should be [-1, 1], got [%.17g, %.17g]\n", sfull.lo, sfull.hi); failures++; }
+  if (sfull.lo <= 0.0 && sfull.lo > -1.0 && sfull.hi == 1.0) printf("ok   interval sin(0,pi) distinguishes extrema\n");
+  else { printf("FAIL interval sin(0,pi) should be tight, got [%.17g, %.17g]\n", sfull.lo, sfull.hi); failures++; }
   /* cos over [-0.5, 0.5] encloses the 0 maximum -> full [-1, 1] */
   unimath_interval cfull = unimath_interval_cos(unimath_interval_from_f64(-0.5, 0.5));
-  if (cfull.lo == -1.0 && cfull.hi == 1.0) printf("ok   interval cos(-0.5,0.5) = [-1, 1]\n");
-  else { printf("FAIL interval cos(-0.5,0.5) should be [-1, 1], got [%.17g, %.17g]\n", cfull.lo, cfull.hi); failures++; }
+  if (cfull.lo <= cos(0.5) && cfull.lo > -1.0 && cfull.hi == 1.0) printf("ok   interval cos(-0.5,0.5) distinguishes extrema\n");
+  else { printf("FAIL interval cos(-0.5,0.5) should be tight, got [%.17g, %.17g]\n", cfull.lo, cfull.hi); failures++; }
 
   /* neg, pow, arctan, arctan2 */
   /* neg widens outward by a ULP like every other op (nextDown/nextUp), even
