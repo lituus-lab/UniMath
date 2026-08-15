@@ -149,12 +149,25 @@ suite "transcendentals":
   test "sin monotonic region":
     let r = sin(initInterval(0.0, 0.5))
     check r.lower <= 0.0 and r.upper >= sin(0.5)
-  test "sin enclosing pi/2 is full":
-    let r = sin(initInterval(0.0, PI))
+  test "sin distinguishes a maximum from a minimum":
+    let r = sin(initInterval(0.0, 2.0))
+    check r.lower <= 0.0 and r.lower > -1.0
+    check r.upper == 1.0
+  test "sin enclosing both extrema is full":
+    let r = sin(initInterval(-PI / 2.0, PI / 2.0))
     check r.lower == -1.0 and r.upper == 1.0
-  test "cos enclosing 0 is full":
+  test "cos distinguishes a maximum from a minimum":
     let r = cos(initInterval(-0.5, 0.5))
-    check r.lower == -1.0 and r.upper == 1.0
+    check r.lower <= cos(0.5) and r.lower > -1.0
+    check r.upper == 1.0
+  test "correctly-rounded backend widens by one ulp":
+    let r = exp(initInterval(0.0, 0.0))
+    when defined(correctlyRoundedLibm):
+      check r.lower == nextDown(1.0)
+      check r.upper == nextUp(1.0)
+    else:
+      check r.lower == nextDown(nextDown(1.0))
+      check r.upper == nextUp(nextUp(1.0))
   test "tan across singularity":
     let r = tan(initInterval(0.0, PI))
     check r.lower == -Inf and r.upper == Inf
