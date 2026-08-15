@@ -78,6 +78,11 @@ func mul*(a, b: BigInt, algo: MulAlgorithm = Auto): BigInt {.contractual.} =
 
 func `*`*(a, b: BigInt): BigInt {.inline.} = mul(a, b)
 
+proc mulInto*(acc: var BigInt, k: BigInt) {.contractual.} =
+  ## Alias-safe accumulating multiplication for the Nim value API.
+  body:
+    acc = acc * k
+
 func divMod*(a, b: BigInt): tuple[q, r: BigInt] {.contractual.} =
   ## Truncated signed division. Quotient sign is `a xor b`; remainder takes the
   ## dividend's sign. Division by zero raises `DivByZeroDefect` (delegated to the
@@ -123,4 +128,3 @@ func `shr`*(a: BigInt, k: Natural): BigInt {.contractual, inline.} =
                     else: a.mag and ((initBigUInt(1'u64) shl k) - initBigUInt(1'u64))
       if isZero(dropped): result = initBigInt(m, true)
       else: result = initBigInt(m + initBigUInt(1'u64), true)
-

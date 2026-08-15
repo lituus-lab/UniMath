@@ -62,6 +62,10 @@ int unimath_bigint_to_decimal(unimath_bigint h, char *buf, size_t size);
 unimath_bigint unimath_bigint_add(unimath_bigint a, unimath_bigint b);
 unimath_bigint unimath_bigint_sub(unimath_bigint a, unimath_bigint b);
 unimath_bigint unimath_bigint_mul(unimath_bigint a, unimath_bigint b);
+/* Consume acc and return the handle that must replace it. Do not destroy acc
+ * after this call. k remains owned by the caller. NULL k consumes acc and
+ * returns NULL. */
+unimath_bigint unimath_bigint_mul_into(unimath_bigint acc, unimath_bigint k);
 unimath_bigint unimath_bigint_div(unimath_bigint a, unimath_bigint b);
 unimath_bigint unimath_bigint_mod(unimath_bigint a, unimath_bigint b);
 unimath_bigint unimath_bigint_neg(unimath_bigint a);
