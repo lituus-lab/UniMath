@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 lituus-lab
 ## String formatting. `$` is hexadecimal (base 16 maps directly to limbs, and is
-## what the bitwise tests pin). `toDecimal` produces a base-10 string by repeated
-## `divMod` by 10 — needed for decimal-based oracles and human-facing output.
+## what the bitwise tests pin). `toDecimal` extracts base-10 chunks with one
+## descending limb pass per chunk.
 import strutils
 import ./limbs
+import ./primitives
 import ./fixed_int
 import ./big_int
-import ./division_big
 
 func toHex*[Bits: static int](x: FixedUInt[Bits] | FixedInt[Bits]): string =
   ## Hex representation, big-endian (most-significant limb first).
@@ -50,23 +50,29 @@ func `$`*(x: BigInt): string =
   toHex(x)
 
 func toDecimal*(x: BigUInt): string =
-  ## Decimal representation of `x` (no prefix). `O(digits * limbs)` — each digit
-  ## costs one `divMod` by 10. `"0"` for the zero value.
+  ## Decimal representation of `x` (no prefix). Each pass divides the working
+  ## magnitude by `10^19`, the largest decimal power that fits in one limb.
+  ## `"0"` for the zero value.
   if isZero(x): return "0"
-  var v = x
-  var digits: seq[char] = @[]
-  let ten = initBigUInt(10'u64)
-  while not isZero(v):
-    let (q, r) = divMod(v, ten)
-    digits.add char(uint8('0') + uint8(toUInt64(r)))
-    v = q
-  result = newString(digits.len)
-  for i in 0 ..< digits.len:
-    result[i] = digits[digits.high - i]
+  const DecimalBase = Limb(10_000_000_000_000_000_000'u64)
+  const DecimalDigits = 19
+  var work = x.limbs
+  var chunks: seq[Limb] = @[]
+  while work.len > 0:
+    var remainder = ZeroLimb
+    for i in countDown(work.high, 0):
+      let (quotient, rem) = udiv128(remainder, work[i], DecimalBase)
+      work[i] = quotient
+      remainder = rem
+    while work.len > 0 and work[^1] == ZeroLimb:
+      work.setLen(work.len - 1)
+    chunks.add(remainder)
+
+  result = $chunks[^1]
+  for i in countDown(chunks.high - 1, 0):
+    result.add(align($chunks[i], DecimalDigits, '0'))
 
 func toDecimal*(x: BigInt): string =
   ## Signed decimal representation of `x` (no prefix; leading `-` if negative).
   if x.isNegative: "-" & toDecimal(x.mag) else: toDecimal(x.mag)
-
-
 
