@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 lituus-lab
-import std/unittest
+import std/[strutils, unittest]
 import UniMath
 
 suite "limbs":
@@ -228,6 +228,12 @@ suite "formatting":
     check toDecimal(initBigUInt(0'u64)) == "0"
     check toDecimal(initBigUInt(1_000_000_017'u64)) == "1000000017"
     check toDecimal(initBigInt(-1_000_000_017)) == "-1000000017"
+    check toDecimal(initBigUInt(@[MaxLimb, MaxLimb])) ==
+      "340282366920938463463374607431768211455"
+    var tenToOneThousand = initBigUInt(1'u64)
+    for _ in 1 .. 1000:
+      tenToOneThousand = tenToOneThousand * initBigUInt(10'u64)
+    check toDecimal(tenToOneThousand) == "1" & repeat('0', 1000)
 
 suite "concepts":
   test "zero/one":
