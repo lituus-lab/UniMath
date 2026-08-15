@@ -67,7 +67,7 @@ proc main() =
       "GMP/MPFR oracle (`-reuse`: init once and overwrite, the fastest " &
       "idiomatic oracle usage; `-alloc`: init+free every call, matching " &
       "UniMath's per-op handle allocation). `uni/orc-alloc` is the ratio; " &
-      "below 1.0 would mean UniMath is faster -- it is not, here:\n\n```\n" &
+      "below 1.0 would mean UniMath is faster -- it is not, here:\n\n```text\n" &
       readFile(speedPath).strip() & "\n```\n\n"
   else:
     stderr.writeLine("[readme] no " & speedPath &
