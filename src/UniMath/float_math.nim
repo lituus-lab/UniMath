@@ -61,20 +61,31 @@ func lnTwo(precision: int): BigFloat {.contractual.} =
     lnGeneric(initBigFloat(2.0, precision), max(200, precision div 2 + 8))
 
 var
-  piCache {.threadvar.}: Table[int, BigFloat]
+  constantsCache {.threadvar.}: Table[int, tuple[
+    pi, halfPi, quarterPi, threeQuarterPi, twoPi: BigFloat]]
   lnTwoCache {.threadvar.}: Table[int, BigFloat]
 
-proc cachedPi(precision: int): BigFloat {.contractual.} =
+proc cachedConstants(precision: int): tuple[
+    pi, halfPi, quarterPi, threeQuarterPi, twoPi: BigFloat] {.contractual.} =
   require:
     precision > 0
   ensure:
-    not result.isZero
+    not result.pi.isZero
   body:
-    if piCache.len == 0:
-      piCache = initTable[int, BigFloat]()
-    if not piCache.hasKey(precision):
-      piCache[precision] = getPiBigFloat(precision)
-    piCache[precision]
+    if constantsCache.len == 0:
+      constantsCache = initTable[int, tuple[
+        pi, halfPi, quarterPi, threeQuarterPi, twoPi: BigFloat]]()
+    if not constantsCache.hasKey(precision):
+      let pi = getPiBigFloat(precision)
+      let halfPi = scaleByPow2(pi, -1)
+      let quarterPi = scaleByPow2(pi, -2)
+      constantsCache[precision] = (
+        pi: pi,
+        halfPi: halfPi,
+        quarterPi: quarterPi,
+        threeQuarterPi: halfPi + quarterPi,
+        twoPi: pi + pi)
+    constantsCache[precision]
 
 proc cachedLnTwo(precision: int): BigFloat {.contractual.} =
   require:
@@ -122,7 +133,7 @@ func factorialTerms(a: BigFloat, precision, requested: int,
       if float64(degree) * ln(magnitude) - lgamma(float64(degree + 1)) < target:
         break
       inc terms
-    terms + 1
+    terms
 
 func exponentialTerms(a: BigFloat, precision, requested: int): int {.
     contractual.} =
@@ -140,7 +151,23 @@ func exponentialTerms(a: BigFloat, precision, requested: int): int {.
       if float64(degree) * ln(magnitude) - lgamma(float64(degree + 1)) < target:
         break
       inc degree
-    degree + 1
+    degree
+
+func cosineSeries(a: BigFloat, precision, requested: int): BigFloat {.
+    contractual.} =
+  ## Reduce the default series once with cos(a) = 1 - 2*sin(a/2)^2. Explicit
+  ## budgets retain their direct-series meaning.
+  require:
+    precision > 0
+    abs(toFloat64(a)) <= 0.8
+  ensure:
+    not result.isZero
+  body:
+    if requested > 0 or abs(toFloat64(a)) <= 0.25:
+      return cosTaylor(a, factorialTerms(a, precision, requested, false))
+    let half = scaleByPow2(a, -1)
+    let sine = sinTaylor(half, factorialTerms(half, precision, 0, true))
+    one(BigFloat) - scaleByPow2(sine * sine, 1)
 
 proc sin*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `sin(x)` with argument reduction: stage 1 reduces to `[-pi, pi]` (skipped
@@ -148,35 +175,31 @@ proc sin*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## identities, restoring the sign of `r` (sin is odd). Approximate.
   body:
     let precision = workingPrecision(x)
-    let pi = cachedPi(precision)
-    let halfPi = scaleByPow2(pi, -1)
-    let quarterPi = scaleByPow2(pi, -2)
-    let threeQuarterPi = halfPi + quarterPi
-    let twoPi = pi + pi
-    let r = if x <= pi and x >= -pi: x else:
-      x - roundBigFloat(x / twoPi, precision) * twoPi
+    let constants = cachedConstants(precision)
+    let r = if x <= constants.pi and x >= -constants.pi: x else:
+      x - roundBigFloat(x / constants.twoPi, precision) * constants.twoPi
     let a = abs(r)
     let neg = r.sign
 
-    if a <= quarterPi:
+    if a <= constants.quarterPi:
       let s = sinTaylor(a, factorialTerms(a, precision, terms, true))
       return if neg: -s else: s
-    elif a <= halfPi:
-      let u = halfPi - a # u in [0, pi/4]; sin(a) = cos(pi/2 - a)
-      let s = cosTaylor(u, factorialTerms(u, precision, terms, false))
+    elif a <= constants.halfPi:
+      let u = constants.halfPi - a # u in [0, pi/4]; sin(a) = cos(pi/2 - a)
+      let s = cosineSeries(u, precision, terms)
       return if neg: -s else: s
-    elif a <= threeQuarterPi:
-      let u = a - halfPi # u in (0, pi/4]; sin(a) = cos(a - pi/2)
-      let s = cosTaylor(u, factorialTerms(u, precision, terms, false))
+    elif a <= constants.threeQuarterPi:
+      let u = a - constants.halfPi # u in (0, pi/4]; sin(a) = cos(a - pi/2)
+      let s = cosineSeries(u, precision, terms)
       return if neg: -s else: s
-    elif a <= pi:
-      let u = pi - a # u in [0, pi/4); sin(pi - u) = sin(u)
+    elif a <= constants.pi:
+      let u = constants.pi - a # u in [0, pi/4); sin(pi - u) = sin(u)
       let s = sinTaylor(u, factorialTerms(u, precision, terms, true))
       return if neg: -s else: s
     else:
       # Rounding spill: r = pi + eps (a few ulp past pi from stage 1).
       # sin(pi + u) = -sin(u); combined with the sign: -sign·sin(u).
-      let u = a - pi
+      let u = a - constants.pi
       let s = sinTaylor(u, factorialTerms(u, precision, terms, true))
       return if neg: s else: -s
 
@@ -184,47 +207,43 @@ proc cos*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `cos(x)` with argument reduction (mirrors `sin`). Approximate.
   body:
     let precision = workingPrecision(x)
-    let pi = cachedPi(precision)
-    let halfPi = scaleByPow2(pi, -1)
-    let quarterPi = scaleByPow2(pi, -2)
-    let threeQuarterPi = halfPi + quarterPi
-    let twoPi = pi + pi
-    let r = if x <= pi and x >= -pi: x else:
-      x - roundBigFloat(x / twoPi, precision) * twoPi
+    let constants = cachedConstants(precision)
+    let r = if x <= constants.pi and x >= -constants.pi: x else:
+      x - roundBigFloat(x / constants.twoPi, precision) * constants.twoPi
     let a = abs(r) # cos is even
 
-    if a <= quarterPi:
-      cosTaylor(a, factorialTerms(a, precision, terms, false))
-    elif a <= halfPi:
-      let u = halfPi - a # cos(pi/2 - u) = sin(u)
+    if a <= constants.quarterPi:
+      cosineSeries(a, precision, terms)
+    elif a <= constants.halfPi:
+      let u = constants.halfPi - a # cos(pi/2 - u) = sin(u)
       sinTaylor(u, factorialTerms(u, precision, terms, true))
-    elif a <= threeQuarterPi:
-      let u = a - halfPi # cos(pi/2 + u) = -sin(u)
+    elif a <= constants.threeQuarterPi:
+      let u = a - constants.halfPi # cos(pi/2 + u) = -sin(u)
       -sinTaylor(u, factorialTerms(u, precision, terms, true))
-    elif a <= pi:
-      let u = pi - a # cos(pi - u) = -cos(u)
-      -cosTaylor(u, factorialTerms(u, precision, terms, false))
+    elif a <= constants.pi:
+      let u = constants.pi - a # cos(pi - u) = -cos(u)
+      -cosineSeries(u, precision, terms)
     else:
       # Rounding spill: cos(pi + u) = -cos(u).
-      let u = a - pi
-      -cosTaylor(u, factorialTerms(u, precision, terms, false))
+      let u = a - constants.pi
+      -cosineSeries(u, precision, terms)
 
 proc exp*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `exp(x)` by scaling-and-squaring: `exp(x) = exp(x/2^k)^(2^k)`, `k` chosen
-  ## so `|x/2^k| <= 1/2`. The raw Taylor at `|x| ~ 700` destroys all precision
+  ## so `|x/2^k| < 1/128`. The raw Taylor at `|x| ~ 700` destroys all precision
   ## (leading term `~1e304`); scaling brings the argument below `1/2` (fast
-  ## convergence) and `k` squarings recover the value. `k = 0` when `|x| <= 1/2`.
-  ## Approximate.
+  ## convergence) and `k` squarings recover the value. Approximate.
   body:
     let one = one(BigFloat)
     if x.isZero: return one
 
-    # k = max(0, exponent + bitLength(mantissa) + 1) guarantees |x|/2^k < 1/2.
+    # Keep the Taylor argument below 1/128. The extra squarings are cheaper than
+    # the BigFloat divisions removed from the series.
     let bl = bitLength(x.mantissa)
-    var k = int(x.exponent) + bl + 1
+    var k = int(x.exponent) + bl + 7
     if k < 0: k = 0
 
-    let y = scaleByPow2(x, -k) # exact: exponent only, |y| <= 1/2
+    let y = scaleByPow2(x, -k) # exact: exponent only, |y| < 1/128
     result = expTaylor(y, exponentialTerms(y, workingPrecision(x), terms))
     for _ in 1 .. k:
       result = result * result # recover the 2^k scaling
@@ -365,14 +384,12 @@ proc arctan*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
     let ax = abs(x)
     let precision = workingPrecision(x)
     if ax > one:
-      let halfPi = scaleByPow2(cachedPi(precision), -1)
-      let res = halfPi - arctan(one / ax, terms)
+      let res = cachedConstants(precision).halfPi - arctan(one / ax, terms)
       return if x < zero: -res else: res
     if toFloat64(ax) > tanPi8F64: # tan(pi/8)
-      let quarterPi = scaleByPow2(cachedPi(precision), -2)
       let reduced = (ax - one) / (ax + one) # in (-0.415, 0]
       let budget = geometricTerms(reduced, precision, terms)
-      let res = quarterPi + atanTaylor(reduced, budget)
+      let res = cachedConstants(precision).quarterPi + atanTaylor(reduced, budget)
       return if x < zero: -res else: res
     return atanTaylor(x, geometricTerms(x, precision, terms))
 
@@ -385,11 +402,11 @@ proc arctan2*(y, x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
     if x > zero:
       return arctan(y / x, terms)
     elif x < zero:
-      let pi = cachedPi(max(workingPrecision(x), workingPrecision(y)))
+      let pi = cachedConstants(max(workingPrecision(x), workingPrecision(y))).pi
       if y >= zero: return arctan(y / x, terms) + pi
       else: return arctan(y / x, terms) - pi
     else: # x == 0
-      let halfPi = scaleByPow2(cachedPi(workingPrecision(y)), -1)
+      let halfPi = cachedConstants(workingPrecision(y)).halfPi
       if y > zero: return halfPi
       elif y < zero: return -halfPi
       else: return zero
