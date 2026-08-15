@@ -304,13 +304,22 @@ func factorial*[T; FracBits: static[int]](n: int): Fixed[T, FracBits] {.
 
 func erf*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
     contractual.} =
-  ## Error function via the Taylor core with a Newton-sqrt wrapper. Approximate.
+  ## Error function via Taylor near zero and a continued fraction outside it.
   body:
     let pi = constants.piFixed[T, FracBits]()
+    let one = toFixed[T, FracBits](1)
+    when T is SomeSignedInt:
+      when FracBits + 4 < sizeof(T) * 8:
+        let saturation = toFixed[T, FracBits](8)
+        if x >= saturation: return one
+        if x <= -saturation: return -one
     let sqrtWrap = proc(v: Fixed[T, FracBits]): Fixed[T,
         FracBits] {.noSideEffect.} =
       sqrt_newton.sqrtNewtonGeneric(v, 10)
-    return error_functions.erfTaylor(x, 15, pi, sqrtWrap)
+    let expWrap = proc(v: Fixed[T, FracBits]): Fixed[T,
+        FracBits] {.noSideEffect.} =
+      exp(v)
+    return error_functions.erf(x, 32, pi, sqrtWrap, expWrap)
 
 func besselJ0*[T; FracBits: static[int]](x: Fixed[T, FracBits]): Fixed[T, FracBits] {.
     contractual.} =

@@ -46,6 +46,15 @@ suite "Error function — Taylor (float64)":
   test "erf(0.5) ~ 0.5205":
     let r = erfTaylor(0.5, 15, PI, sqrtF64)
     check r > 0.50 and r < 0.55
+
+suite "Error function — full domain":
+  test "continued fraction avoids large-argument cancellation":
+    for x in [1.0, 1.9, 3.0, 6.0]:
+      check abs(error_functions.erf(x, 64, PI, sqrtF64, exp) - math.erf(x)) <
+        3e-14
+  test "erf is odd":
+    check error_functions.erf(-3.0, 64, PI, sqrtF64, exp) ==
+      -error_functions.erf(3.0, 64, PI, sqrtF64, exp)
   test "terms=30 overflow-free (past the 21! int64 cliff)":
     var raised = false
     let r = block:

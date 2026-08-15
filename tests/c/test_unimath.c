@@ -556,6 +556,7 @@ int main(void) {
   check_dbl_tol("hermite(3,0.5)", unimath_hermite(3, 0.5), -5.0, 1e-12);
   check_dbl_tol("erf(0)", unimath_erf(0.0), 0.0, 1e-12);
   check_dbl_tol("erf(0.5)", unimath_erf(0.5), 0.5205, 1e-3);
+  check_dbl_tol("erf(3)", unimath_erf(3.0), erf(3.0), 3e-14);
   check_dbl_tol("gamma(1)", unimath_gamma(1.0), 1.0, 1e-10);
   check_dbl_tol("gamma(5)", unimath_gamma(5.0), 24.0, 1e-9);
   check_dbl_tol("gamma(0.5)", unimath_gamma(0.5), sqrt(C_PI), 1e-10);
@@ -751,6 +752,9 @@ int main(void) {
   check_int("fixed_atanh(2.0) out-of-domain clamps", unimath_fixed_atanh(TO_Q32(2.0)), 0);
   check_dbl_tol("fixed_factorial(5)", FROM_Q32(unimath_fixed_factorial(5)), 120.0, 1e-3);
   check_dbl_tol("fixed_erf(0.5)", FROM_Q32(unimath_fixed_erf(TO_Q32(0.5))), erf(0.5), 2e-2);
+  check_dbl_tol("fixed_erf(3)", FROM_Q32(unimath_fixed_erf(TO_Q32(3.0))), erf(3.0), 2e-8);
+  check_int("fixed_erf(50000) saturates", unimath_fixed_erf(TO_Q32(50000.0)), TO_Q32(1.0));
+  check_int("fixed_erf(-50000) saturates", unimath_fixed_erf(TO_Q32(-50000.0)), TO_Q32(-1.0));
   check_dbl_tol("fixed_bessel_j0(0.5)", FROM_Q32(unimath_fixed_bessel_j0(TO_Q32(0.5))), 0.93846980724081297, 2e-2);
   /* Domain / out-of-convergence clamp to 0 (never raises). */
   if (unimath_fixed_ln(0) != 0) {
