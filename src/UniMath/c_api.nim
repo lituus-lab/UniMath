@@ -135,6 +135,7 @@ var gInited: bool
 # its calling convention is the default `nimcall` that `erfTaylor`'s parameter
 # expects (a `cdecl` proc cannot be passed where a `nimcall`/closure is wanted).
 proc sqrtF64Abi(v: float64): float64 {.noSideEffect.} = math.sqrt(v)
+proc expF64Abi(v: float64): float64 {.noSideEffect.} = math.exp(v)
 
 {.push exportc, cdecl, dynlib.}
 
@@ -837,8 +838,8 @@ proc unimath_hermite(n: cint, x: cdouble): cdouble =
   hermiteH(n.int, x.float64).float64
 
 proc unimath_erf(x: cdouble): cdouble =
-  ## Error function `erf(x)` via the Taylor series (15 terms), float64.
-  erfTaylor(x.float64, 15, PI, sqrtF64Abi).float64
+  ## Error function over the full float64 domain.
+  error_functions.erf(x.float64, 32, PI, sqrtF64Abi, expF64Abi).float64
 
 proc unimath_gamma(x: cdouble): cdouble =
   ## `Gamma(x)` via Lanczos (g=7, n=9), float64. Returns NaN at the

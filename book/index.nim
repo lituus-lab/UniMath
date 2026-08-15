@@ -340,8 +340,8 @@ nbText: """
 ## Special
 
 Orthogonal polynomials (Chebyshev T/U, Legendre, Hermite) via three-term
-recurrences; the error function `erf` and Bessel `J0` via term-ratio series (no
-integer-factorial accumulator, so overflow-free past the old `21!` cliff); and
+recurrences; `erf` via a term-ratio series on `|x| <= 1` and an `erfc` continued
+fraction outside it; Bessel `J0` via its term-ratio series; and
 `Gamma` via the Lanczos approximation (g=7, n=9, `< 1e-10` relative error). The
 series advance by term-ratio recurrence, so the denominator factorial is never
 formed as an integer. `Gamma` has no zeros — only poles at the non-positive
@@ -352,11 +352,14 @@ nbCode:
   import UniMath
   import std/math
   import UniMath/special/gamma
+  import UniMath/special/error_functions
   proc spSqrt(v: float64): float64 {.noSideEffect.} = math.sqrt(v)
+  proc spExp(v: float64): float64 {.noSideEffect.} = math.exp(v)
   echo "chebyshevT(2, 0.5) = ", chebyshevT(2, 0.5)
   echo "legendreP(2, 0.5) = ", legendreP(2, 0.5)
   echo "hermiteH(3, 0.5) = ", hermiteH(3, 0.5)
   echo "erf(0.5) = ", erfTaylor(0.5, 15, PI, spSqrt)
+  echo "erf(3.0) = ", error_functions.erf(3.0, 32, PI, spSqrt, spExp)
   echo "Gamma(5) = ", gammaLanczosFloat(5.0)
   echo "factorial(5) = ", gamma.factorial[float64](5)
   echo "J0(0.5) = ", besselJ0(0.5, 15)

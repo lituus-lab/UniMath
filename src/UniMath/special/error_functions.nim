@@ -47,3 +47,33 @@ func erfTaylor*[F: OrderedField](x: F, terms: int = 15, piConst: F,
         addNext = true
 
     return coeff * resultVal
+
+func erfcContinuedFraction*[F: OrderedField](x: F, terms: int, piConst: F,
+    sqrtFunc, expFunc: proc(v: F): F {.noSideEffect.}): F {.contractual.} =
+  ## Complementary error function for `x >= 1`, evaluated as a finite
+  ## continued fraction from the tail. At this range the coefficients are
+  ## positive and the backward recurrence is stable.
+  body:
+    let one = one(F)
+    if x < one:
+      raise newException(ValueError,
+        "erfcContinuedFraction: argument must be at least one")
+    var fraction = x
+    for n in countDown(terms, 1):
+      let numerator = fromInt(F, n) / fromInt(F, 2)
+      fraction = x + numerator / fraction
+    expFunc(-(x * x)) / (sqrtFunc(piConst) * fraction)
+
+func erf*[F: OrderedField](x: F, terms: int = 32, piConst: F,
+    sqrtFunc, expFunc: proc(v: F): F {.noSideEffect.}): F {.contractual.} =
+  ## Error function over the full real domain. Taylor is used for `|x| <= 1`;
+  ## beyond it, `erfc` is evaluated directly to avoid cancellation.
+  body:
+    let z = zero(F)
+    let one = one(F)
+    let ax = if x < z: -x else: x
+    if ax <= one:
+      return erfTaylor(x, terms, piConst, sqrtFunc)
+    let value = one - erfcContinuedFraction(ax, terms, piConst, sqrtFunc,
+      expFunc)
+    if x < z: -value else: value

@@ -74,6 +74,11 @@ suite "math_router — special":
     check toFloat64(math_router.factorial[int64, 32](5)) == 120.0
   test "besselJ0(0) = 1":
     check abs(toFloat64(math_router.besselJ0(f(0.0))) - 1.0) < 1e-3
+  test "erf covers arguments beyond the Taylor range":
+    check abs(toFloat64(math_router.erf(f(3.0))) - math.erf(3.0)) < 2e-8
+  test "erf saturates before squaring large bounded inputs":
+    check math_router.erf(f(50000.0)) == f(1.0)
+    check math_router.erf(f(-50000.0)) == f(-1.0)
 
 suite "math_router — domain guards":
   test "ln(0) raises ValueError":
