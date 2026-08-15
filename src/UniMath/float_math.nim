@@ -18,10 +18,11 @@
 ## primitive or a `BigFloat` comparison delegating to the contracted `cmp`
 ## (recursion doctrine). The precision envelope is documented per-proc and
 ## verified externally against the MPFR oracle. Domain guards (`ln`/`pow`/`tan`
-## singularities) are body `raise`s that survive `-d:release`. Pi and `ln(2)`
-## are memoized by precision in lazily populated thread-local caches, avoiding
-## shared mutable state. Cache-reading entry points are `proc` because Nim's
-## strict effect system rejects global-state access from `func`.
+## singularities) are body `raise`s that survive `-d:release`. Pi, `ln(2)`, and
+## the default Taylor reciprocals are memoized by precision in lazily populated
+## thread-local caches, avoiding shared mutable state. Cache-reading entry
+## points are `proc` because Nim's strict effect system rejects global-state
+## access from `func`.
 import contracts
 import std/[math, tables]
 import ./float
@@ -34,6 +35,8 @@ import ./exponential
 const
   sqrt2F64* = 1.4142135623730951 ## sqrt(2) as a float64 (ln mantissa-halve threshold)
   tanPi8F64* = 0.4142135623730951 ## tan(pi/8) = sqrt(2)-1 (arctan reduce threshold)
+  constantCacheLimit = 8
+  reciprocalCacheLimit = 1024
 
 func workingPrecision(x: BigFloat): int {.contractual, inline.} =
   ensure:
@@ -64,6 +67,7 @@ var
   constantsCache {.threadvar.}: Table[int, tuple[
     pi, halfPi, quarterPi, threeQuarterPi, twoPi: BigFloat]]
   lnTwoCache {.threadvar.}: Table[int, BigFloat]
+  reciprocalCache {.threadvar.}: Table[tuple[precision, denominator: int], BigFloat]
 
 proc cachedConstants(precision: int): tuple[
     pi, halfPi, quarterPi, threeQuarterPi, twoPi: BigFloat] {.contractual.} =
@@ -76,6 +80,8 @@ proc cachedConstants(precision: int): tuple[
       constantsCache = initTable[int, tuple[
         pi, halfPi, quarterPi, threeQuarterPi, twoPi: BigFloat]]()
     if not constantsCache.hasKey(precision):
+      if constantsCache.len >= constantCacheLimit:
+        constantsCache.clear()
       let pi = getPiBigFloat(precision)
       let halfPi = scaleByPow2(pi, -1)
       let quarterPi = scaleByPow2(pi, -2)
@@ -96,8 +102,27 @@ proc cachedLnTwo(precision: int): BigFloat {.contractual.} =
     if lnTwoCache.len == 0:
       lnTwoCache = initTable[int, BigFloat]()
     if not lnTwoCache.hasKey(precision):
+      if lnTwoCache.len >= constantCacheLimit:
+        lnTwoCache.clear()
       lnTwoCache[precision] = lnTwo(precision)
     lnTwoCache[precision]
+
+proc cachedReciprocal(denominator, precision: int): BigFloat {.contractual.} =
+  require:
+    denominator > 0
+    precision > 0
+  ensure:
+    not result.isZero
+  body:
+    if reciprocalCache.len == 0:
+      reciprocalCache = initTable[tuple[precision, denominator: int], BigFloat]()
+    let key = (precision: precision, denominator: denominator)
+    if not reciprocalCache.hasKey(key):
+      if reciprocalCache.len >= reciprocalCacheLimit:
+        reciprocalCache.clear()
+      reciprocalCache[key] = initBigFloat(1.0, precision) /
+        fromBigInt(initBigInt(denominator), precision)
+    reciprocalCache[key]
 
 func geometricTerms(a: BigFloat, precision, requested: int): int {.
     contractual.} =
@@ -153,7 +178,63 @@ func exponentialTerms(a: BigFloat, precision, requested: int): int {.
       inc degree
     degree
 
-func cosineSeries(a: BigFloat, precision, requested: int): BigFloat {.
+proc sineSeries(a: BigFloat, precision, requested: int): BigFloat {.
+    contractual.} =
+  require:
+    precision > 0
+  ensure:
+    result.isZero or bitLength(result.mantissa) == precision
+  body:
+    let terms = factorialTerms(a, precision, requested, true)
+    if requested > 0:
+      return sinTaylor(a, terms)
+    result = a
+    var term = a
+    let squared = a * a
+    var subtract = true
+    for n in 1 ..< terms:
+      term = term * squared * cachedReciprocal((2 * n) * (2 * n + 1), precision)
+      if subtract: result = result - term
+      else: result = result + term
+      subtract = not subtract
+
+proc cosineDirectSeries(a: BigFloat, precision, requested: int): BigFloat {.
+    contractual.} =
+  require:
+    precision > 0
+  ensure:
+    not result.isZero
+  body:
+    let terms = factorialTerms(a, precision, requested, false)
+    if requested > 0:
+      return cosTaylor(a, terms)
+    result = one(BigFloat)
+    var term = result
+    let squared = a * a
+    var subtract = true
+    for n in 1 ..< terms:
+      term = term * squared * cachedReciprocal((2 * n - 1) * (2 * n), precision)
+      if subtract: result = result - term
+      else: result = result + term
+      subtract = not subtract
+
+proc exponentialSeries(a: BigFloat, precision, requested: int): BigFloat {.
+    contractual.} =
+  require:
+    precision > 0
+  ensure:
+    not result.isZero
+  body:
+    let terms = exponentialTerms(a, precision, requested)
+    if requested > 0:
+      return expTaylor(a, terms)
+    result = one(BigFloat)
+    var term = result
+    for n in 1 ..< terms:
+      term = term * a * cachedReciprocal(n, precision)
+      result = result + term
+
+proc cosineSeries(a: BigFloat, precision, requested: int): BigFloat {.
     contractual.} =
   ## Reduce the default series once with cos(a) = 1 - 2*sin(a/2)^2. Explicit
   ## budgets retain their direct-series meaning.
@@ -164,9 +245,9 @@ func cosineSeries(a: BigFloat, precision, requested: int): BigFloat {.
     not result.isZero
   body:
     if requested > 0 or abs(toFloat64(a)) <= 0.25:
-      return cosTaylor(a, factorialTerms(a, precision, requested, false))
+      return cosineDirectSeries(a, precision, requested)
     let half = scaleByPow2(a, -1)
-    let sine = sinTaylor(half, factorialTerms(half, precision, 0, true))
+    let sine = sineSeries(half, precision, 0)
     one(BigFloat) - scaleByPow2(sine * sine, 1)
 
 proc sin*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
@@ -182,7 +263,7 @@ proc sin*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
     let neg = r.sign
 
     if a <= constants.quarterPi:
-      let s = sinTaylor(a, factorialTerms(a, precision, terms, true))
+      let s = sineSeries(a, precision, terms)
       return if neg: -s else: s
     elif a <= constants.halfPi:
       let u = constants.halfPi - a # u in [0, pi/4]; sin(a) = cos(pi/2 - a)
@@ -194,13 +275,13 @@ proc sin*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
       return if neg: -s else: s
     elif a <= constants.pi:
       let u = constants.pi - a # u in [0, pi/4); sin(pi - u) = sin(u)
-      let s = sinTaylor(u, factorialTerms(u, precision, terms, true))
+      let s = sineSeries(u, precision, terms)
       return if neg: -s else: s
     else:
       # Rounding spill: r = pi + eps (a few ulp past pi from stage 1).
       # sin(pi + u) = -sin(u); combined with the sign: -sign·sin(u).
       let u = a - constants.pi
-      let s = sinTaylor(u, factorialTerms(u, precision, terms, true))
+      let s = sineSeries(u, precision, terms)
       return if neg: s else: -s
 
 proc cos*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
@@ -216,10 +297,10 @@ proc cos*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
       cosineSeries(a, precision, terms)
     elif a <= constants.halfPi:
       let u = constants.halfPi - a # cos(pi/2 - u) = sin(u)
-      sinTaylor(u, factorialTerms(u, precision, terms, true))
+      sineSeries(u, precision, terms)
     elif a <= constants.threeQuarterPi:
       let u = a - constants.halfPi # cos(pi/2 + u) = -sin(u)
-      -sinTaylor(u, factorialTerms(u, precision, terms, true))
+      -sineSeries(u, precision, terms)
     elif a <= constants.pi:
       let u = constants.pi - a # cos(pi - u) = -cos(u)
       -cosineSeries(u, precision, terms)
@@ -244,7 +325,7 @@ proc exp*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
     if k < 0: k = 0
 
     let y = scaleByPow2(x, -k) # exact: exponent only, |y| < 1/128
-    result = expTaylor(y, exponentialTerms(y, workingPrecision(x), terms))
+    result = exponentialSeries(y, workingPrecision(x), terms)
     for _ in 1 .. k:
       result = result * result # recover the 2^k scaling
 
@@ -287,7 +368,7 @@ func sqrt*(x: BigFloat, iterations: int = 15): BigFloat {.contractual.} =
   ## doubled (53 -> 106 -> 212 -> 256) and early steps run at lower width. Newton
   ## is self-correcting, so rounding the iterates does not accumulate. The result
   ## is faithful (<= 1 ulp at 256 bits), verified against the MPFR oracle.
-  ## `iterations` caps the Newton step count (the schedule self-limits at ~4).
+  ## `iterations` caps the Newton step count (the schedule self-limits at ~3).
   ## Public-domain algorithm: `sqrt(x) = x * (1/sqrt(x))`.
   body:
     if isZero(x):
@@ -311,7 +392,8 @@ func sqrt*(x: BigFloat, iterations: int = 15): BigFloat {.contractual.} =
     const seedPrec = 64
     var y = initBigFloat(1.0 / sqrt(toFloat64(g)), seedPrec)
     let onePointFive = initBigFloat(1.5, p)
-    # Precision-doubling Newton, then a final full-width pass for rounding.
+    # Precision-doubling Newton. The 212 -> 256 pass already has enough input
+    # accuracy to produce the full-width result; repeating it is redundant.
     var steps = 0
     var pk = 53
     while pk < p and steps < iterations:
@@ -321,11 +403,6 @@ func sqrt*(x: BigFloat, iterations: int = 15): BigFloat {.contractual.} =
       let u = subRounded(onePointFive, scaleByPow2(t, -1), pk, rmNearest)
       y = mulRounded(y, u, pk, rmNearest)
       inc steps
-    if steps < iterations:
-      let y2 = mulRounded(y, y, p, rmNearest)
-      let t = mulRounded(g, y2, p, rmNearest)
-      let u = subRounded(onePointFive, scaleByPow2(t, -1), p, rmNearest)
-      y = mulRounded(y, u, p, rmNearest)
     # sqrt(g) = g * y, then scale by 2^(e/2 + q) to undo the reduction.
     result = mulRounded(g, y, p, rmNearest)
     result.exponent += int64(e div 2) + q
