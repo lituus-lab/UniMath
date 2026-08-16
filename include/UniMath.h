@@ -49,6 +49,72 @@ void unimath_cleanup(void);
 
 const char *unimath_get_error_string(int error_code);
 
+/* ---- Native float64 mathematics ----
+ * Value-only host-libm operations. Results preserve the platform's IEEE-754
+ * classifications and may differ by a few ulps across libm implementations. */
+typedef struct unimath_f64_pair {
+  double first;
+  double second;
+} unimath_f64_pair;
+
+typedef enum unimath_f64_class {
+  UNIMATH_F64_NORMAL = 0,
+  UNIMATH_F64_SUBNORMAL = 1,
+  UNIMATH_F64_ZERO = 2,
+  UNIMATH_F64_NEG_ZERO = 3,
+  UNIMATH_F64_NAN = 4,
+  UNIMATH_F64_INF = 5,
+  UNIMATH_F64_NEG_INF = 6
+} unimath_f64_class;
+
+double unimath_f64_sqrt(double x);
+double unimath_f64_cbrt(double x);
+double unimath_f64_ln(double x);
+double unimath_f64_log(double x, double base);
+double unimath_f64_log2(double x);
+double unimath_f64_log10(double x);
+double unimath_f64_log1p(double x);
+double unimath_f64_exp(double x);
+double unimath_f64_expm1(double x);
+double unimath_f64_pow(double base, double exponent);
+double unimath_f64_sin(double x);
+double unimath_f64_cos(double x);
+double unimath_f64_tan(double x);
+/* first = sin(x), second = cos(x). */
+unimath_f64_pair unimath_f64_sin_cos(double x);
+double unimath_f64_atan2(double y, double x);
+double unimath_f64_arcsin(double x);
+double unimath_f64_arccos(double x);
+double unimath_f64_arctan(double x);
+double unimath_f64_sinh(double x);
+double unimath_f64_cosh(double x);
+double unimath_f64_tanh(double x);
+double unimath_f64_arcsinh(double x);
+double unimath_f64_arccosh(double x);
+double unimath_f64_arctanh(double x);
+double unimath_f64_hypot(double x, double y);
+double unimath_f64_erf(double x);
+double unimath_f64_erfc(double x);
+double unimath_f64_gamma(double x);
+double unimath_f64_lgamma(double x);
+double unimath_f64_floor(double x);
+double unimath_f64_ceil(double x);
+double unimath_f64_trunc(double x);
+double unimath_f64_round(double x);
+double unimath_f64_round_places(double x, int places);
+double unimath_f64_copy_sign(double x, double sign);
+double unimath_f64_next_after(double x, double direction);
+double unimath_f64_deg_to_rad(double x);
+double unimath_f64_rad_to_deg(double x);
+/* first = integer part, second = fractional part; both preserve x's sign. */
+unimath_f64_pair unimath_f64_split_decimal(double x);
+/* Returns the fraction. Writes the exponent when exponent is non-NULL. */
+double unimath_f64_frexp(double x, int *exponent);
+int unimath_f64_signbit(double x);
+int unimath_f64_classify(double x);
+/* Returns 0 for a negative ulps argument. */
+int unimath_f64_almost_equal(double x, double y, int ulps);
+
 /* ---- BigInt ---- */
 unimath_bigint unimath_bigint_from_i64(long long v);
 unimath_bigint unimath_bigint_from_decimal(const char *s);
