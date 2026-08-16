@@ -14,6 +14,9 @@ special-function algorithms over them. Exposed in Nim, a C ABI, and Python.
   `Rational[T]` (exact fractions, `rational/`, reduced to lowest terms).
 - **Intervals** — `Interval[T]` (`interval/`) with directed-rounding
   arithmetic and transcendentals.
+- **Native float64 facade** (`native_float.nim`) — zero-wrapper-overhead
+  access to host-libm roots, logarithms, exponentials, trigonometry and
+  hypotenuse operations for higher-level Uni* consumers.
 - **Transcendentals** (`exponential/`, `trigonometry/`, `hyperbolic/`,
   `special/`, `roots/`) — the same algorithms (sin/cos/exp/ln/sqrt/atan/...)
   implemented across three backends: `BigFloat` (`float_math.nim`), `Fixed`
@@ -79,9 +82,28 @@ nimble coverage       # gcov + lcov -> coverage/
 nimble book           # nimib book -> book/index.html
 nimble docs           # book + API reference -> pages/
 nimble bench          # perf + precision-parity benchmarks (not in the gate)
+nimble benchmarkNativeFloatBaseline # 3-run direct-libm/facade comparison
 nimble benchReadme    # bench, then splice a headline table into this README for this machine
 nimble testOracle     # GMP/MPFR oracle tests (needs libmpfr/libgmp; not in the gate)
 ```
+
+## Native float64 mathematics
+
+`import UniMath` is sufficient for ordinary machine mathematics. UniMath
+re-exports Nim's `std/math` API, so consumers use the normal overloaded names
+(`sqrt`, `sin`, `cos`, `sinh`, `erf`, `gamma`, `floor`, `frexp`, and the rest)
+without importing `std/math` separately. UniMath adds `log1p`, `expm1`, and
+`sinCos`; the latter evaluates its argument once and returns `(sin, cos)`.
+
+The operations retain host-libm IEEE-754 behavior. They do not promise
+bit-identical last bits across operating systems. C uses explicit
+`unimath_f64_*` symbols because C has no overloads, while Python exposes the
+same surface through `NativeFloat`.
+
+The deliberate exclusions are `std/math.gcd` and `std/math.lcm`: UniMath
+already provides its own exact generic implementations, including `BigInt`,
+and exporting both versions would create ambiguous overloads rather than
+useful float64 operations.
 
 ## Benchmarks
 
