@@ -111,6 +111,17 @@ task bench, "Perf + precision-parity benchmarks (release; not in the default gat
   exec "nim c -r -d:release --path:src -o:build/bench_arithmetic bench/bench_arithmetic.nim"
   exec "nim c -r -d:release --path:src -o:build/bench_transcendentals bench/bench_transcendentals.nim"
 
+task benchmarkNativeFloat, "Benchmark the native float64 facade against direct libm calls":
+  exec "nim c -d:release --mm:orc --path:src -o:build/benchmark_native_float benchmarks/benchmark_native_float.nim"
+  exec "./build/benchmark_native_float"
+
+task benchmarkNativeFloatBaseline, "Run and aggregate the native float64 baseline":
+  exec "nim c -d:release --mm:orc --path:src -o:build/benchmark_native_float benchmarks/benchmark_native_float.nim"
+  exec "nim c -d:release --mm:orc -o:build/run_native_float_baseline benchmarks/run_native_float_baseline.nim"
+  # The runner records the descriptor it is given; this task is what builds.
+  putEnv("UNIMATH_BENCH_BUILD", "-d:release --mm:orc")
+  exec "./build/run_native_float_baseline"
+
 task benchReadme, "bench (+ benchSpeed if libmpfr/libgmp are available), splice into README.md":
   exec "nimble bench"
   let (_, pkgCode) = gorgeEx("pkg-config --exists mpfr gmp")
