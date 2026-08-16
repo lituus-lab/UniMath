@@ -13,6 +13,54 @@ cdef extern from "UniMath.h":
     int unimath_init()
     void unimath_cleanup()
 
+    ctypedef struct unimath_f64_pair:
+        double first
+        double second
+
+    double unimath_f64_sqrt(double x)
+    double unimath_f64_cbrt(double x)
+    double unimath_f64_ln(double x)
+    double unimath_f64_log(double x, double base)
+    double unimath_f64_log2(double x)
+    double unimath_f64_log10(double x)
+    double unimath_f64_log1p(double x)
+    double unimath_f64_exp(double x)
+    double unimath_f64_expm1(double x)
+    double unimath_f64_pow(double base, double exponent)
+    double unimath_f64_sin(double x)
+    double unimath_f64_cos(double x)
+    double unimath_f64_tan(double x)
+    unimath_f64_pair unimath_f64_sin_cos(double x)
+    double unimath_f64_atan2(double y, double x)
+    double unimath_f64_arcsin(double x)
+    double unimath_f64_arccos(double x)
+    double unimath_f64_arctan(double x)
+    double unimath_f64_sinh(double x)
+    double unimath_f64_cosh(double x)
+    double unimath_f64_tanh(double x)
+    double unimath_f64_arcsinh(double x)
+    double unimath_f64_arccosh(double x)
+    double unimath_f64_arctanh(double x)
+    double unimath_f64_hypot(double x, double y)
+    double unimath_f64_erf(double x)
+    double unimath_f64_erfc(double x)
+    double unimath_f64_gamma(double x)
+    double unimath_f64_lgamma(double x)
+    double unimath_f64_floor(double x)
+    double unimath_f64_ceil(double x)
+    double unimath_f64_trunc(double x)
+    double unimath_f64_round(double x)
+    double unimath_f64_round_places(double x, int places)
+    double unimath_f64_copy_sign(double x, double sign)
+    double unimath_f64_next_after(double x, double direction)
+    double unimath_f64_deg_to_rad(double x)
+    double unimath_f64_rad_to_deg(double x)
+    unimath_f64_pair unimath_f64_split_decimal(double x)
+    double unimath_f64_frexp(double x, int *exponent)
+    int unimath_f64_signbit(double x)
+    int unimath_f64_classify(double x)
+    int unimath_f64_almost_equal(double x, double y, int ulps)
+
     ctypedef void *unimath_bigint
 
     unimath_bigint unimath_bigint_from_i64(long long v)
@@ -1087,6 +1135,160 @@ cdef Interval _coerce_interval(value):
     if isinstance(value, Interval):
         return value
     return Interval(value)
+
+
+cdef class NativeFloat:
+    """Complete native float64 mathematics exposed through the UniMath ABI."""
+    NORMAL = 0
+    SUBNORMAL = 1
+    ZERO = 2
+    NEG_ZERO = 3
+    NAN = 4
+    INF = 5
+    NEG_INF = 6
+
+    @staticmethod
+    def sqrt(x): return unimath_f64_sqrt(<double>x)
+
+    @staticmethod
+    def cbrt(x): return unimath_f64_cbrt(<double>x)
+
+    @staticmethod
+    def ln(x): return unimath_f64_ln(<double>x)
+
+    @staticmethod
+    def log(x, base): return unimath_f64_log(<double>x, <double>base)
+
+    @staticmethod
+    def log2(x): return unimath_f64_log2(<double>x)
+
+    @staticmethod
+    def log10(x): return unimath_f64_log10(<double>x)
+
+    @staticmethod
+    def log1p(x): return unimath_f64_log1p(<double>x)
+
+    @staticmethod
+    def exp(x): return unimath_f64_exp(<double>x)
+
+    @staticmethod
+    def expm1(x): return unimath_f64_expm1(<double>x)
+
+    @staticmethod
+    def pow(base, exponent):
+        return unimath_f64_pow(<double>base, <double>exponent)
+
+    @staticmethod
+    def sin(x): return unimath_f64_sin(<double>x)
+
+    @staticmethod
+    def cos(x): return unimath_f64_cos(<double>x)
+
+    @staticmethod
+    def tan(x): return unimath_f64_tan(<double>x)
+
+    @staticmethod
+    def sin_cos(x):
+        cdef unimath_f64_pair pair = unimath_f64_sin_cos(<double>x)
+        return pair.first, pair.second
+
+    @staticmethod
+    def arctan2(y, x): return unimath_f64_atan2(<double>y, <double>x)
+
+    @staticmethod
+    def atan2(y, x): return unimath_f64_atan2(<double>y, <double>x)
+
+    @staticmethod
+    def arcsin(x): return unimath_f64_arcsin(<double>x)
+
+    @staticmethod
+    def arccos(x): return unimath_f64_arccos(<double>x)
+
+    @staticmethod
+    def arctan(x): return unimath_f64_arctan(<double>x)
+
+    @staticmethod
+    def sinh(x): return unimath_f64_sinh(<double>x)
+
+    @staticmethod
+    def cosh(x): return unimath_f64_cosh(<double>x)
+
+    @staticmethod
+    def tanh(x): return unimath_f64_tanh(<double>x)
+
+    @staticmethod
+    def arcsinh(x): return unimath_f64_arcsinh(<double>x)
+
+    @staticmethod
+    def arccosh(x): return unimath_f64_arccosh(<double>x)
+
+    @staticmethod
+    def arctanh(x): return unimath_f64_arctanh(<double>x)
+
+    @staticmethod
+    def hypot(x, y): return unimath_f64_hypot(<double>x, <double>y)
+
+    @staticmethod
+    def erf(x): return unimath_f64_erf(<double>x)
+
+    @staticmethod
+    def erfc(x): return unimath_f64_erfc(<double>x)
+
+    @staticmethod
+    def gamma(x): return unimath_f64_gamma(<double>x)
+
+    @staticmethod
+    def lgamma(x): return unimath_f64_lgamma(<double>x)
+
+    @staticmethod
+    def floor(x): return unimath_f64_floor(<double>x)
+
+    @staticmethod
+    def ceil(x): return unimath_f64_ceil(<double>x)
+
+    @staticmethod
+    def trunc(x): return unimath_f64_trunc(<double>x)
+
+    @staticmethod
+    def round(x, places=None):
+        if places is None:
+            return unimath_f64_round(<double>x)
+        return unimath_f64_round_places(<double>x, <int>places)
+
+    @staticmethod
+    def copy_sign(x, sign):
+        return unimath_f64_copy_sign(<double>x, <double>sign)
+
+    @staticmethod
+    def next_after(x, direction):
+        return unimath_f64_next_after(<double>x, <double>direction)
+
+    @staticmethod
+    def deg_to_rad(x): return unimath_f64_deg_to_rad(<double>x)
+
+    @staticmethod
+    def rad_to_deg(x): return unimath_f64_rad_to_deg(<double>x)
+
+    @staticmethod
+    def split_decimal(x):
+        cdef unimath_f64_pair pair = unimath_f64_split_decimal(<double>x)
+        return pair.first, pair.second
+
+    @staticmethod
+    def frexp(x):
+        cdef int exponent = 0
+        cdef double fraction = unimath_f64_frexp(<double>x, &exponent)
+        return fraction, exponent
+
+    @staticmethod
+    def signbit(x): return bool(unimath_f64_signbit(<double>x))
+
+    @staticmethod
+    def classify(x): return unimath_f64_classify(<double>x)
+
+    @staticmethod
+    def almost_equal(x, y, ulps=4):
+        return bool(unimath_f64_almost_equal(<double>x, <double>y, <int>ulps))
 
 
 cdef class Roots:
