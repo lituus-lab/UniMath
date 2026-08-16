@@ -50,6 +50,11 @@ static void check_dbl_tol(const char *name, double got, double want, double tol)
 #define TO_Q32(x) ((long long)((x) * Q32))
 #define FROM_Q32(q) ((double)(q) / Q32)
 
+_Static_assert(sizeof(unimath_f64_pair) == 2 * sizeof(double),
+               "unimath_f64_pair must contain exactly two doubles");
+_Static_assert(offsetof(unimath_f64_pair, second) == sizeof(double),
+               "unimath_f64_pair fields must be contiguous and ordered");
+
 /* Interval results are widened enclosures: pass iff the result contains the
  * exact [wantLo, wantHi] and is itself a valid (lo <= hi) interval. */
 static void check_enc(const char *name, unimath_interval got, double wantLo,
@@ -125,6 +130,78 @@ int main(void) {
   if (!unimath_init()) { printf("FAIL: unimath_init returned 0\n"); return 1; }
 
   check_str("version", unimath_version(), UNIMATH_VERSION);
+
+  /* ---- native float64 mathematics ---- */
+  check_dbl("f64 sqrt", unimath_f64_sqrt(4.0), 2.0);
+  check_dbl("f64 cbrt", unimath_f64_cbrt(27.0), 3.0);
+  check_dbl("f64 ln", unimath_f64_ln(C_E), 1.0);
+  check_dbl("f64 log", unimath_f64_log(8.0, 2.0), 3.0);
+  check_dbl("f64 log2", unimath_f64_log2(8.0), 3.0);
+  check_dbl("f64 log10", unimath_f64_log10(1000.0), 3.0);
+  check_dbl_tol("f64 log1p", unimath_f64_log1p(1e-16), 1e-16, 1e-31);
+  check_dbl("f64 exp", unimath_f64_exp(1.0), C_E);
+  check_dbl_tol("f64 expm1", unimath_f64_expm1(1e-16), 1e-16, 1e-31);
+  check_dbl("f64 pow", unimath_f64_pow(2.0, 10.0), 1024.0);
+  check_dbl("f64 sin", unimath_f64_sin(0.0), 0.0);
+  check_dbl("f64 cos", unimath_f64_cos(0.0), 1.0);
+  check_dbl_tol("f64 tan", unimath_f64_tan(C_PI / 4.0), 1.0, 1e-15);
+  {
+    unimath_f64_pair pair = unimath_f64_sin_cos(C_PI / 4.0);
+    check_dbl("f64 sin_cos first", pair.first, unimath_f64_sin(C_PI / 4.0));
+    check_dbl("f64 sin_cos second", pair.second, unimath_f64_cos(C_PI / 4.0));
+  }
+  check_dbl("f64 atan2", unimath_f64_atan2(1.0, 0.0), C_PI / 2.0);
+  check_dbl("f64 arcsin", unimath_f64_arcsin(0.0), 0.0);
+  check_dbl("f64 arccos", unimath_f64_arccos(1.0), 0.0);
+  check_dbl("f64 arctan", unimath_f64_arctan(0.0), 0.0);
+  check_dbl("f64 sinh", unimath_f64_sinh(0.0), 0.0);
+  check_dbl("f64 cosh", unimath_f64_cosh(0.0), 1.0);
+  check_dbl("f64 tanh", unimath_f64_tanh(0.0), 0.0);
+  check_dbl("f64 arcsinh", unimath_f64_arcsinh(0.0), 0.0);
+  check_dbl("f64 arccosh", unimath_f64_arccosh(1.0), 0.0);
+  check_dbl("f64 arctanh", unimath_f64_arctanh(0.0), 0.0);
+  check_dbl("f64 hypot", unimath_f64_hypot(3.0, 4.0), 5.0);
+  check_dbl("f64 erf", unimath_f64_erf(0.0), 0.0);
+  check_dbl("f64 erfc", unimath_f64_erfc(0.0), 1.0);
+  check_dbl_tol("f64 gamma", unimath_f64_gamma(5.0), 24.0, 1e-14);
+  check_dbl("f64 floor", unimath_f64_floor(1.75), 1.0);
+  check_dbl("f64 ceil", unimath_f64_ceil(1.25), 2.0);
+  check_dbl("f64 trunc", unimath_f64_trunc(-1.75), -1.0);
+  check_dbl("f64 round", unimath_f64_round(1.5), 2.0);
+  check_dbl("f64 round places", unimath_f64_round_places(1.234, 2), 1.23);
+  check_dbl("f64 copy sign", unimath_f64_copy_sign(1.0, -0.0), -1.0);
+  check_dbl("f64 degrees", unimath_f64_deg_to_rad(180.0), C_PI);
+  check_dbl("f64 radians", unimath_f64_rad_to_deg(C_PI), 180.0);
+  {
+    unimath_f64_pair parts = unimath_f64_split_decimal(-2.75);
+    check_dbl("f64 split integer", parts.first, -2.0);
+    check_dbl("f64 split fraction", parts.second, -0.75);
+    parts = unimath_f64_split_decimal(-0.0);
+    check_int("f64 split integer preserves -0", signbit(parts.first), 1);
+    check_int("f64 split fraction preserves -0", signbit(parts.second), 1);
+    int exponent = -1;
+    check_dbl("f64 frexp fraction", unimath_f64_frexp(8.0, &exponent), 0.5);
+    check_int("f64 frexp exponent", exponent, 4);
+    check_dbl("f64 frexp NULL exponent", unimath_f64_frexp(8.0, NULL), 0.5);
+  }
+  check_int("f64 signbit negative zero", unimath_f64_signbit(-0.0), 1);
+  check_int("f64 classify negative zero", unimath_f64_classify(-0.0),
+            UNIMATH_F64_NEG_ZERO);
+  check_int("f64 classify NaN", unimath_f64_classify(NAN), UNIMATH_F64_NAN);
+  check_int("f64 almost equal", unimath_f64_almost_equal(1.0, 1.0, 4), 1);
+  check_int("f64 almost equal invalid ulps",
+            unimath_f64_almost_equal(1.0, 1.0, -1), 0);
+  if (!isnan(unimath_f64_sqrt(-1.0))) {
+    printf("FAIL f64 sqrt(-1) should be NaN\n"); failures++;
+  } else printf("ok   f64 sqrt(-1) = NaN\n");
+  if (!isfinite(unimath_f64_hypot(1e308, 1e308))) {
+    printf("FAIL f64 hypot scaling should remain finite\n"); failures++;
+  } else printf("ok   f64 hypot scaling remains finite\n");
+  if (!isnan(unimath_f64_ln(-1.0)) || !isinf(unimath_f64_ln(0.0)) ||
+      !isnan(unimath_f64_log1p(-2.0)) ||
+      !isnan(unimath_f64_pow(-1.0, 0.5))) {
+    printf("FAIL f64 IEEE domain classifications\n"); failures++;
+  } else printf("ok   f64 IEEE domain classifications\n");
 
   /* ---- BigInt construction & round-trip ---- */
   unimath_bigint a = unimath_bigint_from_i64(-123456789);
