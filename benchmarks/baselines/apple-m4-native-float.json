@@ -1,0 +1,47 @@
+{
+  "date": "2026-08-16",
+  "machine": "Apple M4",
+  "architecture": "arm64",
+  "os": "macosx",
+  "os_version": "26.5.1",
+  "nim": "2.2.10",
+  "build": "-d:release --mm:orc",
+  "operation": "native-float-facade",
+  "runs": 3,
+  "iterations_per_run": 20,
+  "warmup_iterations": 3,
+  "point_count": 262144,
+  "semantics": "preallocated output; exact same-process result parity",
+  "direct_transform": {
+    "run_mean_ms": [
+      0.6046041,
+      0.6105103999999999,
+      0.6023374000000001
+    ],
+    "median_run_mean_ms": 0.6046041
+  },
+  "facade_transform": {
+    "run_mean_ms": [
+      0.6053875,
+      0.6061562000000001,
+      0.6021584499999999
+    ],
+    "median_run_mean_ms": 0.6053875
+  },
+  "direct_polar": {
+    "run_mean_ms": [
+      1.2013083500000001,
+      1.1947,
+      1.24645835
+    ],
+    "median_run_mean_ms": 1.2013083500000001
+  },
+  "facade_polar": {
+    "run_mean_ms": [
+      1.1860645500000002,
+      1.1812958,
+      1.1737208
+    ],
+    "median_run_mean_ms": 1.1812958
+  }
+}
