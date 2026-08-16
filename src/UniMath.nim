@@ -18,8 +18,9 @@ import ./UniMath/float_math
 import ./UniMath/rational_math
 import ./UniMath/conversions
 import ./UniMath/math_router
+import ./UniMath/native_float
 export arithmetic, fixed, float, rational, interval, eft, roots, exponential,
        trigonometry, hyperbolic, special, constants, reduction, float_math,
-       rational_math, conversions, math_router
+       rational_math, conversions, math_router, native_float
 
 const UniMathVersion* = "1.0.0"
