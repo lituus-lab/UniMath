@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 lituus-lab
+import std/[base64, math, strformat]
 import nimib
+import UniMath
 
 nbInit
 nb.title = "UniMath"
@@ -69,6 +71,65 @@ nbCode:
   import UniMath
 
   echo "version ", UniMathVersion
+
+nbText: """
+## Native float64 mathematics
+
+UniMath is the single mathematics dependency for Uni* consumers. It re-exports
+the useful `float64` surface from `std/math`, so ordinary overloaded names such
+as `sqrt`, `sin`, `cos`, `sinh`, `erf`, `gamma`, `floor` and `frexp` coexist
+with UniMath's arbitrary-precision, rational, fixed-point and interval
+algorithms. `log1p`, `expm1` and the argument-once `sinCos` helper complete the
+surface without forcing consumers to import `std/math` themselves.
+"""
+
+nbCode:
+  let angle = PI / 4.0
+  let nativePair = sinCos(angle)
+  echo "sqrt(2) = ", sqrt(2.0)
+  echo "log1p(1e-16) = ", log1p(1e-16)
+  echo "sin/cos(pi/4) = ", nativePair
+  echo "hypot(3, 4) = ", hypot(3.0, 4.0)
+
+var nativePath = ""
+for index in 0 .. 160:
+  let
+    x = -PI + 2.0 * PI * float64(index) / 160.0
+    px = 40.0 + 520.0 * float64(index) / 160.0
+    py = 130.0 - 90.0 * sin(x)
+  nativePath.add(if index == 0: "M" else: " L")
+  nativePath.add(&"{px:.2f},{py:.2f}")
+let nativeSvg = """
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="260"
+     viewBox="0 0 600 260" role="img" aria-label="sin from minus pi to pi">
+  <rect width="600" height="260" fill="#fbfbfd"/>
+  <path d="M40 130 H560 M300 30 V230" stroke="#9aa3b2" stroke-width="1"/>
+  <path d=""" & nativePath & """" fill="none" stroke="#315efb"
+        stroke-width="3"/>
+  <text x="40" y="250" font-family="sans-serif" font-size="13">−π</text>
+  <text x="548" y="250" font-family="sans-serif" font-size="13">π</text>
+  <text x="44" y="24" font-family="sans-serif" font-size="15">sin(x)</text>
+</svg>"""
+nbImage("data:image/svg+xml;base64," & encode(nativeSvg),
+  "The embedded SVG is generated from 161 real sin evaluations during the nimib build.",
+  "A sine curve generated through UniMath native float64 mathematics")
+
+nbText: """
+The C ABI exposes the same value-only operations as `unimath_f64_*` symbols;
+`unimath_f64_sin_cos` returns a two-double value whose first member is sine and
+second member is cosine. Python provides the stateless `NativeFloat` namespace:
+
+```python
+from unimath import NativeFloat
+sine, cosine = NativeFloat.sin_cos(0.5)
+radius = NativeFloat.hypot(3.0, 4.0)
+```
+
+The C suffix remains useful because C has no overloads. The Python namespace
+also exposes trigonometric, hyperbolic, special, rounding, decomposition and
+classification helpers. The reproducible overhead benchmark is documented in
+`benchmarks/README.md`.
+"""
 
 nbText: """
 ## BigInt
