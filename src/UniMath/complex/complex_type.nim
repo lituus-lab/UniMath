@@ -39,12 +39,12 @@ func imagUnit*[T](TT: typedesc[Complex[T]]): Complex[T] {.inline.} =
 func fromInt*[T](TT: typedesc[Complex[T]], v: int): Complex[T] {.inline.} =
   Complex[T](re: fromInt(T, v), im: fromInt(T, 0))
 
-func conj*[T](z: Complex[T]): Complex[T] {.contractual.} =
+func conj*[T](z: Complex[T]): Complex[T] {.contractual, inline.} =
   ## Complex conjugate `re - im*i`.
   body:
     Complex[T](re: z.re, im: -z.im)
 
-func norm2*[T](z: Complex[T]): T {.contractual.} =
+func norm2*[T](z: Complex[T]): T {.contractual, inline.} =
   ## Squared modulus `re^2 + im^2`, as a component value. Exact on the exact
   ## backends — unlike `abs`, which takes a square root and only approximates.
   ## It is also the quantity `/` divides by, so a caller comparing magnitudes

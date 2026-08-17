@@ -140,6 +140,11 @@ task benchmarkNativeFloatBaseline, "Run and aggregate the native float64 baselin
   putEnv("UNIMATH_BENCH_BUILD", "-d:release --mm:orc")
   exec "./build/run_native_float_baseline"
 
+# Consumer-shaped loops rather than single operations: a call frame per
+# operation is invisible to every other benchmark here. Not in the default gate.
+task benchConsumer, "Consumer-loop benchmarks (FFT, interval chains)":
+  exec "nim c -r -d:release --path:src -o:build/bench_consumer bench/bench_consumer_loops.nim"
+
 task benchReadme, "bench (+ benchSpeed if libmpc/libmpfr/libgmp are available), splice into README.md":
   exec "nimble bench"
   let (_, pkgCode) = gorgeEx("pkg-config --exists mpc mpfr gmp")

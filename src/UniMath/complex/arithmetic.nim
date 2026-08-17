@@ -22,20 +22,20 @@ import ../arithmetic
 import ./complex_type
 import contracts
 
-func `+`*[T](x, y: Complex[T]): Complex[T] {.contractual.} =
+func `+`*[T](x, y: Complex[T]): Complex[T] {.contractual, inline.} =
   body:
     Complex[T](re: x.re + y.re, im: x.im + y.im)
 
-func `-`*[T](x, y: Complex[T]): Complex[T] {.contractual.} =
+func `-`*[T](x, y: Complex[T]): Complex[T] {.contractual, inline.} =
   body:
     Complex[T](re: x.re - y.re, im: x.im - y.im)
 
-func `-`*[T](x: Complex[T]): Complex[T] {.contractual.} =
+func `-`*[T](x: Complex[T]): Complex[T] {.contractual, inline.} =
   ## Unary negation.
   body:
     Complex[T](re: -x.re, im: -x.im)
 
-func `*`*[T](x, y: Complex[T]): Complex[T] {.contractual.} =
+func `*`*[T](x, y: Complex[T]): Complex[T] {.contractual, inline.} =
   ## `(a+bi)(c+di) = (ac - bd) + (ad + bc)i`. The four-multiply form, not
   ## Karatsuba's three: the three-multiply variant trades a multiplication for
   ## extra additions and loses accuracy on the floating backends.
@@ -73,32 +73,32 @@ func `/`*[T](x, y: Complex[T]): Complex[T] {.contractual.} =
 # `complex(s)` so a scalar multiply costs two component multiplies, not four.
 # ------------------------------------------------------------------------------
 
-func `*`*[T](x: Complex[T], s: T): Complex[T] {.contractual.} =
+func `*`*[T](x: Complex[T], s: T): Complex[T] {.contractual, inline.} =
   body:
     Complex[T](re: x.re * s, im: x.im * s)
 
-func `*`*[T](s: T, x: Complex[T]): Complex[T] {.contractual.} =
+func `*`*[T](s: T, x: Complex[T]): Complex[T] {.contractual, inline.} =
   body:
     Complex[T](re: s * x.re, im: s * x.im)
 
-func `/`*[T](x: Complex[T], s: T): Complex[T] {.contractual.} =
+func `/`*[T](x: Complex[T], s: T): Complex[T] {.contractual, inline.} =
   ## A zero scalar raises through `T`'s own `/` (body path, survives release).
   body:
     Complex[T](re: x.re / s, im: x.im / s)
 
-func `+`*[T](x: Complex[T], s: T): Complex[T] {.contractual.} =
+func `+`*[T](x: Complex[T], s: T): Complex[T] {.contractual, inline.} =
   body:
     Complex[T](re: x.re + s, im: x.im)
 
-func `+`*[T](s: T, x: Complex[T]): Complex[T] {.contractual.} =
+func `+`*[T](s: T, x: Complex[T]): Complex[T] {.contractual, inline.} =
   body:
     Complex[T](re: s + x.re, im: x.im)
 
-func `-`*[T](x: Complex[T], s: T): Complex[T] {.contractual.} =
+func `-`*[T](x: Complex[T], s: T): Complex[T] {.contractual, inline.} =
   body:
     Complex[T](re: x.re - s, im: x.im)
 
-func `-`*[T](s: T, x: Complex[T]): Complex[T] {.contractual.} =
+func `-`*[T](s: T, x: Complex[T]): Complex[T] {.contractual, inline.} =
   body:
     Complex[T](re: s - x.re, im: -x.im)
 
