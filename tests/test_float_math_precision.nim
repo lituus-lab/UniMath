@@ -7,9 +7,10 @@
 ## about 53 bits of a 256-bit answer. Everything an argument reduction or a
 ## series rearrangement does to bits 54..256 is invisible to it.
 ##
-## That is not hypothetical. Raising `expReduceBits` from 7 to 20 makes `exp`
-## 28% faster and destroys 15 further bits of a 256-bit result, and every test
-## in the repository stayed green. These bounds are what makes that visible.
+## That is not hypothetical. `exp` was short by roughly `k` bits -- 16 of 256 at
+## `exp(700)` -- for as long as it squared its reduced argument back at the bare
+## working precision, and every test in the repository stayed green. These bounds
+## are what makes that visible, and what now holds the guard in place.
 ##
 ## The reference is the same computation at a higher precision. Its own error is
 ## around `2^-512` against the `2^-256` being measured, so it stands in for the
@@ -50,24 +51,29 @@ template checkUlps(name: string, arg: float64, bound: int, call: untyped) =
     check e <= bound
 
 suite "float_math precision at the full working width — exp":
-  # exp scales by 2^k and squares back, and each squaring doubles the relative
-  # error, so the bound grows with the argument's exponent. exp(700) needs
-  # k = 10 + expReduceBits squarings and loses about 16 bits because of it.
-  test "small arguments keep nearly every bit":
-    checkUlps("exp", 1e-8, 4): exp(x)
-    checkUlps("exp", 0.001, 8): exp(x)
-    checkUlps("exp", 0.5, 8): exp(x)
+  # exp squares its reduced argument back k times and each squaring doubles the
+  # relative error, so the chain is run at `precision + k + expGuardBits` and
+  # rounded once at the end. These bounds are what that buys: before the guard,
+  # the same arguments measured 2^10 (exp(1)) to 2^16 ulps (exp(700)) -- ten to
+  # sixteen bits of a 256-bit result, invisible to a float64 oracle.
+  #
+  # 2^2 leaves a 16x margin over the worst measured value (2^-2). A failure here
+  # means the guard stopped covering the chain, not that a bound was too tight.
+  test "small arguments":
+    checkUlps("exp", 1e-8, 2): exp(x)
+    checkUlps("exp", 0.001, 2): exp(x)
+    checkUlps("exp", 0.5, 2): exp(x)
 
-  test "moderate arguments lose the squaring chain":
-    checkUlps("exp", 1.0, 10): exp(x)
-    checkUlps("exp", 2.0, 12): exp(x)
-    checkUlps("exp", -3.0, 12): exp(x)
+  test "moderate arguments":
+    checkUlps("exp", 1.0, 2): exp(x)
+    checkUlps("exp", 2.0, 2): exp(x)
+    checkUlps("exp", -3.0, 2): exp(x)
 
-  test "extreme arguments are the worst case, and it is bounded":
-    checkUlps("exp", 10.0, 16): exp(x)
-    checkUlps("exp", 50.0, 18): exp(x)
-    checkUlps("exp", 700.0, 20): exp(x)
-    checkUlps("exp", -700.0, 20): exp(x)
+  test "extreme arguments, where the squaring chain is deepest":
+    checkUlps("exp", 10.0, 2): exp(x)
+    checkUlps("exp", 50.0, 2): exp(x)
+    checkUlps("exp", 700.0, 2): exp(x)
+    checkUlps("exp", -700.0, 2): exp(x)
 
 suite "float_math precision at the full working width — sin and cos":
   # sin/cos fold into [0, pi/4] and then run the series directly, with no
