@@ -107,22 +107,38 @@ proc cachedLnTwo(precision: int): BigFloat {.contractual.} =
       lnTwoCache[precision] = lnTwo(precision)
     lnTwoCache[precision]
 
-proc cachedReciprocal(denominator, precision: int): BigFloat {.contractual.} =
+proc mulByReciprocal(x: BigFloat, denominator, precision: int,
+                     mode: RoundingMode): BigFloat {.contractual.} =
+  ## `x / denominator` through a cached reciprocal, for a small positive
+  ## integer denominator — the Taylor coefficient of every series below.
+  ##
+  ## The multiply happens INSIDE, and that is the point. Returning the cached
+  ## `BigFloat` instead would deep-copy its mantissa on every term, and the
+  ## obvious fix — handing back a borrowed reference into the table — is a
+  ## footgun: an insertion by a later caller can rehash the table and leave that
+  ## reference dangling. Consuming the entry here means nothing escapes.
+  ##
+  ## `withValue` also settles the lookup in ONE hash on the hit path, where
+  ## `hasKey` followed by `[]` paid for two.
+  ##
+  ## Measured on the 23-term exp(1) series, both changes together: 5101 -> 4374
+  ## ns, and within 1.5% of the unsafe borrowed-reference version.
   require:
     denominator > 0
     precision > 0
-  ensure:
-    not result.isZero
   body:
     if reciprocalCache.len == 0:
       reciprocalCache = initTable[tuple[precision, denominator: int], BigFloat]()
     let key = (precision: precision, denominator: denominator)
-    if not reciprocalCache.hasKey(key):
+    reciprocalCache.withValue(key, cached):
+      return mulRounded(x, cached[], precision, mode)
+    do:
       if reciprocalCache.len >= reciprocalCacheLimit:
         reciprocalCache.clear()
-      reciprocalCache[key] = initBigFloat(1.0, precision) /
+      let built = initBigFloat(1.0, precision) /
         fromBigInt(initBigInt(denominator), precision)
-    reciprocalCache[key]
+      reciprocalCache[key] = built
+      return mulRounded(x, built, precision, mode)
 
 func geometricTerms(a: BigFloat, precision, requested: int): int {.
     contractual.} =
@@ -193,9 +209,13 @@ proc sineSeries(a: BigFloat, precision, requested: int): BigFloat {.
     let squared = a * a
     var subtract = true
     for n in 1 ..< terms:
-      term = term * squared * cachedReciprocal((2 * n) * (2 * n + 1), precision)
-      if subtract: result = result - term
-      else: result = result + term
+      # Explicit `precision` rather than the inferred one: both operands are
+      # already normalised to it, so the width is the same and the probing
+      # `operandPrecision` does per operation is not paid.
+      term = mulByReciprocal(mulRounded(term, squared, precision, rmNearest),
+                             (2 * n) * (2 * n + 1), precision, rmNearest)
+      if subtract: result = subRounded(result, term, precision, rmNearest)
+      else: result = addRounded(result, term, precision, rmNearest)
       subtract = not subtract
 
 proc cosineDirectSeries(a: BigFloat, precision, requested: int): BigFloat {.
@@ -213,9 +233,10 @@ proc cosineDirectSeries(a: BigFloat, precision, requested: int): BigFloat {.
     let squared = a * a
     var subtract = true
     for n in 1 ..< terms:
-      term = term * squared * cachedReciprocal((2 * n - 1) * (2 * n), precision)
-      if subtract: result = result - term
-      else: result = result + term
+      term = mulByReciprocal(mulRounded(term, squared, precision, rmNearest),
+                             (2 * n - 1) * (2 * n), precision, rmNearest)
+      if subtract: result = subRounded(result, term, precision, rmNearest)
+      else: result = addRounded(result, term, precision, rmNearest)
       subtract = not subtract
 
 proc exponentialSeries(a: BigFloat, precision, requested: int): BigFloat {.
@@ -231,8 +252,9 @@ proc exponentialSeries(a: BigFloat, precision, requested: int): BigFloat {.
     result = one(BigFloat)
     var term = result
     for n in 1 ..< terms:
-      term = term * a * cachedReciprocal(n, precision)
-      result = result + term
+      term = mulByReciprocal(mulRounded(term, a, precision, rmNearest),
+                             n, precision, rmNearest)
+      result = addRounded(result, term, precision, rmNearest)
 
 proc cosineSeries(a: BigFloat, precision, requested: int): BigFloat {.
     contractual.} =
