@@ -47,6 +47,11 @@ func ln1pGeneric*[F: OrderedField](x: F, terms: int = 15): F {.contractual.} =
   ## the component's epsilon, and loses a digit of `x` for every power of two
   ## between them before that.
   ##
+  ## `u` carries the convergence and grows with `x`: near zero the series is
+  ## done in a few terms, while a large `x` drives `u` toward 1 and needs a
+  ## `terms` well past the default before the tail is negligible. A caller that
+  ## admits a large argument should size `terms` from its own precision.
+  ##
   ## Domain guard (body `raise`, survives `-d:release`): `1 + x > 0`, i.e.
   ## `x > -1`. Bounded by `OrderedField` for the guard. No inline `ensure:`
   ## (recursion doctrine); the `ln1p(0) == 0` and `exp(ln1p(x)) == 1+x`
