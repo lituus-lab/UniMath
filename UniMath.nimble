@@ -85,6 +85,15 @@ task testRelease, "Nim tests (release, contracts compiled away)":
   exec "nim c -r -d:release --path:src -o:build/test_conversions_rel tests/test_conversions.nim"
   exec "nim c -r -d:release --path:src -o:build/test_properties_rel tests/test_properties.nim"
 
+# The 128-bit paths are selected automatically on gcc/clang with a 64-bit
+# target, so the portable fallbacks under them are never exercised by the
+# default gate on this machine. Without this task they would rot unnoticed.
+task testNoInt128, "Limb, arithmetic and fixed suites on the portable fallbacks":
+  exec "nim c -r -d:noInt128 --path:src -o:build/test_primitives_p tests/test_primitives.nim"
+  exec "nim c -r -d:noInt128 --path:src -o:build/test_arithmetic_p tests/test_arithmetic.nim"
+  exec "nim c -r -d:noInt128 --path:src -o:build/test_fixed_p tests/test_fixed.nim"
+  exec "nim c -r -d:noInt128 --path:src -o:build/test_rational_p tests/test_rational.nim"
+
 task testSimd, "Nim tests with the opt-in SIMD backend (-d:simd)":
   exec "nim c -r -d:simd --path:src -o:build/test_arithmetic_simd tests/test_arithmetic_simd.nim"
 
@@ -102,9 +111,10 @@ task testCiRelease, "Nim tests (CI subset, release)":
 task prop, "Randomized property suite (heavy: 2000 iters via -d:propIters)":
   exec "nim c -r -d:release -d:propIters=2000 --path:src -o:build/test_properties_prop tests/test_properties.nim"
 
-task testAll, "debug + release + checked + C ABI + properties":
+task testAll, "debug + release + checked + portable fallbacks + C ABI + properties":
   exec "nimble test"
   exec "nimble testRelease"
+  exec "nimble testNoInt128"
   exec "nimble testChecked"
   exec "nimble ctest"
   exec "nimble prop"

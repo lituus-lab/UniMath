@@ -53,6 +53,17 @@ when hasInt128:
     ## `mulAdd` loop cannot ask for. See `limb_intrinsics.h` for the measured
     ## margin.
 
+  proc fixedMulShift*(a, b: int64, k: cint, outv: var int64): cint
+      {.importc: "unimath_fixed_mul_shift",
+        header: currentSourcePath().parentDir / "limb_intrinsics.h".}
+    ## `floor(a * b / 2^k)`; non-zero when it fits `int64`.
+
+  proc fixedShiftDiv*(a, b: int64, k: cint, outv: var int64): cint
+      {.importc: "unimath_fixed_shift_div",
+        header: currentSourcePath().parentDir / "limb_intrinsics.h".}
+    ## `trunc(a * 2^k / b)`; non-zero when it fits `int64`. The caller rejects
+    ## a zero divisor first.
+
 func addC*(carryIn: Limb, a, b: Limb, carryOut: var Limb): Limb {.inline.} =
   ## `r = a + b + carryIn`; `carryOut` is 0 or 1.
   let partial = a + b
