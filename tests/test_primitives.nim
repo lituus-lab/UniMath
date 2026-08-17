@@ -137,6 +137,50 @@ suite "limb primitives — mulWide":
           check lo == wantLo
           check hi == wantHi
 
+suite "limb primitives — mulWidePortable and the native path agree":
+
+  test "the portable decomposition matches the 16-bit reference":
+    # The fallback is what non-amd64, non-gcc/clang and `-d:noInt128` builds
+    # run. It has to be checked in its own right, not only as whatever
+    # `mulWide` happens to select on the machine running the suite.
+    for a in edgeCases:
+      for b in edgeCases:
+        var hi: Limb
+        let lo = mulWidePortable(a, b, hi)
+        let want = refMul128(a, b)
+        checkpoint "a = 0x" & a.toHex & "  b = 0x" & b.toHex
+        check lo == want.lo
+        check hi == want.hi
+
+  test "native and portable agree bit for bit":
+    # On a build with no native path this is the portable one compared against
+    # itself, which is why the check above exists separately. Where there IS a
+    # native path, this is what catches a fast path that is fast and wrong.
+    checkpoint "hasNativeWide = " & $hasNativeWide &
+               ", hasInt128 = " & $hasInt128 & ", hasUmul128 = " & $hasUmul128
+    var operands = edgeCases
+    for x in randomLimbs(300): operands.add x
+    for a in operands:
+      for b in operands[0 ..< 60]:
+        var hiN, hiP: Limb
+        let loN = mulWide(a, b, hiN)
+        let loP = mulWidePortable(a, b, hiP)
+        if loN != loP or hiN != hiP:
+          checkpoint "a = 0x" & a.toHex & "  b = 0x" & b.toHex
+          check loN == loP
+          check hiN == hiP
+
+  test "native and portable agree on every power-of-two pair":
+    for i in 0 .. 63:
+      for j in 0 .. 63:
+        var hiN, hiP: Limb
+        let loN = mulWide(1'u64 shl i, 1'u64 shl j, hiN)
+        let loP = mulWidePortable(1'u64 shl i, 1'u64 shl j, hiP)
+        if loN != loP or hiN != hiP:
+          checkpoint "2^" & $i & " * 2^" & $j
+          check loN == loP
+          check hiN == hiP
+
 suite "limb primitives — mulAdd":
 
   test "edge cases: (a*b) + c + carry against the reference":

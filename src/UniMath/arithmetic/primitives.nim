@@ -3,7 +3,45 @@
 ## Limb-level arithmetic primitives: add-with-carry, sub-with-borrow, wide
 ## multiply, and multiply-accumulate. The patterns (`sum = a + b; carry = sum <
 ## a`) lower to ADC/SBB on amd64; no inline asm, so the code is portable.
+##
+## `mulWide` has a native fast path where the toolchain offers a 64x64->128
+## multiply, and the portable 32x32 decomposition everywhere else. Both are
+## exported and both are covered by `tests/test_primitives.nim`, which checks
+## each against a third, independent 16-bit reference — a fast path that agreed
+## only with the implementation it replaced would prove nothing.
 import ./limbs
+
+const
+  hasInt128* = (defined(gcc) or defined(clang)) and defined(cpu64) and
+               not defined(noInt128)
+    ## `unsigned __int128`, a GCC/Clang extension. The compilers document it as
+    ## "supported for targets which have an integer mode wide enough to hold
+    ## 128 bits" and expose `__SIZEOF_INT128__` to detect it; a Nim `when`
+    ## cannot read a C macro, so `cpu64` stands in for it and the emitted C
+    ## carries a `#error` that names `-d:noInt128` if the two ever disagree.
+    ##
+    ## `cpu64` is load-bearing: 32-bit GCC has no 128-bit integer mode, and
+    ## before this guard the `udiv128` emit below would fail to compile there.
+  hasUmul128* = defined(vcc) and defined(amd64) and not defined(noInt128)
+    ## MSVC's `_umul128` intrinsic: x64 only, declared in <intrin.h>.
+  hasNativeWide* = hasInt128 or hasUmul128
+
+# ONLY `mulWide` gets a native path, not `mulAdd`. Measured on amd64/clang,
+# composing `mulAdd` from a native `mulWide` plus the existing `addC` chain
+# lands within 2-6% of a fully fused `__int128` multiply-add (256-bit: 26.2 vs
+# 24.6 ns; 4096-bit: 3345 vs 3275 ns). That is not worth a second intrinsic per
+# toolchain — and on MSVC it would mean `_addcarry_u64` as well, on a platform
+# this cannot be compiled for here. `mulAdd` keeps its tested body and inherits
+# the speedup through `mulWide`.
+when hasNativeWide:
+  # A header, not an `{.emit.}`: `mulWide` is `{.inline.}`, so its callers
+  # inline it into their own translation units, where a definition emitted only
+  # into `primitives.nim.c` is invisible and the link fails. The header's own
+  # `#if` also lets the C compiler make the final choice from its feature
+  # macros, so a target Nim guessed wrong about gets a directed #error.
+  import std/os
+  proc mulWideC(a, b: Limb, hi: var Limb): Limb {.importc: "unimath_mulwide",
+      header: currentSourcePath().parentDir / "limb_intrinsics.h".}
 
 func addC*(carryIn: Limb, a, b: Limb, carryOut: var Limb): Limb {.inline.} =
   ## `r = a + b + carryIn`; `carryOut` is 0 or 1.
@@ -22,8 +60,10 @@ func subB*(borrowIn: Limb, a, b: Limb, borrowOut: var Limb): Limb {.inline.} =
   borrowOut = borrow1 or borrow2
   partial - borrowIn
 
-func mulWide*(a, b: Limb, hi: var Limb): Limb {.inline.} =
-  ## `(hi, lo) = a * b` via schoolbook on 32-bit halves (no uint128 needed).
+func mulWidePortable*(a, b: Limb, hi: var Limb): Limb {.inline.} =
+  ## `(hi, lo) = a * b` via schoolbook on 32-bit halves, using nothing wider
+  ## than a Limb. The fallback for toolchains without a 128-bit multiply, and
+  ## the differential reference for the native path on those that have one.
   const HalfBits = LimbBits div 2
   const HalfMask = (OneLimb shl HalfBits) - 1
   let aLo = a and HalfMask
@@ -43,6 +83,18 @@ func mulWide*(a, b: Limb, hi: var Limb): Limb {.inline.} =
   hi = p11 + midHi + midCarry + loCarry
   resLo
 
+func mulWide*(a, b: Limb, hi: var Limb): Limb {.inline.} =
+  ## `(hi, lo) = a * b`. One `mulq`/`umulh` where the toolchain has a 128-bit
+  ## multiply, the 32x32 decomposition otherwise. Measured on amd64/clang, the
+  ## native path is 1.7x-2.7x faster inside a schoolbook multiply (256-bit:
+  ## 41.3 -> 24.2 ns/op; 4096-bit: 8623 -> 3247 ns/op), which propagates to
+  ## every big-integer multiply, the fixed-width multiply and the division
+  ## quotient estimate.
+  when hasNativeWide:
+    mulWideC(a, b, hi)
+  else:
+    mulWidePortable(a, b, hi)
+
 func mulAdd*(a, b, c: Limb, carry: var Limb): Limb {.inline.} =
   ## `(a*b) + c + carry` -> low Limb returned, high half in `carry`. The result
   ## fits 128 bits, so the carry (hi + two add-carries) fits a Limb.
@@ -60,8 +112,7 @@ func mulAdd*(a, b, c: Limb, carry: var Limb): Limb {.inline.} =
 # `__int128` extension and the leading-zero count uses `__builtin_clzll`
 # (GCC/Clang language extensions — not assembly copied from any library) where
 # available, with portable bit-serial fallbacks elsewhere. No third-party code.
-when (defined(gcc) or defined(clang)) and not defined(noInt128):
-  const hasInt128 = true
+when hasInt128:
   {.emit: """
 void unimath_udiv128(unsigned long long hi, unsigned long long lo,
                      unsigned long long d, unsigned long long *q,
@@ -77,8 +128,6 @@ int unimath_clz64(unsigned long long x) {
   proc udiv128C(hi, lo, d: Limb; q, rem: ptr Limb) {.importc: "unimath_udiv128",
       cdecl.}
   proc clz64C(x: Limb): int32 {.importc: "unimath_clz64", cdecl.}
-else:
-  const hasInt128 = false
 
 func clzLimb*(x: Limb): int {.inline.} =
   ## Leading zero bits of `x` (`LimbBits` when `x == 0`). Hardware
