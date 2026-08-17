@@ -235,9 +235,11 @@ func divRounded*(a, b: BigFloat, precision: int = DefaultPrecision,
           fast = false
           break
     if fast:
-      let topLimb = bm.limbs[bm.limbs.high]
-      let d = topLimb shr clzLimb(topLimb)
-      let bmShift = clzLimb(topLimb) + LimbBits * (bm.limbs.len - 1)
+      # The divisor is exactly `topLimb * 2^(LimbBits * (len - 1))`, so the
+      # single-limb division needs no normalisation of `topLimb` and the only
+      # exponent correction is that whole-limb shift.
+      let d = bm.limbs[bm.limbs.high]
+      let bmShift = LimbBits * (bm.limbs.len - 1)
       let (q, r) = divModLimb(maShifted, d)
       result.mantissa = q
       result.exponent = (a.exponent - b.exponent) - int64(guard) - int64(bmShift)
