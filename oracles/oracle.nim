@@ -2,9 +2,10 @@
 # Copyright 2026 lituus-lab
 ## Oracle bridge for UniMath correctness tests.
 ##
-## Calls the native MPFR transcendental oracle (`oracles/mpfr_oracle`) and the
-## native GMP exact-arithmetic oracle (`oracles/gmp_oracle`), both built by
-## `nimble buildOracles`, plus the Python decimal EFT oracle
+## Calls the native MPFR transcendental oracle (`oracles/mpfr_oracle`), the
+## native GMP exact-arithmetic oracle (`oracles/gmp_oracle`) and the native MPC
+## complex oracle (`oracles/mpc_oracle`), all built by `nimble buildOracles`,
+## plus the Python decimal EFT oracle
 ## (`oracles/eft_oracle.py`). The C oracles are separate processes driven by a
 ## text stdin/stdout protocol — NO Nim `seq`/`string` ever crosses an ABI
 ## boundary; only line text is exchanged over pipes, so the bridge is ABI-safe
@@ -15,12 +16,13 @@
 ## (abs/rel/ulp) error of a candidate vs the 2048-bit exact real value. GMP is
 ## the independent cross-check (different library) of the exact-type
 ## arithmetic: BigInt divmod reconstruction, Fixed `*`/`/`, and Rational
-## cross-multiply comparison. The decimal EFT oracle is the last-bit reference
-## for the twoSum/twoDiff/twoProduct identity.
+## cross-multiply comparison. MPC is MPFR's complex counterpart and verifies
+## the `Complex` transcendentals. The decimal EFT oracle is the last-bit
+## reference for the twoSum/twoDiff/twoProduct identity.
 ##
-## Build the C executables first: `nimble buildOracles` (requires libmpfr/
-## libgmp via pkg-config). The C binaries are gitignored build artifacts; if
-## missing, the bridge raises with a clear build hint.
+## Build the C executables first: `nimble buildOracles` (requires libmpc/
+## libmpfr/libgmp via pkg-config). The C binaries are gitignored build
+## artifacts; if missing, the bridge raises with a clear build hint.
 import std/[os, osproc, streams, strutils]
 
 const oraclesDir = currentSourcePath().parentDir()
@@ -61,7 +63,7 @@ proc runCOracle*(exe, input: string): seq[string] =
   if not fileExists(exe):
     raise newException(ValueError,
       "Oracle executable not found at " & exe & ". Build it with " &
-      "`nimble buildOracles` (requires libmpfr/libgmp via pkg-config).")
+      "`nimble buildOracles` (requires libmpc/libmpfr/libgmp via pkg-config).")
   if input.len == 0:
     return
   if input.len <= OracleChunkBytes:
@@ -88,8 +90,8 @@ proc checkOp(op: string) =
     raise newException(ValueError, "mpfr oracle: unknown op '" & op & "'")
 
 proc checkPrec(prec: int) {.inline.} =
-  ## Reject MPFR working precisions that would make the float64 reference a
-  ## DOUBLE rounding instead of a correctly-rounded binary64.
+  ## Reject MPFR and MPC working precisions that would make the float64
+  ## reference a DOUBLE rounding instead of a correctly-rounded binary64.
   ##
   ## The C oracle computes R = RN_prec(op(x)) (MPFR correctly rounds each
   ## transcendental to `prec` bits), then `mpfr_get_d` rounds R to binary64:
@@ -103,10 +105,11 @@ proc checkPrec(prec: int) {.inline.} =
   ## correctly-rounded binary64 by up to 1 ulp in rare cases, so a candidate
   ## compared against it would be misjudged. Reject that band (1 guard bit
   ## above 106 → 107); the suite's `RefPrec = 2048` is well inside the safe
-  ## zone. `mpfrErr`/`mpfrErrBatch` use ACC_PREC = 2048 and are unaffected.
+  ## zone. The error modes (`mpfrErr`, `mpcErr` and their batches) fix their
+  ## own ACC_PREC = 2048 and are unaffected.
   if prec == 53 or prec >= 107: return
   raise newException(ValueError,
-    "mpfrRef: prec " & $prec & " is in the double-rounding band (53, 107); " &
+    "oracle: prec " & $prec & " is in the double-rounding band (53, 107); " &
     "use 53 (direct binary64) or >= 107 (2*53 + guard) for a " &
     "correctly-rounded float64 reference")
 
@@ -382,6 +385,7 @@ proc mpcRefBatch*(queries: openArray[(string, int, float64, float64)]):
   var input = ""
   for (op, prec, re, im) in queries:
     checkMpcOp(op, MpcUnaryOps)
+    checkPrec(prec)
     input.add(op & " " & $prec & " " & bitsOf(re) & " " & bitsOf(im) & "\n")
   let lines = runCOracle(mpcExe(), input)
   if lines.len != queries.len:
@@ -404,6 +408,7 @@ proc mpcBinRefBatch*(queries: openArray[(string, int, float64, float64,
   var input = ""
   for (op, prec, aRe, aIm, bRe, bIm) in queries:
     checkMpcOp(op, MpcBinOps)
+    checkPrec(prec)
     input.add("bin " & op & " " & $prec & " " & bitsOf(aRe) & " " &
               bitsOf(aIm) & " " & bitsOf(bRe) & " " & bitsOf(bIm) & "\n")
   let lines = runCOracle(mpcExe(), input)
@@ -425,6 +430,7 @@ proc mpcRealRefBatch*(queries: openArray[(string, int, float64, float64)]):
   var input = ""
   for (op, prec, re, im) in queries:
     checkMpcOp(op, MpcRealOps)
+    checkPrec(prec)
     input.add("real " & op & " " & $prec & " " & bitsOf(re) & " " &
               bitsOf(im) & "\n")
   let lines = runCOracle(mpcExe(), input)
