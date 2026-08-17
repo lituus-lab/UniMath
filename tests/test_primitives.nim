@@ -19,7 +19,7 @@
 ## four of them plus a carry, so the reference never leaves the exact range of
 ## `uint64` and needs no wide type of its own.
 
-import std/[unittest, strutils]
+import std/[unittest, strutils, sequtils]
 import UniMath/arithmetic/limbs
 import UniMath/arithmetic/primitives
 import UniMath/arithmetic/big_int
@@ -345,3 +345,50 @@ suite "limb primitives — clzLimb":
   test "a set top bit is zero regardless of the rest":
     for x in randomLimbs(200):
       check clzLimb(x or 0x8000000000000000'u64) == 0
+
+when hasInt128:
+  suite "limb primitives — mulBasecase":
+    # Against the `mulAdd` row loop it replaces: one threads carries through Nim
+    # locals, the other through an `unsigned __int128` accumulator. Otherwise
+    # covered only via `BigInt` multiplication, which routes through Karatsuba.
+
+    proc mulAddRows(a, b: seq[Limb]): seq[Limb] =
+      ## The row loop `mulSchoolbook` used before the C path existed.
+      result = newSeq[Limb](a.len + b.len)
+      for i in 0 ..< a.len:
+        var carry: Limb = 0
+        for j in 0 ..< b.len:
+          # `carry` is in/out: it carries in and receives the high half.
+          result[i + j] = mulAdd(a[i], b[j], result[i + j], carry)
+        result[i + b.len] = carry
+
+    test "agrees with the row loop over rectangular shapes":
+      var pool: seq[Limb] = @[]
+      for x in randomLimbs(64): pool.add x
+      for an in 1 .. 8:
+        for bn in 1 .. 8:
+          let a = pool[0 ..< an]
+          let b = pool[32 ..< 32 + bn]
+          var got = newSeq[Limb](an + bn)
+          mulBasecase(addr got[0], addr a[0], an, addr b[0], bn)
+          check got == mulAddRows(a, b)
+
+    test "carries propagate through an all-ones operand":
+      # Every column saturates, which is where a dropped carry shows.
+      for n in 1 .. 6:
+        let a = newSeqWith(n, high(Limb))
+        let b = newSeqWith(n, high(Limb))
+        var got = newSeq[Limb](2 * n)
+        mulBasecase(addr got[0], addr a[0], n, addr b[0], n)
+        check got == mulAddRows(a, b)
+
+    test "the destination is written, not accumulated":
+      # `mulSchoolbook` passes a fresh seq and relies on the first row writing
+      # rather than adding; prefilled garbage must not survive.
+      let a = @[0x0123456789ABCDEF'u64, 0xFEDCBA9876543210'u64]
+      let b = @[0xDEADBEEFCAFEBABE'u64]
+      var clean = newSeq[Limb](3)
+      mulBasecase(addr clean[0], addr a[0], 2, addr b[0], 1)
+      var dirty = @[high(Limb), high(Limb), high(Limb)]
+      mulBasecase(addr dirty[0], addr a[0], 2, addr b[0], 1)
+      check dirty == clean
