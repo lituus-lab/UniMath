@@ -232,3 +232,84 @@ suite "Fixed machine-storage multiply matches the BigInt route":
     let c = Fixed[int64, 4](data: -1'i64)
     let d = Fixed[int64, 4](data: 8'i64)
     check int64((c * d).data) == -1
+
+suite "Fixed machine-storage divide matches the BigInt route":
+  # `/` takes a direct 128/64 path for machine signed storage. Unlike `*` it
+  # TRUNCATES toward zero, because the BigInt route divides magnitudes and
+  # applies the sign afterwards where `BigInt.shr` in the multiply floors. The
+  # two operators genuinely round differently and both must be matched.
+
+  proc bigRoute(ad, bd: int64, fracBits: int): tuple[value: int64, fits: bool] =
+    let big = (toBigInt(ad) shl Natural(fracBits)) div toBigInt(bd)
+    try:
+      (big.toInt64(), true)
+    except Defect, CatchableError:
+      (0'i64, false)
+
+  const edges = [1'i64, -1, 2, -2, 3, -3, 7, -7, 255, -255,
+                 high(int64), low(int64), high(int64) - 1, low(int64) + 1,
+                 1'i64 shl 31, -(1'i64 shl 31), 1'i64 shl 32, -(1'i64 shl 32),
+                 1'i64 shl 62, -(1'i64 shl 62),
+                 0x5555555555555555'i64, -0x5555555555555555'i64]
+
+  proc probe[T; FracBits: static[int]](ad, bd: int64, kind: string) =
+    if ad < int64(low(T)) or ad > int64(high(T)): return
+    if bd < int64(low(T)) or bd > int64(high(T)) or bd == 0: return
+    let a = Fixed[T, FracBits](data: T(ad))
+    let b = Fixed[T, FracBits](data: T(bd))
+    let want = bigRoute(ad, bd, FracBits)
+    let inRange = want.fits and want.value >= int64(low(T)) and
+                  want.value <= int64(high(T))
+    if inRange:
+      let got = a / b
+      if int64(got.data) != want.value:
+        checkpoint kind & ": " & $ad & " / " & $bd & " at Q" & $FracBits &
+                   " gave " & $int64(got.data) & ", BigInt route " & $want.value
+      check int64(got.data) == want.value
+    else:
+      expect OverflowDefect:
+        discard a / b
+
+  test "int64 storage, Q32.32, over the boundary values":
+    for ad in edges:
+      for bd in edges:
+        probe[int64, 32](ad, bd, "int64/Q32.32")
+
+  test "int64 storage across several scales":
+    for ad in edges:
+      for bd in edges:
+        probe[int64, 0](ad, bd, "int64/Q.0")
+        probe[int64, 1](ad, bd, "int64/Q.1")
+        probe[int64, 63](ad, bd, "int64/Q.63")
+        probe[int64, 64](ad, bd, "int64/Q.64")
+
+  test "narrower storage keeps its own overflow boundary":
+    for ad in edges:
+      for bd in edges:
+        probe[int32, 16](ad, bd, "int32/Q16.16")
+        probe[int16, 8](ad, bd, "int16/Q8.8")
+        probe[int8, 4](ad, bd, "int8/Q4.4")
+
+  test "randomised operands":
+    var state = 0x2545F4914F6CDD1D'u64
+    proc nextI64(): int64 =
+      state = state * 6364136223846793005'u64 + 1442695040888963407'u64
+      cast[int64](state)
+    for trial in 0 .. 3000:
+      let ad = nextI64()
+      let bd = nextI64()
+      probe[int64, 32](ad, bd, "random int64/Q32.32")
+      probe[int64, 16](ad, bd, "random int64/Q16")
+      probe[int32, 16](ad shr 33, bd shr 33, "random int32/Q16.16")
+
+  test "negative quotients truncate toward zero, unlike the multiply":
+    # -3 / 2 at Q.0 is -1.5: truncation gives -1, flooring would give -2.
+    let a = Fixed[int64, 0](data: -3'i64)
+    let b = Fixed[int64, 0](data: 2'i64)
+    check int64((a / b).data) == -1
+
+  test "division by zero still raises":
+    let a = Fixed[int64, 32](data: 1'i64)
+    let z = Fixed[int64, 32](data: 0'i64)
+    expect DivByZeroDefect:
+      discard a / z
