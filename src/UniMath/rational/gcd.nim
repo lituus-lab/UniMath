@@ -8,7 +8,14 @@
 ## user proc). Bodies only — no inline `ensure:`: a divisibility postcondition
 ## would call `T`'s contracted `cmp`/`divMod` from an ensure (recursion
 ## doctrine); the identities are exercised by the rational tests.
+##
+## `BigInt` gets its own overload: the generic loop's `mod` is a multi-limb
+## division that allocates, and Euclid runs it ten to twenty times (250 ns on
+## single-limb operands against 14 ns for the same gcd on `int64`). Euclid
+## shrinks its operands fast, so the overload runs the big loop only while one
+## still exceeds a limb and finishes in machine words.
 import contracts
+import ../arithmetic
 
 func gcd*[T](a, b: T): T {.contractual.} =
   ## Euclidean GCD of `a` and `b`, always non-negative. Raises `OverflowDefect`
@@ -32,6 +39,32 @@ func gcd*[T](a, b: T): T {.contractual.} =
       u = -u
       {.pop.}
     return u
+
+
+func gcd*(a, b: BigInt): BigInt {.contractual.} =
+  ## GCD of two `BigInt`, always non-negative.
+  ##
+  ## Euclid on magnitudes, dropping to `uint64` as soon as both operands fit a
+  ## limb -- which, for the small rationals that dominate `Rational[BigInt]`,
+  ## is immediately. Same result as the generic loop, exercised against it in
+  ## `test_rational`.
+  body:
+    var u = a.mag
+    var v = b.mag
+    while u.limbs.len > 1 or v.limbs.len > 1:
+      if isZero(v): break
+      let r = u mod v
+      u = v
+      v = r
+    if isZero(v):
+      return initBigInt(u, false)
+    var uw = if u.limbs.len == 0: ZeroLimb else: u.limbs[0]
+    var vw = if v.limbs.len == 0: ZeroLimb else: v.limbs[0]
+    while vw != ZeroLimb:
+      let r = uw mod vw
+      uw = vw
+      vw = r
+    initBigInt(initBigUInt(uw), false)
 
 func lcm*[T](a, b: T): T {.contractual.} =
   ## `|a * b| / gcd(a, b)`, dividing before multiplying to limit intermediate

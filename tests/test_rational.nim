@@ -101,3 +101,66 @@ suite "Rational toFloat64":
     check toFloat64(initRational(1, 2)) == 0.5
     check toFloat64(initRational(1, 3)) == 1.0 / 3.0
     check toFloat64(initRational(-3, 4)) == -0.75
+
+suite "BigInt gcd overload matches the generic Euclidean loop":
+  # `gcd` has a BigInt overload that finishes in machine words once both
+  # operands fit a limb. It must agree with the generic loop everywhere,
+  # including the multi-limb path it falls back to and the sign normalisation.
+
+  func genericGcd(a, b: BigInt): BigInt =
+    ## The generic algorithm, spelled out so the test does not depend on
+    ## which overload the compiler selects.
+    var u = a
+    var v = b
+    let zero = initBigInt(0)
+    while v != zero:
+      let r = u mod v
+      u = v
+      v = r
+    if u < zero: -u else: u
+
+  proc probe(a, b: BigInt) =
+    let got = gcd(a, b)
+    let want = genericGcd(a, b)
+    if got != want:
+      checkpoint "gcd(" & $a & ", " & $b & ") gave " & $got & ", want " & $want
+    check got == want
+    # Non-negative, and a true common divisor when non-zero.
+    check not got.isNegative
+    if not got.isZero:
+      check (a mod got).isZero
+      check (b mod got).isZero
+
+  test "small values, both signs, including zero":
+    for x in [0, 1, -1, 2, -2, 6, -6, 12, 18, -18, 97, 1024, 123456, 789012]:
+      for y in [0, 1, -1, 2, -2, 6, -6, 12, 18, -18, 97, 1024, 123456, 789012]:
+        probe(initBigInt(x), initBigInt(y))
+
+  test "values straddling the single-limb boundary":
+    let big = initBigInt(1) shl 64
+    for shift in [0, 1, 63, 64, 65, 127, 128]:
+      let a = (initBigInt(3) shl Natural(shift)) + initBigInt(1)
+      let b = (initBigInt(5) shl Natural(shift)) + initBigInt(1)
+      probe(a, b)
+      probe(a, big)
+      probe(big, a)
+      probe(-a, b)
+      probe(a, -b)
+
+  test "multi-limb operands with a large common factor":
+    let factor = (initBigInt(1) shl 100) + initBigInt(17)
+    probe(factor * initBigInt(123456789), factor * initBigInt(987654321))
+    probe(factor * factor, factor * initBigInt(3))
+
+  test "randomised, single and multi limb":
+    var state = 0x9E3779B97F4A7C15'u64
+    proc nextBig(limbs: int): BigInt =
+      var xs = newSeq[Limb](limbs)
+      for i in 0 ..< limbs:
+        state = state * 6364136223846793005'u64 + 1442695040888963407'u64
+        xs[i] = state
+      initBigInt(initBigUInt(xs), (state and 1'u64) == 1'u64)
+    for trial in 0 .. 300:
+      probe(nextBig(1), nextBig(1))
+      probe(nextBig(2), nextBig(1))
+      probe(nextBig(3), nextBig(2))
