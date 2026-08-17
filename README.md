@@ -133,42 +133,42 @@ without either overwriting the other.
 
 | op | ns/op | ops/sec |
 |---|---|---|
-| BigInt add (64-bit) | 31.660 | 31585123. |
-| BigInt mul (64-bit) | 31.518 | 31727992. |
-| BigInt mul (1024-bit) | 351.969 | 2841163. |
-| BigInt div (64/32-bit) | 74.242 | 13469497. |
-| isqrt (BigInt, ~120-bit) | 208.164 | 4803910. |
-| Fixed Q32.32 add | 0.801 | 1248060825. |
-| Fixed Q32.32 mul | 82.012 | 12193388. |
-| Fixed Q32.32 div | 128.946 | 7755201. |
+| BigInt add (64-bit) | 31.841 | 31405837. |
+| BigInt mul (64-bit) | 32.115 | 31137787. |
+| BigInt mul (1024-bit) | 355.182 | 2815461. |
+| BigInt div (64/32-bit) | 76.705 | 13036885. |
+| isqrt (BigInt, ~120-bit) | 220.306 | 4539150. |
+| Fixed Q32.32 add | 0.805 | 1241757832. |
+| Fixed Q32.32 mul | 85.027 | 11760963. |
+| Fixed Q32.32 div | 130.966 | 7635578. |
 
 **Transcendentals**
 
 | op | ns/op | ops/sec |
 |---|---|---|
-| BigFloat sin(1) | 5213.521 | 191809. |
-| BigFloat exp(1) | 5180.773 | 193021. |
-| BigFloat ln(2) | 615.661 | 1624270. |
-| BigFloat sqrt(2) | 877.677 | 1139372. |
-| BigFloat arctan(1) | 290.710 | 3439852. |
-| Fixed sin(1) (router) | 231.041 | 4328244. |
-| Fixed atan(1) (router) | 351.806 | 2842474. |
-| Fixed sqrt(2) (router) | 1314.622 | 760675. |
-| Fixed exp(1) (router) | 685.846 | 1458054. |
-| Rational sin(1/2) | 13467.766 | 74251. |
-| Rational sqrt(2) | 11988.989 | 83410. |
-| Complex[float64] mul | 1.251 | 799302369. |
-| Complex[float64] div | 1.761 | 568003672. |
-| Complex[float64] abs | 2.735 | 365632184. |
-| Complex[float64] sqrt | 5.373 | 186126676. |
-| Complex[float64] exp | 12.456 | 80280017. |
-| Complex[float64] ln | 16.725 | 59789782. |
-| Complex[BigFloat] mul | 375.053 | 2666291. |
-| Complex[BigFloat] abs | 1244.471 | 803554. |
-| Complex[BigFloat] sqrt | 2428.400 | 411794. |
-| Complex[BigFloat] exp | 16993.623 | 58846. |
-| Complex[Rational] mul (exact) | 4432.078 | 225628. |
-| Complex[Rational] pow 8 (exact) | 32871.648 | 30421. |
+| BigFloat sin(1) | 5176.654 | 193175. |
+| BigFloat exp(1) | 5106.719 | 195820. |
+| BigFloat ln(2) | 611.954 | 1634111. |
+| BigFloat sqrt(2) | 949.581 | 1053096. |
+| BigFloat arctan(1) | 293.436 | 3407900. |
+| Fixed sin(1) (router) | 230.522 | 4337975. |
+| Fixed atan(1) (router) | 351.359 | 2846092. |
+| Fixed sqrt(2) (router) | 1255.937 | 796218. |
+| Fixed exp(1) (router) | 694.476 | 1439935. |
+| Rational sin(1/2) | 13131.341 | 76154. |
+| Rational sqrt(2) | 11697.695 | 85487. |
+| Complex[float64] mul | 1.254 | 797335623. |
+| Complex[float64] div | 1.867 | 535480396. |
+| Complex[float64] abs | 2.739 | 365083155. |
+| Complex[float64] sqrt | 5.369 | 186259003. |
+| Complex[float64] exp | 11.206 | 89236347. |
+| Complex[float64] ln | 16.736 | 59751420. |
+| Complex[BigFloat] mul | 368.198 | 2715934. |
+| Complex[BigFloat] abs | 1235.694 | 809262. |
+| Complex[BigFloat] sqrt | 2432.945 | 411025. |
+| Complex[BigFloat] exp | 17156.466 | 58287. |
+| Complex[Rational] mul (exact) | 4376.147 | 228512. |
+| Complex[Rational] pow 8 (exact) | 32148.303 | 31106. |
 
 **Precision parity: BigFloat (256-bit) vs float64 `math`**
 
@@ -193,29 +193,29 @@ without either overwriting the other.
 UniMath 1.0.0 vs GMP/MPFR/MPC; ns/op, lower is faster
   ratio = UniMath / oracle  (<1.0 => UniMath faster); BigFloat and complex-256 at 256 bits
   ----------------------------------------------------------------------------------------------
-  BigInt mul 64-bit      | uni      83.79 | orc-reuse       7.13 | orc-alloc     105.68 | uni/orc-alloc 0.79
-  BigInt mul 1024-bit    | uni     355.47 | orc-reuse     117.71 | orc-alloc     215.99 | uni/orc-alloc 1.65
-  BigInt div 1024/64     | uni     207.71 | orc-reuse      40.89 | orc-alloc     138.64 | uni/orc-alloc 1.50
-  BigInt div 1024/512    | uni     331.75 | orc-reuse     114.17 | orc-alloc     216.87 | uni/orc-alloc 1.53
-  BigFloat sin           | uni    5113.43 | orc-reuse    1627.96 | orc-alloc    1725.11 | uni/orc-alloc 2.96
-  BigFloat exp           | uni    5104.66 | orc-reuse    1716.87 | orc-alloc    1818.70 | uni/orc-alloc 2.81
-  BigFloat ln            | uni     627.89 | orc-reuse    2491.38 | orc-alloc    2603.99 | uni/orc-alloc 0.24
-  BigFloat sqrt          | uni     900.76 | orc-reuse     113.10 | orc-alloc     230.16 | uni/orc-alloc 3.91
+  BigInt mul 64-bit      | uni      84.28 | orc-reuse       7.18 | orc-alloc     108.56 | uni/orc-alloc 0.78
+  BigInt mul 1024-bit    | uni     361.88 | orc-reuse     117.60 | orc-alloc     216.21 | uni/orc-alloc 1.67
+  BigInt div 1024/64     | uni     215.56 | orc-reuse      41.94 | orc-alloc     139.19 | uni/orc-alloc 1.55
+  BigInt div 1024/512    | uni     336.22 | orc-reuse     113.99 | orc-alloc     221.78 | uni/orc-alloc 1.52
+  BigFloat sin           | uni    5232.66 | orc-reuse    1668.27 | orc-alloc    1739.15 | uni/orc-alloc 3.01
+  BigFloat exp           | uni    5226.68 | orc-reuse    1737.85 | orc-alloc    1805.38 | uni/orc-alloc 2.90
+  BigFloat ln            | uni     631.43 | orc-reuse    2510.18 | orc-alloc    2628.62 | uni/orc-alloc 0.24
+  BigFloat sqrt          | uni     936.74 | orc-reuse     118.03 | orc-alloc     234.25 | uni/orc-alloc 4.00
   -- complex, float64 value ABI vs MPC at 53 bits (ratio vs orc-reuse) --
-  Complex mul f64        | uni       4.52 | orc-reuse      79.16 | orc-alloc     280.55 | uni/orc-reuse 0.06
-  Complex div f64        | uni       4.94 | orc-reuse    1326.57 | orc-alloc    1530.92 | uni/orc-reuse 0.00
-  Complex sqrt f64       | uni       7.10 | orc-reuse     507.02 | orc-alloc     709.59 | uni/orc-reuse 0.01
-  Complex exp f64        | uni      14.34 | orc-reuse    2745.67 | orc-alloc    2935.62 | uni/orc-reuse 0.01
-  Complex ln f64         | uni      23.63 | orc-reuse    2185.82 | orc-alloc    2385.25 | uni/orc-reuse 0.01
-  Complex sin f64        | uni      27.76 | orc-reuse    2794.61 | orc-alloc    2988.97 | uni/orc-reuse 0.01
+  Complex mul f64        | uni       4.59 | orc-reuse      80.38 | orc-alloc     283.30 | uni/orc-reuse 0.06
+  Complex div f64        | uni       5.15 | orc-reuse    1365.31 | orc-alloc    1570.18 | uni/orc-reuse 0.00
+  Complex sqrt f64       | uni       7.74 | orc-reuse     532.52 | orc-alloc     731.04 | uni/orc-reuse 0.01
+  Complex exp f64        | uni      14.47 | orc-reuse    2786.30 | orc-alloc    2987.96 | uni/orc-reuse 0.01
+  Complex ln f64         | uni      23.97 | orc-reuse    2170.36 | orc-alloc    2373.27 | uni/orc-reuse 0.01
+  Complex sin f64        | uni      27.79 | orc-reuse    2741.62 | orc-alloc    2947.88 | uni/orc-reuse 0.01
   -- complex, BigFloat handle ABI vs MPC at 256 bits (ratio vs orc-alloc) --
-  Complex mul 256        | uni     445.70 | orc-reuse     142.06 | orc-alloc     349.28 | uni/orc-alloc 1.28
-  Complex div 256        | uni    1085.31 | orc-reuse    1867.24 | orc-alloc    2054.79 | uni/orc-alloc 0.53
-  Complex sqrt 256       | uni    2854.20 | orc-reuse    1071.84 | orc-alloc    1274.49 | uni/orc-alloc 2.24
-  Complex exp 256        | uni   17175.38 | orc-reuse    5158.86 | orc-alloc    5320.51 | uni/orc-alloc 3.23
-  Complex ln 256         | uni   54292.89 | orc-reuse   12130.82 | orc-alloc   12308.57 | uni/orc-alloc 4.41
-  Complex sin 256        | uni   14315.18 | orc-reuse    5189.13 | orc-alloc    5392.74 | uni/orc-alloc 2.65
-  checksum = 4.7794e+24 (keeps every result live)
+  Complex mul 256        | uni     435.12 | orc-reuse     142.89 | orc-alloc     341.47 | uni/orc-alloc 1.27
+  Complex div 256        | uni    1081.00 | orc-reuse    1837.05 | orc-alloc    2037.08 | uni/orc-alloc 0.53
+  Complex sqrt 256       | uni    2902.32 | orc-reuse    1065.63 | orc-alloc    1255.20 | uni/orc-alloc 2.31
+  Complex exp 256        | uni   17422.33 | orc-reuse    5081.15 | orc-alloc    5265.55 | uni/orc-alloc 3.31
+  Complex ln 256         | uni   57317.96 | orc-reuse   11353.31 | orc-alloc   11513.93 | uni/orc-alloc 4.98
+  Complex sin 256        | uni   15234.26 | orc-reuse    5124.43 | orc-alloc    5318.12 | uni/orc-alloc 2.86
+  checksum = 4.77943e+24 (keeps every result live)
 ```
 
 
