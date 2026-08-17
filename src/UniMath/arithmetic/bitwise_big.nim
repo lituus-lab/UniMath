@@ -2,9 +2,46 @@
 # Copyright 2026 lituus-lab
 ## Arbitrary-precision bitwise ops and shifts. The shorter operand is
 ## zero-padded; left shift grows, right shift trims.
+##
+## `lowBitsNonZero` and `bitWindow` answer the two questions a rounding step
+## actually asks — "is anything set below this bit?" and "what are the 64 bits
+## from here?" — by reading limbs, allocating nothing. Every other function here
+## returns a fresh `BigUInt`, which is the right shape for an operator and the
+## wrong one inside a rounding path that runs after every mul, add and divide.
 import ./limbs
 import ./big_int
 import contracts
+
+func lowBitsNonZero*(a: BigUInt, n: int): bool =
+  ## Is any of the low `n` bits of `a` set? The sticky bit of a rounding step.
+  ##
+  ## Not contracted and allocation-free on purpose: the expression it replaces,
+  ## `not isZero(a and ((initBigUInt(1) shl n) - initBigUInt(1)))`, builds four
+  ## intermediate `BigUInt`s to answer a question about bits that are already
+  ## in hand.
+  if n <= 0 or isZero(a): return false
+  let full = n div LimbBits
+  let partial = n mod LimbBits
+  let hi = min(full, a.limbs.len)
+  for i in 0 ..< hi:
+    if a.limbs[i] != ZeroLimb: return true
+  if partial > 0 and full < a.limbs.len:
+    let mask = (OneLimb shl partial) - OneLimb
+    if (a.limbs[full] and mask) != ZeroLimb: return true
+  false
+
+func bitWindow*(a: BigUInt, k: Natural): Limb =
+  ## Bits `[k, k + LimbBits)` of `a`, zero-filled past the top — what
+  ## `(a shr k).toUInt64()` yields, without the intermediate `BigUInt`.
+  let w = int(k) div LimbBits
+  let s = int(k) mod LimbBits
+  if w >= a.limbs.len: return ZeroLimb
+  result = a.limbs[w] shr s
+  # `shl LimbBits` is undefined in C, so the neighbour is only folded in when
+  # the shift is a real one. With `s == 0` the first limb is already the whole
+  # window.
+  if s > 0 and w + 1 < a.limbs.len:
+    result = result or (a.limbs[w + 1] shl (LimbBits - s))
 
 func `and`*(a, b: BigUInt): BigUInt {.contractual.} =
   ## Bitwise AND. `bitLength(result) <= min(bitLength(a), bitLength(b))`.
