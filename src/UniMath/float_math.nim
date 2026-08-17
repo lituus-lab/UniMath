@@ -38,6 +38,25 @@ const
   constantCacheLimit = 8
   reciprocalCacheLimit = 1024
 
+const expReduceBits* {.intdefine.} = 7
+  ## `exp` scales its argument below `2^-expReduceBits` before the Taylor
+  ## series, then squares back `k` times.
+  ##
+  ## THE TRADEOFF IS SPEED AGAINST ACCURACY, ROUGHLY ONE BIT PER UNIT. Raising
+  ## it removes series terms and adds squarings, and each squaring DOUBLES the
+  ## relative error: `(y(1+e))^2 = y^2(1+2e)`. Measured at 256 bits against a
+  ## 512-bit reference, worst case over arguments up to +/-700:
+  ##
+  ##     E =  7   2^16 ulps      exp(1) 4.1 us
+  ##     E = 14   2^22 ulps      exp(1) 3.4 us
+  ##     E = 20   2^31 ulps      exp(1) 2.9 us
+  ##     E = 28   2^37 ulps      exp(1) 2.8 us
+  ##
+  ## E = 20 is about 28% faster and gives up 15 bits of a 256-bit result, so 7
+  ## stays. Exposed as a define because the tradeoff is real and a caller who
+  ## wants speed over the low bits should be able to take it deliberately --
+  ## and because the numbers above are the ones a future tuner needs.
+
 func workingPrecision(x: BigFloat): int {.contractual, inline.} =
   ensure:
     result > 0
@@ -343,7 +362,7 @@ proc exp*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
     # Keep the Taylor argument below 1/128. The extra squarings are cheaper than
     # the BigFloat divisions removed from the series.
     let bl = bitLength(x.mantissa)
-    var k = int(x.exponent) + bl + 7
+    var k = int(x.exponent) + bl + expReduceBits
     if k < 0: k = 0
 
     let y = scaleByPow2(x, -k) # exact: exponent only, |y| < 1/128

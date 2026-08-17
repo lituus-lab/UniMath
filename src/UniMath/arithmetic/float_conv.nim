@@ -5,10 +5,9 @@
 ## nearest (ties-to-even, the IEEE-754 default), and scales by the residual
 ## exponent with `pow2f64`. Exact for `|a| < 2^53`, correctly rounded beyond;
 ## ±Inf on overflow, ±0 on underflow. Lives here (not in `big_int`) because it
-## needs `shr`/`and` from `bitwise_big`, which imports `big_int`.
+## needs `bitWindow`/`lowBitsNonZero` from `bitwise_big`, which imports `big_int`.
 import ./big_int
 import ./bitwise_big
-import ./subtraction_big
 import ./wide
 import contracts
 
