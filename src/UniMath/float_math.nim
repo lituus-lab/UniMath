@@ -38,24 +38,38 @@ const
   constantCacheLimit = 8
   reciprocalCacheLimit = 1024
 
-const expReduceBits* {.intdefine.} = 7
+const expReduceBits* {.intdefine.} = 28
   ## `exp` scales its argument below `2^-expReduceBits` before the Taylor
-  ## series, then squares back `k` times.
+  ## series, then squares back `k` times. Larger removes series terms and adds
+  ## squarings.
   ##
-  ## THE TRADEOFF IS SPEED AGAINST ACCURACY, ROUGHLY ONE BIT PER UNIT. Raising
-  ## it removes series terms and adds squarings, and each squaring DOUBLES the
-  ## relative error: `(y(1+e))^2 = y^2(1+2e)`. Measured at 256 bits against a
-  ## 512-bit reference, worst case over arguments up to +/-700:
+  ## Each squaring DOUBLES the relative error -- `(y(1+e))^2 = y^2(1+2e)` -- so
+  ## a deep chain is only usable behind guard bits. With `expGuardBits` covering
+  ## the chain, measured at 256 bits against a 512-bit reference:
   ##
-  ##     E =  7   2^16 ulps      exp(1) 4.1 us
-  ##     E = 14   2^22 ulps      exp(1) 3.4 us
-  ##     E = 20   2^31 ulps      exp(1) 2.9 us
-  ##     E = 28   2^37 ulps      exp(1) 2.8 us
+  ##     E    exp(1)    exp(700)   error
+  ##      7   5807 ns    6971 ns   2^16 ulps   (no guard: what this used to be)
+  ##      7   7003 ns    8516 ns   exact
+  ##     20   5007 ns    5804 ns   exact
+  ##     28   4939 ns    5709 ns   exact
+  ##     40   5187 ns    5956 ns   exact
   ##
-  ## E = 20 is about 28% faster and gives up 15 bits of a 256-bit result, so 7
-  ## stays. Exposed as a define because the tradeoff is real and a caller who
-  ## wants speed over the low bits should be able to take it deliberately --
-  ## and because the numbers above are the ones a future tuner needs.
+  ## 28 is the flat optimum: past it the wider working width costs more than the
+  ## terms it removes.
+
+const expGuardBits* {.intdefine.} = 8
+  ## MARGIN above the `k` bits that the squaring chain itself requires.
+  ##
+  ## The load-bearing term is `k`, not this one: `k` squarings multiply the
+  ## series' relative error by `2^k`, so a result good to `precision` bits needs
+  ## `precision + k` bits of working width, and `tests/test_float_math_precision`
+  ## still passes with `-d:expGuardBits=0`. These 8 bits cover the series' own
+  ## few-ulp error on top of that, cheaply -- the working width is rounded up to
+  ## whole limbs anyway.
+  ##
+  ## Before the width grew with `k`, `exp` was short by roughly `k` bits -- 16 of
+  ## 256 at `exp(700)` -- and nothing could see it, because the MPFR oracle
+  ## compares `toFloat64` and that is 53 bits.
 
 func workingPrecision(x: BigFloat): int {.contractual, inline.} =
   ensure:
@@ -359,16 +373,24 @@ proc exp*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
     let one = one(BigFloat)
     if x.isZero: return one
 
-    # Keep the Taylor argument below 1/128. The extra squarings are cheaper than
-    # the BigFloat divisions removed from the series.
+    # Reduce hard, then pay for it in width rather than in accuracy. `k`
+    # squarings amplify the series' error by 2^k, so the series and the chain
+    # run at `precision + k + expGuardBits` and the result is rounded once at
+    # the end. Deep reduction plus guard bits is both faster and exact where
+    # shallow reduction at the bare precision was neither.
+    let precision = workingPrecision(x)
     let bl = bitLength(x.mantissa)
     var k = int(x.exponent) + bl + expReduceBits
     if k < 0: k = 0
+    let work = precision + k + expGuardBits
 
-    let y = scaleByPow2(x, -k) # exact: exponent only, |y| < 1/128
-    result = exponentialSeries(y, workingPrecision(x), terms)
+    var y = x
+    y.normalize(work)
+    y = scaleByPow2(y, -k) # exact: exponent only
+    result = exponentialSeries(y, work, terms)
     for _ in 1 .. k:
-      result = result * result # recover the 2^k scaling
+      result = mulRounded(result, result, work, rmNearest) # recover 2^k
+    result.normalizeRounded(precision, rmNearest)
 
 proc ln*(x: BigFloat, terms: int = 0): BigFloat {.contractual.} =
   ## `ln(x)` with argument reduction: `ln(z) = ln(m) + E·ln(2)` with `m` brought
