@@ -21,9 +21,12 @@ special-function algorithms over them. Exposed in Nim, a C ABI, and Python.
   `special/`, `roots/`) — the same algorithms (sin/cos/exp/ln/sqrt/atan/...)
   implemented across three backends: `BigFloat` (`float_math.nim`), `Fixed`
   (`math_router.nim`), and `Rational[BigInt]` (`rational_math.nim`).
-- **Complex numbers** — `Complex[T]` (`complex/`) over any of the backends
-  above, with modulus, argument, roots and transcendentals in
-  `complex_math.nim`. `csqrt(-1.0)` is `0+1i` where the real `sqrt` refuses;
+- **Complex numbers** — `Complex[T]` (`complex/`) pairs any `Field` component,
+  and its arithmetic needs nothing more. The modulus, argument, roots and
+  transcendentals in `complex_math.nim` ask for an ordered component carrying
+  `sqrt`/`abs`/`arctan2` on top, which `float32`/`float64`, `BigFloat`,
+  `Rational[T]` and `Fixed[T, FracBits]` supply.
+  `csqrt(-1.0)` is `0+1i` where the real `sqrt` refuses;
   from Python, where the return type can follow the value, `unimath.sqrt(-1)`
   returns `1j` and `unimath.sqrt(4)` returns `2.0`.
 - **Error-free transforms** (`eft.nim`) — a re-export of UniAccurate's EFT

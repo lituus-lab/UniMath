@@ -11,8 +11,9 @@ nbText: """
 # UniMath
 
 A multi-precision numeric library: arbitrary-precision integers, fixed-point,
-big floats, rationals, and intervals, with the transcendental and
-special-function algorithms over them. Exposed across three surfaces —
+big floats, rationals, intervals and complex numbers over any of those, with
+the transcendental and special-function algorithms over them. Exposed across
+three surfaces —
 **Nim**, a **C ABI**, and a **Python** binding.
 
 This page is a nimib book: every Nim block below is compiled and run when the
@@ -33,7 +34,8 @@ Read top to bottom: each section only uses types and functions introduced
 above it.
 
 1. **Types** — BigInt, Fixed, BigFloat, Rational, Interval: the five ways
-   this library represents a number.
+   this library represents a real number, and Complex, which pairs any two of
+   them.
 2. **EFT** — the error-free-transform primitive the analysis layer below
    is built on.
 3. **Algorithms** — Roots, Exponential, Trigonometry, Hyperbolic, Special:
