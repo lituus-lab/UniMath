@@ -22,6 +22,10 @@
 import std/[unittest, strutils]
 import UniMath/arithmetic/limbs
 import UniMath/arithmetic/primitives
+import UniMath/arithmetic/big_int
+import UniMath/arithmetic/bitwise_big
+import UniMath/arithmetic/subtraction_big
+import UniMath/arithmetic/wide
 
 # ---- the independent reference ---------------------------------------------
 
@@ -275,6 +279,59 @@ suite "limb primitives — addC and subB":
         # a + b - b == a in the low limb, and the borrow undoes the carry.
         check d == a
         check borrowOut == carryOut
+
+suite "allocation-free bit inspection":
+
+  # Checked against the `a and ((1 shl n) - 1)` and `(a shr k).toUInt64()`
+  # expressions they replace in the rounding paths.
+
+  proc sample(): seq[BigUInt] =
+    result = @[
+      initBigUInt(0'u64),
+      initBigUInt(1'u64),
+      initBigUInt(0xFFFFFFFFFFFFFFFF'u64),
+      initBigUInt(@[0'u64, 1'u64]), # bit 64 only
+      initBigUInt(@[0'u64, 0'u64, 0x8000000000000000'u64]), # bit 191 only
+      initBigUInt(@[0xFFFFFFFFFFFFFFFF'u64, 0x0123456789ABCDEF'u64,
+                    0xFEDCBA9876543210'u64, 0x8000000000000000'u64]),
+      initBigUInt(@[0'u64, 0'u64, 0'u64, 1'u64]),
+    ]
+
+  test "lowBitsNonZero matches the mask-and-compare it replaces":
+    let one = initBigUInt(1'u64)
+    for a in sample():
+      for n in 0 .. 260:
+        let want =
+          if n <= 0: false
+          else: not isZero(a and ((one shl Natural(n)) - one))
+        if a.lowBitsNonZero(n) != want:
+          checkpoint "n = " & $n & "  limbs = " & $a.limbs.len
+          check a.lowBitsNonZero(n) == want
+
+  test "bitWindow matches a masked shift":
+    # The reference masks to 64 bits first: `toUInt64` raises past one limb.
+    # Covers windows beyond the 54-bit one the production call site uses.
+    let mask64 = initBigUInt(0xFFFFFFFFFFFFFFFF'u64)
+    for a in sample():
+      for k in 0 .. 260:
+        let want = ((a shr Natural(k)) and mask64).toUInt64()
+        if a.bitWindow(Natural(k)) != want:
+          checkpoint "k = " & $k & "  limbs = " & $a.limbs.len
+          check a.bitWindow(Natural(k)) == want
+
+  test "bitWindow at a limb boundary folds in no neighbour":
+    # k mod 64 == 0 is the case where `shl (64 - 0)` would be undefined in C.
+    let a = initBigUInt(@[0xAAAAAAAAAAAAAAAA'u64, 0x5555555555555555'u64])
+    check a.bitWindow(0) == 0xAAAAAAAAAAAAAAAA'u64
+    check a.bitWindow(64) == 0x5555555555555555'u64
+    check a.bitWindow(128) == 0'u64
+
+  test "past the top is zero, not garbage":
+    let a = initBigUInt(1'u64)
+    check a.bitWindow(64) == 0'u64
+    check a.bitWindow(1000) == 0'u64
+    check not a.lowBitsNonZero(0)
+    check a.lowBitsNonZero(1)
 
 suite "limb primitives — clzLimb":
 

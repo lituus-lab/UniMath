@@ -54,11 +54,14 @@ func toFloat64*(a: BigFloat): float64 {.contractual.} =
 
       let shift = bl - sigBits # >= 1
       let guardShift = shift - 1
-      let mant = a.mantissa shr Natural(guardShift)
-      let m = mant.toUInt64() shr 1 # 53-bit significand
-      let guardBit = mant.toUInt64() and 1'u64
-      let sticky = not isZero(a.mantissa and
-        ((initBigUInt(1'u64) shl Natural(guardShift)) - initBigUInt(1'u64)))
+      # Round window and sticky tail read straight from the limbs. The shift
+      # and the `(1 shl guardShift) - 1` mask this replaces cost about five
+      # `BigUInt` allocations per conversion, and every `BigFloat` Newton root
+      # converts once to seed itself from float64.
+      let window = a.mantissa.bitWindow(Natural(guardShift)) # 54 bits
+      let m = window shr 1 # 53-bit significand
+      let guardBit = window and 1'u64
+      let sticky = a.mantissa.lowBitsNonZero(guardShift)
       var mm = m
       if guardBit == 1 and (sticky or (mm and 1) == 1):
         mm += 1
@@ -77,14 +80,10 @@ func toFloat64*(a: BigFloat): float64 {.contractual.} =
       else:
         let n = -adj # shift right by n, round to even
         let guardShift = n - 1
-        let mant = a.mantissa shr Natural(guardShift) # <= 53 bits, fits uint64
-        let m64 = mant.toUInt64()
-        k = m64 shr 1
-        let guardBit = m64 and 1'u64
-        let sticky = if guardShift == 0: false
-                     else: not isZero(a.mantissa and
-                       ((initBigUInt(1'u64) shl Natural(guardShift)) -
-                           initBigUInt(1'u64)))
+        let window = a.mantissa.bitWindow(Natural(guardShift)) # <= 54 bits
+        k = window shr 1
+        let guardBit = window and 1'u64
+        let sticky = a.mantissa.lowBitsNonZero(guardShift)
         if guardBit == 1 and (sticky or (k and 1) == 1):
           k += 1
       # k in [0, 2^52]. k == 2^52 carries to the smallest normal (exp field 1,

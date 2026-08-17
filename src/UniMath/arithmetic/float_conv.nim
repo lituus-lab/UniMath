@@ -26,12 +26,14 @@ func toFloat64*(a: BigUInt): float64 {.contractual.} =
       return float64(a.toUInt64())
     let shift = bl - ToFloat64SigBits
     let guardShift = shift - 1
-    let window = a shr guardShift
-    let m = window.toUInt64() shr 1
-    let guardBit = window.toUInt64() and 1'u64
-    let sticky =
-      if guardShift == 0: false
-      else: not isZero(a and ((initBigUInt(1'u64) shl guardShift) - initBigUInt(1'u64)))
+    # Read the round window and the sticky tail straight out of the limbs.
+    # Building them as `BigUInt`s cost four allocations — a shift, two ones and
+    # an AND — to inspect bits already in hand, and this runs on every
+    # conversion, including the float64 seed of each `BigFloat` Newton root.
+    let window = a.bitWindow(guardShift) # exactly 54 significant bits
+    let m = window shr 1
+    let guardBit = window and 1'u64
+    let sticky = a.lowBitsNonZero(guardShift)
     var mm = m
     if guardBit == 1 and (sticky or (mm and 1) == 1):
       mm += 1
