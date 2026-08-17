@@ -190,9 +190,10 @@ task cexample, "C demo":
   exec makeExe & " -C examples/c" & winMakeVars("demo")
 
 # Head-to-head speed vs the native GMP/MPFR/MPC oracles at matching precision.
-# Linux/macOS only (needs libmpfr/libgmp via pkg-config); NOT in the default
-# gate — run `nimble benchSpeed` explicitly. Builds the static lib, compiles
-# bench/bench_speed.c against it + libmpfr + libgmp, and runs the comparison.
+# Linux/macOS only (needs libmpc/libmpfr/libgmp via pkg-config); NOT in the
+# default gate — run `nimble benchSpeed` explicitly. Builds the static lib,
+# compiles bench/bench_speed.c against it + libmpc + libmpfr + libgmp, and runs
+# the comparison.
 task benchSpeed, "UniMath-vs-GMP/MPFR/MPC speed benchmark (needs libmpc/libmpfr/libgmp; not in the default gate)":
   exec "nimble clibStatic"
   exec makeExe & " -C bench"

@@ -11,7 +11,7 @@ nimble benchSpeed     # C: UniMath vs native GMP/MPFR/MPC (needs libmpc/libmpfr/
 Both `bench` targets build with `-d:release` so the `NimContracts`
 `{.contractual.}` postconditions compile away and the timings reflect the
 shipped code path. `benchSpeed` links the release static lib (`libUniMath.a`)
-plus `libmpfr`/`libgmp` via pkg-config — Linux/macOS only.
+plus `libmpc`/`libmpfr`/`libgmp` via pkg-config — Linux/macOS only.
 
 ## Targets
 
