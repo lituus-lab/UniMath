@@ -47,7 +47,24 @@ func shiftLimbsLeft(a: BigUInt, m: int): BigUInt =
   result.limbs = newSeq[Limb](a.limbs.len + m)
   for i in 0 ..< a.limbs.len: result.limbs[i + m] = a.limbs[i]
 
-const KaratsubaThreshold* = 32
+const KaratsubaThreshold* {.intdefine.} = 64
+static:
+  # A non-positive threshold would make `mulKaratsuba` recurse without ever
+  # reaching the schoolbook base case. Fail the build, not the run.
+  doAssert KaratsubaThreshold > 0, "-d:KaratsubaThreshold must be positive"
+  ## Limb count below which Karatsuba falls back to schoolbook, overridable
+  ## with `-d:KaratsubaThreshold=N`.
+  ##
+  ## It is a property of the machine and of how fast the basecase is, not a
+  ## constant of the algorithm: Karatsuba trades one of three multiplications
+  ## for several linear passes, so the faster the basecase, the larger an
+  ## operand has to be before that trade pays. It is overridable so the sweep
+  ## in `bench/bench_karatsuba.nim` can measure it rather than assert it.
+  ##
+  ## 64 measured on amd64/clang (FreeBSD 16.0-CURRENT, Zen). Sweeping 32, 64,
+  ## 96, 128 and 192, this value is best or tied at every operand size tested;
+  ## the previous 32 made `mul` 10% SLOWER than plain schoolbook at 64 limbs,
+  ## because it split operands whose halves the basecase already handled well.
 
 func mulKaratsuba*(a, b: BigUInt): BigUInt {.contractual.} =
   ## Karatsuba divide-and-conquer. Zero iff either factor is zero.
