@@ -23,7 +23,7 @@ import ./UniMath/native_float
 import ./UniMath/complex_math
 export arithmetic, fixed, float, rational, interval, complex, eft, roots,
        exponential, trigonometry, hyperbolic, special, constants, reduction,
-       float_math, rational_math, conversions, math_router, native_float, 
-			 complex_math
+       float_math, rational_math, conversions, math_router, native_float,
+       complex_math
 
 const UniMathVersion* = "1.0.0"
