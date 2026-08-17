@@ -124,7 +124,8 @@ func `-`*[T; FracBits: static[int]](a: Fixed[T, FracBits]): Fixed[T,
     result.data = negChk(a.data)
 
 
-func mulShiftFloor(a, b: int64, k: int): tuple[value: int64, fits: bool] =
+func mulShiftFloorPortable*(a, b: int64, k: int): tuple[value: int64,
+    fits: bool] =
   ## `floor(a * b / 2^k)` in 128 bits, and whether it lands inside `int64`.
   ##
   ## FLOOR, not truncation. The `BigInt` route this replaces used `BigInt.shr`,
@@ -189,6 +190,26 @@ func `*`*[T; FracBits: static[int]](a, b: Fixed[T, FracBits]): Fixed[T,
     let bigRes: BigInt = (toBigInt(a.data) * toBigInt(b.data)) shr Natural(FracBits)
     result.data = fromBigIntChecked(bigRes, T)
 
+func mulShiftFloor(a, b: int64, k: int): tuple[value: int64, fits: bool]
+    {.inline.} =
+  ## `floor(a * b / 2^k)`, and whether it lands inside `int64`.
+  ##
+  ## FLOOR, not truncation. The `BigInt` route this replaces used `BigInt.shr`,
+  ## which is an arithmetic shift, so a negative product rounds AWAY from zero
+  ## whenever a bit is dropped. Truncating instead would be an off-by-one on
+  ## negative values only -- the kind of difference that hides until it does
+  ## not.
+  ##
+  ## A signed `__int128`'s `>>` IS that arithmetic shift, so where the toolchain
+  ## has one the rounding rule is the language's rather than reimplemented here,
+  ## and it is 1.68x faster (1.96 -> 1.17 ns with varying operands).
+  when hasInt128:
+    var v: int64
+    if fixedMulShift(a, b, cint(k), v) != 0: (v, true)
+    else: (0'i64, false)
+  else:
+    mulShiftFloorPortable(a, b, k)
+
 func `*`*[T: SomeSignedInt; FracBits: static[int]](a, b: Fixed[T,
     FracBits]): Fixed[T, FracBits] {.contractual.} =
   ## Product for machine signed storage: one 64x64 -> 128 multiply and a shift,
@@ -211,7 +232,8 @@ func `*`*[T: SomeSignedInt; FracBits: static[int]](a, b: Fixed[T,
     result.data = T(r.value)
 
 
-func divShiftTrunc(a, b: int64, k: int): tuple[value: int64, fits: bool] =
+func divShiftTruncPortable*(a, b: int64, k: int): tuple[value: int64,
+    fits: bool] =
   ## `trunc(a * 2^k / b)` in 128 bits, and whether it lands inside `int64`.
   ##
   ## TRUNCATION, not floor -- and deliberately not the same rounding as
@@ -220,20 +242,9 @@ func divShiftTrunc(a, b: int64, k: int): tuple[value: int64, fits: bool] =
   ## in the multiply is an arithmetic shift and floors. The two operators really
   ## do round differently, and matching each one is the point.
   ##
-  ## Division by zero raises here, as it did from the `BigInt` divide.
-  ##
-  ## Where the toolchain has a 128-bit integer, C99's `/` already truncates
-  ## toward zero -- 1.60x faster than the explicit `udiv128` below, because the
-  ## compiler sees the divisor fits 64 bits and emits a hardware divide instead
-  ## of calling libgcc. The body below is the fallback and stays tested under
-  ## `-d:noInt128`.
-  if b == 0:
-    raise newException(DivByZeroDefect, "Fixed./: division by zero")
-  when hasInt128:
-    var v: int64
-    if fixedShiftDiv(a, b, cint(k), v) != 0:
-      return (v, true)
-    return (0'i64, false)
+  ## Uses nothing wider than a `Limb`: `udiv128` plus `uint64` shifts. Exported
+  ## for the same reason as `mulShiftFloorPortable`. The zero-divisor check
+  ## lives in the caller, which both routes share.
   let negative = (a < 0) != (b < 0)
   let am = if a < 0: uint64(-(a + 1)) + 1'u64 else: uint64(a)
   let bm = if b < 0: uint64(-(b + 1)) + 1'u64 else: uint64(b)
@@ -268,6 +279,32 @@ func divShiftTrunc(a, b: int64, k: int): tuple[value: int64, fits: bool] =
   else:
     if q > uint64(high(int64)): return (0'i64, false)
     (int64(q), true)
+
+
+func divShiftTrunc(a, b: int64, k: int): tuple[value: int64, fits: bool]
+    {.inline.} =
+  ## `trunc(a * 2^k / b)`, and whether it lands inside `int64`.
+  ##
+  ## TRUNCATION, not floor -- and deliberately not the same rounding as
+  ## `mulShiftFloor`. The `BigInt` route divides MAGNITUDES and applies the sign
+  ## afterwards, so it truncates toward zero, where `BigInt.shr` in the multiply
+  ## floors. The two operators really do round differently, and matching each
+  ## one is the point.
+  ##
+  ## C99's `/` on a signed `__int128` is that truncation, and it is 1.60x faster
+  ## than the explicit `udiv128` (5.51 -> 3.44 ns) because the compiler sees the
+  ## divisor fits 64 bits and emits a hardware divide instead of calling
+  ## libgcc's `__divti3`.
+  ##
+  ## Division by zero raises here, as it did from the `BigInt` divide.
+  if b == 0:
+    raise newException(DivByZeroDefect, "Fixed./: division by zero")
+  when hasInt128:
+    var v: int64
+    if fixedShiftDiv(a, b, cint(k), v) != 0: (v, true)
+    else: (0'i64, false)
+  else:
+    divShiftTruncPortable(a, b, k)
 
 func `/`*[T; FracBits: static[int]](a, b: Fixed[T, FracBits]): Fixed[T,
     FracBits] {.contractual.} =
