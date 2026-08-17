@@ -226,3 +226,10 @@ def test_sqrt_promotes_a_fixed_to_a_fixedcomplex():
     assert isinstance(r, u.FixedComplex)
     assert complex(r).imag == pytest.approx(1.0, abs=1e-6)
     assert isinstance(u.sqrt(u.Fixed(4, 32)), u.Fixed)
+
+
+def test_sqrt_rejects_a_fixed_that_is_not_q32_32():
+    # Fixed defaults to 16 fractional bits; the C entry point reads its operand
+    # as Q32.32, so anything else would be scaled wrong rather than refused.
+    with pytest.raises(ValueError):
+        u.sqrt(u.Fixed(4))

@@ -2335,9 +2335,18 @@ cdef class FixedComplex:
         _ensure_init()
         self._fb = frac_bits
         if isinstance(re, float) or isinstance(im, float):
-            # A float argument is scaled directly, so 0.5 does not truncate to 0.
-            self._re = <long long>(float(re) * <double>(<long long>1 << frac_bits))
-            self._im = <long long>(float(im) * <double>(<long long>1 << frac_bits))
+            # Scaled, so 0.5 does not truncate to 0 — through a Python int and
+            # the shared clamp, as the scalar `Fixed` does: `<long long>1 <<
+            # frac_bits` is undefined from 63 on, and a double past the int64
+            # range does not survive a direct cast either.
+            fre = float(re)
+            fim = float(im)
+            if (fre != fre or fim != fim
+                    or abs(fre) == float("inf") or abs(fim) == float("inf")):
+                raise ValueError("FixedComplex cannot represent Inf or NaN")
+            scale = int(1) << frac_bits
+            self._re = _clamp_i64(int(fre * scale))
+            self._im = _clamp_i64(int(fim * scale))
         else:
             z = unimath_complex_fixed_from_int(<long long>re, <long long>im, frac_bits)
             self._re = z.re
@@ -2492,6 +2501,8 @@ def sqrt(x):
         rc = RationalComplex._wrap(hr)
         return rc.re if rc.im.is_zero() else rc
     if isinstance(x, Fixed):
+        if (<Fixed>x)._frac != 32:
+            raise ValueError("sqrt of a Fixed is Q32.32 only")
         hf = unimath_csqrt_fixed((<Fixed>x)._raw)
         if hf.im == 0:
             return Fixed._from_raw(hf.re, 32)
