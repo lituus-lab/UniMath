@@ -334,10 +334,12 @@ func pow*[T](z: Complex[T], n: int): Complex[T] {.contractual.} =
     if n == 0:
       return fromInt(Complex[T], 1)
     var base = if n < 0: inv(z) else: z
-    var k = if n < 0: -n else: n
+    # The magnitude is unsigned: `-n` has no representation at `low(int)`, and
+    # negating `n + 1` first keeps every step inside the type.
+    var k = if n < 0: uint(-(n + 1)) + 1 else: uint(n)
     var acc = fromInt(Complex[T], 1)
-    while k > 0:
-      if (k and 1) == 1:
+    while k > 0'u:
+      if (k and 1'u) == 1'u:
         acc = acc * base
       base = base * base
       k = k shr 1
