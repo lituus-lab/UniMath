@@ -133,30 +133,30 @@ without either overwriting the other.
 
 | op | ns/op | ops/sec |
 |---|---|---|
-| BigInt add (64-bit) | 37.722 | 26509596. |
-| BigInt mul (64-bit) | 33.380 | 29958418. |
-| BigInt mul (1024-bit) | 612.207 | 1633434. |
-| BigInt div (64/32-bit) | 82.826 | 12073573. |
-| isqrt (BigInt, ~120-bit) | 9567.438 | 104521. |
-| Fixed Q32.32 add | 0.813 | 1230004736. |
-| Fixed Q32.32 mul | 83.183 | 12021722. |
-| Fixed Q32.32 div | 128.563 | 7778294. |
+| BigInt add (64-bit) | 40.071 | 24955520. |
+| BigInt mul (64-bit) | 32.793 | 30494127. |
+| BigInt mul (1024-bit) | 354.000 | 2824856. |
+| BigInt div (64/32-bit) | 79.607 | 12561757. |
+| isqrt (BigInt, ~120-bit) | 9512.130 | 105129. |
+| Fixed Q32.32 add | 0.790 | 1265339073. |
+| Fixed Q32.32 mul | 79.157 | 12633111. |
+| Fixed Q32.32 div | 128.313 | 7793462. |
 
 **Transcendentals**
 
 | op | ns/op | ops/sec |
 |---|---|---|
-| BigFloat sin(1) | 6645.985 | 150467. |
-| BigFloat exp(1) | 6651.714 | 150337. |
-| BigFloat ln(2) | 704.486 | 1419474. |
-| BigFloat sqrt(2) | 1063.126 | 940622. |
-| BigFloat arctan(1) | 389.143 | 2569748. |
-| Fixed sin(1) (router) | 233.577 | 4281248. |
-| Fixed atan(1) (router) | 347.185 | 2880311. |
-| Fixed sqrt(2) (router) | 1255.499 | 796496. |
-| Fixed exp(1) (router) | 688.569 | 1452288. |
-| Rational sin(1/2) | 13551.526 | 73792. |
-| Rational sqrt(2) | 12664.432 | 78961. |
+| BigFloat sin(1) | 6011.856 | 166338. |
+| BigFloat exp(1) | 6034.973 | 165701. |
+| BigFloat ln(2) | 698.534 | 1431570. |
+| BigFloat sqrt(2) | 961.626 | 1039905. |
+| BigFloat arctan(1) | 413.763 | 2416840. |
+| Fixed sin(1) (router) | 232.475 | 4301542. |
+| Fixed atan(1) (router) | 357.673 | 2795851. |
+| Fixed sqrt(2) (router) | 1324.448 | 755031. |
+| Fixed exp(1) (router) | 691.933 | 1445226. |
+| Rational sin(1/2) | 13681.291 | 73093. |
+| Rational sqrt(2) | 12874.463 | 77673. |
 
 **Precision parity: BigFloat (256-bit) vs float64 `math`**
 
@@ -176,15 +176,15 @@ without either overwriting the other.
 UniMath 1.0.0 vs GMP/MPFR (256-bit BigFloat); ns/op, lower is faster
   ratio = UniMath / oracle-alloc  (<1.0 => UniMath faster)
   ----------------------------------------------------------------------------------------------
-  BigInt mul 64-bit      | uni      86.87 | orc-reuse       7.36 | orc-alloc     109.59 | uni/orc-alloc 0.79
-  BigInt mul 1024-bit    | uni     580.97 | orc-reuse     118.99 | orc-alloc     220.91 | uni/orc-alloc 2.63
-  BigInt div 1024/64     | uni     209.50 | orc-reuse      42.66 | orc-alloc     143.61 | uni/orc-alloc 1.46
-  BigInt div 1024/512    | uni     419.85 | orc-reuse     118.70 | orc-alloc     221.52 | uni/orc-alloc 1.90
-  BigFloat sin           | uni    6772.22 | orc-reuse    1731.81 | orc-alloc    1791.65 | uni/orc-alloc 3.78
-  BigFloat exp           | uni    6797.13 | orc-reuse    1826.01 | orc-alloc    1889.94 | uni/orc-alloc 3.60
-  BigFloat ln            | uni     772.45 | orc-reuse    2596.84 | orc-alloc    2713.01 | uni/orc-alloc 0.28
-  BigFloat sqrt          | uni    1090.77 | orc-reuse     122.87 | orc-alloc     240.20 | uni/orc-alloc 4.54
-  checksum = 4.77935e+24 (keeps every result live)
+  BigInt mul 64-bit      | uni      81.81 | orc-reuse       7.07 | orc-alloc     105.79 | uni/orc-alloc 0.77
+  BigInt mul 1024-bit    | uni     355.62 | orc-reuse     122.84 | orc-alloc     219.16 | uni/orc-alloc 1.62
+  BigInt div 1024/64     | uni     207.14 | orc-reuse      41.35 | orc-alloc     138.78 | uni/orc-alloc 1.49
+  BigInt div 1024/512    | uni     333.40 | orc-reuse     114.39 | orc-alloc     212.08 | uni/orc-alloc 1.57
+  BigFloat sin           | uni    5986.33 | orc-reuse    1631.20 | orc-alloc    1735.99 | uni/orc-alloc 3.45
+  BigFloat exp           | uni    5893.90 | orc-reuse    1693.48 | orc-alloc    1799.40 | uni/orc-alloc 3.28
+  BigFloat ln            | uni     705.77 | orc-reuse    2473.47 | orc-alloc    2595.84 | uni/orc-alloc 0.27
+  BigFloat sqrt          | uni     990.52 | orc-reuse     116.46 | orc-alloc     230.22 | uni/orc-alloc 4.30
+  checksum = 4.77936e+24 (keeps every result live)
 ```
 
 
