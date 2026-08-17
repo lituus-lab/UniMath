@@ -94,25 +94,40 @@ proc runPerf() =
   # `Complex[BigFloat]` shows what multi precision costs per component; the
   # Rational rows are the exact ring operations, which never leave the field
   # and so carry no truncation at all.
-  let cf = complex(3.0, 4.0)
-  let cg = complex(1.0, -2.0)
+  # Operands rotate through an array rather than being two `let` bindings.
+  # `keepVal` forces the RESULT to be used, which is not the same as forcing the
+  # WORK to happen: with a loop-invariant operand the compiler computes it once
+  # and the loop measures only the sink. An opaque call hides that, so this read
+  # as ~1.3 ns for as long as `*` was a real call -- and collapsed to 0.007 ns,
+  # 151 Gop/s, the moment it was marked {.inline.}. The indexed load costs a
+  # fraction of a ns and is what a caller does anyway.
+  const CN = 256
+  var cfs: array[CN, Complex[float64]]
+  var cgs: array[CN, Complex[float64]]
+  for i in 0 ..< CN:
+    cfs[i] = complex(3.0 + float64(i) * 0.01, 4.0 + float64(i) * 0.02)
+    cgs[i] = complex(1.0 + float64(i) * 0.03, -2.0 - float64(i) * 0.01)
+  var ci = 0
+  template rot(): int =
+    ci = (ci + 1) and (CN - 1)
+    ci
   bench("Complex[float64] mul", 2000000):
-    var z = cf * cg
+    var z = cfs[rot()] * cgs[ci]
     keepVal(z)
   bench("Complex[float64] div", 1000000):
-    var z = cf / cg
+    var z = cfs[rot()] / cgs[ci]
     keepVal(z)
   bench("Complex[float64] abs", 2000000):
-    var z = abs(cf)
+    var z = abs(cfs[rot()])
     keepVal(z)
   bench("Complex[float64] sqrt", 1000000):
-    var z = sqrt(cf)
+    var z = sqrt(cfs[rot()])
     keepVal(z)
   bench("Complex[float64] exp", 500000):
-    var z = exp(cg)
+    var z = exp(cgs[rot()])
     keepVal(z)
   bench("Complex[float64] ln", 500000):
-    var z = ln(cf)
+    var z = ln(cfs[rot()])
     keepVal(z)
 
   let cbf = complex(initBigFloat(3.0), initBigFloat(4.0))
@@ -174,15 +189,18 @@ proc writeMd() =
   fp.writeLine("| op | ns/op | ops/sec |")
   fp.writeLine("|---|---|---|")
   for r in mdPerf:
-    fp.writeLine("| " & r.name & " | " & r.ns.formatFloat(ffDecimal, 3) & " | " &
+    fp.writeLine("| " & r.name & " | " & r.ns.formatFloat(ffDecimal, 3) &
+        " | " &
       r.ops.formatFloat(ffDecimal, 0) & " |")
   fp.close()
   var fa = open("bench/.md_parity.md", fmWrite)
   fa.writeLine("| op | got (BigFloat, 256-bit) | oracle (float64) | \\|err\\| |")
   fa.writeLine("|---|---|---|---|")
   for r in mdParity:
-    fa.writeLine("| " & r.name & " | " & r.got.formatFloat(ffDecimal, 15) & " | " &
-      r.want.formatFloat(ffDecimal, 15) & " | " & r.err.formatFloat(ffScientific, 2) & " |")
+    fa.writeLine("| " & r.name & " | " & r.got.formatFloat(ffDecimal, 15) &
+        " | " &
+      r.want.formatFloat(ffDecimal, 15) & " | " & r.err.formatFloat(
+          ffScientific, 2) & " |")
   fa.close()
 
 when isMainModule:

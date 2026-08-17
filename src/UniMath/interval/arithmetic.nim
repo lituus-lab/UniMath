@@ -10,7 +10,7 @@ import ./interval_type
 
 {.push overflowChecks: off.}
 
-func `+`*[T](a, b: Interval[T]): Interval[T] {.contractual.} =
+func `+`*[T](a, b: Interval[T]): Interval[T] {.contractual, inline.} =
   require:
     a.lower <= a.upper and b.lower <= b.upper
   ensure:
@@ -19,7 +19,7 @@ func `+`*[T](a, b: Interval[T]): Interval[T] {.contractual.} =
     result.lower = nextDown(a.lower + b.lower)
     result.upper = nextUp(a.upper + b.upper)
 
-func `-`*[T](a, b: Interval[T]): Interval[T] {.contractual.} =
+func `-`*[T](a, b: Interval[T]): Interval[T] {.contractual, inline.} =
   require:
     a.lower <= a.upper and b.lower <= b.upper
   ensure:
@@ -28,7 +28,7 @@ func `-`*[T](a, b: Interval[T]): Interval[T] {.contractual.} =
     result.lower = nextDown(a.lower - b.upper)
     result.upper = nextUp(a.upper - b.lower)
 
-func `-`*[T](a: Interval[T]): Interval[T] {.contractual.} =
+func `-`*[T](a: Interval[T]): Interval[T] {.contractual, inline.} =
   require:
     a.lower <= a.upper
   ensure:
@@ -37,7 +37,7 @@ func `-`*[T](a: Interval[T]): Interval[T] {.contractual.} =
     result.lower = nextDown(-a.upper)
     result.upper = nextUp(-a.lower)
 
-func `*`*[T](a, b: Interval[T]): Interval[T] {.contractual.} =
+func `*`*[T](a, b: Interval[T]): Interval[T] {.contractual, inline.} =
   require:
     a.lower <= a.upper and b.lower <= b.upper
   ensure:
@@ -53,7 +53,7 @@ func `*`*[T](a, b: Interval[T]): Interval[T] {.contractual.} =
     result.lower = nextDown(lo)
     result.upper = nextUp(hi)
 
-func `/`*[T](a, b: Interval[T]): Interval[T] {.contractual.} =
+func `/`*[T](a, b: Interval[T]): Interval[T] {.contractual, inline.} =
   require:
     a.lower <= a.upper and b.lower <= b.upper
   ensure:
