@@ -313,3 +313,77 @@ suite "Fixed machine-storage divide matches the BigInt route":
     let z = Fixed[int64, 32](data: 0'i64)
     expect DivByZeroDefect:
       discard a / z
+
+suite "Fixed: the 128-bit path and the portable one agree":
+  # `*` and `/` select a signed __int128 route where the toolchain has one.
+  # `nimble testNoInt128` builds the whole suite on the fallbacks, but that is a
+  # separate binary; comparing against the exported portable helpers here means
+  # one build exercises both, through the public operators.
+  #
+  # On a toolchain without __int128 this compares the portable path against
+  # itself, which is why the differential tests against the BigInt route above
+  # exist separately.
+
+  proc probeMul[FracBits: static[int]](ad, bd: int64) =
+    let portable = mulShiftFloorPortable(ad, bd, FracBits)
+    let a = Fixed[int64, FracBits](data: ad)
+    let b = Fixed[int64, FracBits](data: bd)
+    if portable.fits:
+      let got = a * b
+      if int64(got.data) != portable.value:
+        checkpoint "mul " & $ad & " * " & $bd & " >> " & $FracBits &
+                   ": operator " & $int64(got.data) & ", portable " &
+                   $portable.value
+      check int64(got.data) == portable.value
+    else:
+      expect OverflowDefect:
+        discard a * b
+
+  proc probeDiv[FracBits: static[int]](ad, bd: int64) =
+    if bd == 0: return
+    let portable = divShiftTruncPortable(ad, bd, FracBits)
+    let a = Fixed[int64, FracBits](data: ad)
+    let b = Fixed[int64, FracBits](data: bd)
+    if portable.fits:
+      let got = a / b
+      if int64(got.data) != portable.value:
+        checkpoint "div " & $ad & " / " & $bd & " at Q" & $FracBits &
+                   ": operator " & $int64(got.data) & ", portable " &
+                   $portable.value
+      check int64(got.data) == portable.value
+    else:
+      expect OverflowDefect:
+        discard a / b
+
+  const edges = [0'i64, 1, -1, 2, -2, 3, -3, 7, -7, 255, -255,
+                 high(int64), low(int64), high(int64) - 1, low(int64) + 1,
+                 1'i64 shl 31, -(1'i64 shl 31), 1'i64 shl 32, -(1'i64 shl 32),
+                 1'i64 shl 62, -(1'i64 shl 62),
+                 0x5555555555555555'i64, -0x5555555555555555'i64]
+
+  test "boundary operands over several scales":
+    for a in edges:
+      for b in edges:
+        probeMul[0](a, b); probeDiv[0](a, b)
+        probeMul[1](a, b); probeDiv[1](a, b)
+        probeMul[32](a, b); probeDiv[32](a, b)
+        probeMul[63](a, b); probeDiv[63](a, b)
+        probeMul[64](a, b); probeDiv[64](a, b)
+
+  test "randomised operands":
+    var state = 0x14057B7EF767814F'u64
+    proc nextI64(): int64 =
+      state = state * 6364136223846793005'u64 + 1442695040888963407'u64
+      cast[int64](state)
+    for trial in 0 .. 3000:
+      let a = nextI64()
+      let b = nextI64()
+      probeMul[32](a, b); probeDiv[32](a, b)
+      probeMul[16](a, b); probeDiv[16](a, b)
+      probeMul[63](a, b); probeDiv[63](a, b)
+
+  test "the two roundings really are different, and both are pinned":
+    # The multiply floors: -1 * 1 at Q.1 is -0.5, which floors to -1.
+    check mulShiftFloorPortable(-1, 1, 1) == (value: -1'i64, fits: true)
+    # The divide truncates: -3 / 2 at Q.0 is -1.5, which truncates to -1.
+    check divShiftTruncPortable(-3, 2, 0) == (value: -1'i64, fits: true)
