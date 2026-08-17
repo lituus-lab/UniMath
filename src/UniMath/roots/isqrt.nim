@@ -57,7 +57,7 @@ func isqrt*[T: Integer](n: T): T {.contractual.} =
     return res
 
 func isqrtSeed(n: BigUInt, bl: int): BigUInt =
-  ## An OVERESTIMATE of `sqrt(n)`, accurate to about 31 bits.
+  ## An OVERESTIMATE of `sqrt(n)`, accurate to about 53 bits.
   ##
   ## Newton's integer iteration descends monotonically to `floor(sqrt(n))` only
   ## when started at or above the true root; started below, it can oscillate
@@ -66,13 +66,26 @@ func isqrtSeed(n: BigUInt, bl: int): BigUInt =
   ##
   ## Write `n = top * 2^e + rem` with `e` even and `rem < 2^e`. Then
   ## `sqrt(n) < sqrt(top + 1) * 2^(e/2)`, and rounding that square root up in
-  ## float64 keeps the inequality: the `+ 1` covers both the float rounding and
-  ## the truncation back to an integer.
-  var e = bl - 62
+  ## float64 keeps the inequality.
+  ##
+  ## `top` spans TWO limbs, not one. float64 carries 53 significant bits, so a
+  ## 106-bit window yields a 53-bit seed where a 62-bit window yields 31 — and
+  ## since each Newton step doubles the correct digits, those 22 bits are a
+  ## whole full-width division saved on any operand past 256 bits.
+  ##
+  ## `+ 2` rather than `+ 1`: `float64(lo)` discards the low bits of a 64-bit
+  ## limb, so `approx` can fall slightly BELOW the true window and the margin
+  ## has to cover that as well as the square root's own rounding. Overshooting
+  ## costs at most one extra iteration; undershooting returns a wrong root, and
+  ## the exhaustive tests in `test_roots` are what hold that line.
+  var e = bl - 106
   if e < 0: e = 0
   e = e - (e mod 2) # even, so the shift halves exactly
-  let top = n.bitWindow(Natural(e)) # the leading <= 62 bits of n
-  let s = uint64(sqrt(float64(top) + 1.0)) + 1'u64
+  let lo = n.bitWindow(Natural(e))
+  let hi = n.bitWindow(Natural(e + LimbBits))
+  const TwoPow64 = 18446744073709551616.0
+  let approx = float64(hi) * TwoPow64 + float64(lo)
+  let s = uint64(sqrt(approx)) + 2'u64
   initBigUInt(s) shl Natural(e div 2)
 
 func isqrt*(n: BigUInt): BigUInt {.contractual.} =

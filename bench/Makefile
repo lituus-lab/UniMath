@@ -22,10 +22,16 @@ RM_F   ?= rm -f
 PKG    ?= mpc mpfr gmp
 LIBS   ?= -lm
 
-.PHONY: all run clean
+.PHONY: all run mpfrops clean
 all: run
 run: $(BIN)
 	$(RUN)
+# Oracle-only: what one MPFR primitive costs, with no UniMath lib in the link.
+mpfrops: bench_mpfr_ops
+	./bench_mpfr_ops
+bench_mpfr_ops: bench_mpfr_ops.c
+	$(CC) $(CFLAGS) `pkg-config --cflags mpfr gmp` -o bench_mpfr_ops \
+	  bench_mpfr_ops.c `pkg-config --libs mpfr gmp` $(LIBS)
 $(BIN): bench_speed.c $(ROOT)/include/UniMath.h $(LIB)
 	$(CC) $(CFLAGS) `pkg-config --cflags $(PKG)` -o $(BIN) bench_speed.c \
 	  $(LIB) `pkg-config --libs $(PKG)` $(LIBS)
@@ -33,4 +39,4 @@ $(BIN): bench_speed.c $(ROOT)/include/UniMath.h $(LIB)
 $(LIB):
 	cd $(ROOT) && nimble clibStatic
 clean:
-	$(RM_F) $(BIN)
+	$(RM_F) $(BIN) bench_mpfr_ops

@@ -47,8 +47,10 @@ py/_nimsrc/
 tests/c/test_unimath
 examples/c/demo
 
-# bench binary (built by `nimble benchSpeed`; source tracked)
+# bench binaries (built by `nimble benchSpeed` / `make -C bench mpfrops`;
+# sources tracked)
 bench/bench_speed
+bench/bench_mpfr_ops
 
 # bench markdown/text fragments + export tool binary (built by
 # `nimble benchReadme`; sources tracked, generated data/results not)
