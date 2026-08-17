@@ -180,3 +180,33 @@ when not defined(release):
       check caught
     test "honoured postcondition returns normally":
       check honest() == 1
+
+suite "addRounded orders operands by magnitude, not by raw exponent":
+  # Magnitude is `exponent + bitLength(mantissa)`, so equal-sized values held at
+  # different precisions have very different exponents. Judging negligibility by
+  # raw exponent dropped the LARGER operand: 1.5 at 512 bits (exponent -511)
+  # against 0.5 at 106 (-107). `sqrt`'s Newton step mixes precisions like this.
+  test "wide operand is not dropped when the narrow one has a coarser scale":
+    let wide = initBigFloat(1.5, 512)
+    let narrow = initBigFloat(0.5, 106)
+    check abs(toFloat64(subRounded(wide, narrow, 106, rmNearest)) - 1.0) < 1e-30
+    check abs(toFloat64(subRounded(narrow, wide, 106, rmNearest)) + 1.0) < 1e-30
+    check abs(toFloat64(addRounded(wide, narrow, 106, rmNearest)) - 2.0) < 1e-30
+    check abs(toFloat64(addRounded(narrow, wide, 106, rmNearest)) - 2.0) < 1e-30
+
+  test "the sticky path still fires on a genuinely negligible operand":
+    # Same precisions, so raw exponent and magnitude agree: 1 + 2^-400 rounds
+    # back to 1 at 106 bits, and the tiny operand must not perturb it.
+    let one = initBigFloat(1.0, 106)
+    var tiny = initBigFloat(1.0, 106)
+    tiny.exponent -= 400
+    check toFloat64(addRounded(one, tiny, 106, rmNearest)) == 1.0
+    check toFloat64(addRounded(tiny, one, 106, rmNearest)) == 1.0
+
+  test "sqrt holds its accuracy above 256 bits":
+    # sqrt(2)^2 must return 2 to within an ulp at each width.
+    for p in [128, 256, 384, 512, 1024]:
+      let r = sqrt(initBigFloat(2.0, p))
+      check bitLength(r.mantissa) == p
+      let back = mulRounded(r, r, p, rmNearest)
+      check abs(toFloat64(back) - 2.0) < 1e-15

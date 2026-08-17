@@ -144,7 +144,12 @@ func addRounded*(a, b: BigFloat, precision: int = DefaultPrecision,
       return addRounded(b, a, precision, mode)
 
     let expDiff = a.exponent - b.exponent
-    if expDiff > int64(precision + stickyGapBits):
+    # Negligibility compares magnitudes (`exponent + bitLength(mantissa)`), not
+    # raw exponents: the swap above orders by scale, which the exact alignment
+    # below needs, but scale is not size once the operands differ in precision.
+    let magGap = (a.exponent + int64(bitLength(a.mantissa))) -
+                 (b.exponent + int64(bitLength(b.mantissa)))
+    if magGap > int64(precision + stickyGapBits):
       # b sits entirely below the ulp of the result: sticky path. The bump
       # direction is reasoned toward +/-infinity, not in magnitude.
       result = a
