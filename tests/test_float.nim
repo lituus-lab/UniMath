@@ -87,6 +87,36 @@ suite "BigFloat directed rounding":
     check cmp(up, near) >= 0
     check cmp(down, up) <= 0
 
+suite "BigFloat division at precisions that are not a multiple of a limb":
+  # divRounded's fast path takes a divisor nonzero only in its top limb (the
+  # Taylor denominator). At 256 bits that limb is always left-aligned; these
+  # precisions are not multiples of a limb, where it is not.
+
+  test "small integer divisors, precisions straddling the limb boundary":
+    for precision in [24, 53, 60, 64, 65, 100, 128, 191, 192, 221, 255, 256]:
+      let one = initBigFloat(1.0, precision)
+      for d in [1, 2, 3, 5, 6, 7, 10, 24, 720, 40320]:
+        let den = fromBigInt(initBigInt(d), precision)
+        let q = divRounded(one, den, precision, rmNearest)
+        # q * d must recover 1 to within the working precision.
+        let back = mulRounded(q, den, precision, rmNearest)
+        let err = abs(toFloat64(back) - 1.0)
+        if err > 1e-12:
+          checkpoint "precision = " & $precision & "  d = " & $d &
+                     "  q = " & $toFloat64(q)
+          check err <= 1e-12
+
+  test "the quotient matches a full-width division rounded down":
+    # Reference outside the fast path: divide at 256 bits, compare leading bits.
+    for precision in [100, 191, 221, 255]:
+      let d = 6
+      let qNarrow = divRounded(initBigFloat(1.0, precision),
+                               fromBigInt(initBigInt(d), precision),
+                               precision, rmNearest)
+      let qWide = divRounded(initBigFloat(1.0, 256),
+                             fromBigInt(initBigInt(d), 256), 256, rmNearest)
+      check abs(toFloat64(qNarrow) - toFloat64(qWide)) < 1e-15
+
 suite "BigFloat toFloat64 range":
   test "subnormal: smallest positive 2^-1074":
     var s = fromBigInt(initBigInt(1), P)
