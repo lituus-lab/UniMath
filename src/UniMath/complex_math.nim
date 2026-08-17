@@ -30,12 +30,10 @@
 ## Domain guards (`ln` of zero, `tan` at a pole, division by zero) are body
 ## paths that survive `-d:release`.
 ##
-## `arg`/`polar`/`rect`/`exp`/`ln`/`cln`/`sin`/`cos`/`tan`/`sinh`/`cosh`/`tanh`
-## and the complex `pow` are `proc`, not `func`: the `BigFloat` transcendentals
-## they delegate to read module-level caches, which Nim's effect system flags as
-## global-state access. `arg` and the private `piOf` reach them through
-## `arctan2`, and `polar` through `arg`. A purity annotation only — the caches
-## are immutable after module init.
+## Whatever reaches a `BigFloat` transcendental is a `proc`: those read
+## module-level caches, which Nim's effect system counts as global state. The
+## caches are immutable after module init, so nothing about the values changes
+## — only what the compiler will let the signature claim.
 import contracts
 import std/math
 import ./arithmetic
@@ -151,11 +149,27 @@ proc exp*[T](z: Complex[T]): Complex[T] {.contractual.} =
     let e = exp(z.re)
     complex(e * cos(z.im), e * sin(z.im))
 
-const LnAbsTerms = 20
-  ## Series length for the two `ln1pGeneric` calls below. Both arguments are
-  ## bounded so that `u = s / (2 + s)` stays under 1/3, where the next dropped
-  ## term is `2 * (1/3)^41 / 41` — far below a `float64` ulp, and enough for a
-  ## `BigFloat` up to a few hundred bits.
+const LnAbsMinTerms = 20
+  ## Floor on the series length for the `ln1pGeneric` call in `lnAbs`. The
+  ## argument is bounded so that `u = s / (2 + s)` stays within 1/3, reached at
+  ## `s == -1/2` — that is, at `|z|^2 == 1/2`, where the first dropped term is
+  ## `2 * (1/3)^41 / 41`, some 69 bits down. Far below a `float64` ulp, and
+  ## past what any other bounded component here resolves.
+
+proc lnAbsTerms[T](s: T): int {.inline.} =
+  ## Series length that carries the component's own resolution rather than the
+  ## fixed 69 bits the floor buys. Driving `2 * |u|^(2n+1) / (2n+1)` below
+  ## `2^-p` at the worst case `|u| = 1/3` needs `n >= p / (2 * log2 3)`, i.e.
+  ## roughly `p / 3`.
+  ##
+  ## Only `BigFloat` carries a `p` that varies, and it carries it as the width
+  ## of the value in hand — the same notion `float_math` budgets its own series
+  ## by. Measuring the series argument rather than `z` keeps the two in step: a
+  ## component holding four bits gets a four-bit answer from either.
+  when compiles(bitLength(s.mantissa)):
+    max(LnAbsMinTerms, bitLength(s.mantissa) div 3 + 4)
+  else:
+    LnAbsMinTerms
 
 func unitResidual[T](a, b: T): T {.inline.} =
   ## `a*a + b*b - 1`, kept accurate where that difference is near zero.
@@ -215,7 +229,7 @@ proc lnAbs[T](z: Complex[T]): T =
   if half <= a and a <= two:
     let s = unitResidual(a, b)
     if -half <= s and s <= half:
-      return half * ln1pGeneric(s, LnAbsTerms)
+      return half * ln1pGeneric(s, lnAbsTerms(s))
   # Here the result is carried by `ln(a)` and the second term is a bounded
   # correction, so its own relative error cannot reach the answer: the
   # component's plain `ln` serves, and costs one call instead of a series.
