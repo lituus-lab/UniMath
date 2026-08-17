@@ -52,16 +52,29 @@ static double timeit(bench_fn f, void *ctx, long iters) {
   return ((t1 - t0) * 1e9) / (double)iters;
 }
 
+/* Two decimals lose the whole value once a ratio is small enough: the complex
+ * float64 rows beat the oracle by two to three orders of magnitude and printed
+ * as a flat "0.00". Widen only those; every other row keeps its usual shape. */
+static const char *ratio_fmt(double r) {
+  return r < 0.01 ? "%.4f" : "%.2f";
+}
+
 static void row_reuse(const char *name, double um, double reuse, double alloc) {
+  double r = um / reuse;
   printf("  %-22s | uni %10.2f | orc-reuse %10.2f | orc-alloc %10.2f"
-         " | uni/orc-reuse %.2f\n",
-         name, um, reuse, alloc, um / reuse);
+         " | uni/orc-reuse ",
+         name, um, reuse, alloc);
+  printf(ratio_fmt(r), r);
+  printf("\n");
 }
 
 static void row(const char *name, double um, double reuse, double alloc) {
+  double r = um / alloc;
   printf("  %-22s | uni %10.2f | orc-reuse %10.2f | orc-alloc %10.2f"
-         " | uni/orc-alloc %.2f\n",
-         name, um, reuse, alloc, um / alloc);
+         " | uni/orc-alloc ",
+         name, um, reuse, alloc);
+  printf(ratio_fmt(r), r);
+  printf("\n");
 }
 
 /* ---- BigInt mul, 64-bit operands ---- */
