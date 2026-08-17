@@ -147,3 +147,88 @@ suite "Fixed[BigInt] exact arithmetic":
     let b = initFixed[BigInt, 16](n shl Natural(16))
     let p = a * b
     check toDecimal(p.data shr Natural(16)) == "1" & repeat('0', 40)
+
+suite "Fixed machine-storage multiply matches the BigInt route":
+  # `*` takes a direct 64x64 -> 128 path for machine signed storage and keeps
+  # the BigInt intermediate for BigInt storage. The two must be
+  # indistinguishable, including where they are easiest to get wrong: the floor
+  # rounding of a negative product (BigInt's `shr` is arithmetic, so a dropped
+  # bit rounds AWAY from zero) and every OverflowDefect boundary.
+
+  proc bigRoute(ad, bd: int64, fracBits: int): tuple[value: int64, fits: bool] =
+    ## The generic overload's computation, spelled out so the test does not
+    ## depend on which overload the compiler selects for a given storage type.
+    let big = (toBigInt(ad) * toBigInt(bd)) shr Natural(fracBits)
+    try:
+      (big.toInt64(), true)
+    except Defect, CatchableError:
+      (0'i64, false)
+
+  const edges = [0'i64, 1, -1, 2, -2, 3, -3, 7, -7, 255, -255,
+                 high(int64), low(int64), high(int64) - 1, low(int64) + 1,
+                 1'i64 shl 31, -(1'i64 shl 31), 1'i64 shl 32, -(1'i64 shl 32),
+                 1'i64 shl 62, -(1'i64 shl 62),
+                 0x5555555555555555'i64, -0x5555555555555555'i64]
+
+  proc probe[T; FracBits: static[int]](ad, bd: int64, kind: string) =
+    ## Compare the two routes for one storage type at one scale.
+    if ad < int64(low(T)) or ad > int64(high(T)): return
+    if bd < int64(low(T)) or bd > int64(high(T)): return
+    let a = Fixed[T, FracBits](data: T(ad))
+    let b = Fixed[T, FracBits](data: T(bd))
+    let want = bigRoute(ad, bd, FracBits)
+    let inRange = want.fits and want.value >= int64(low(T)) and
+                  want.value <= int64(high(T))
+    if inRange:
+      let got = a * b
+      if int64(got.data) != want.value:
+        checkpoint kind & ": " & $ad & " * " & $bd & " >> " & $FracBits &
+                   " gave " & $int64(got.data) & ", BigInt route " & $want.value
+      check int64(got.data) == want.value
+    else:
+      expect OverflowDefect:
+        discard a * b
+
+  test "int64 storage, Q32.32, over the boundary values":
+    for ad in edges:
+      for bd in edges:
+        probe[int64, 32](ad, bd, "int64/Q32.32")
+
+  test "int64 storage across several scales":
+    for frac in 0 .. 3:
+      for ad in edges:
+        for bd in edges:
+          case frac
+          of 0: probe[int64, 0](ad, bd, "int64/Q.0")
+          of 1: probe[int64, 1](ad, bd, "int64/Q.1")
+          of 2: probe[int64, 63](ad, bd, "int64/Q.63")
+          else: probe[int64, 64](ad, bd, "int64/Q.64")
+
+  test "narrower storage keeps its own overflow boundary":
+    for ad in edges:
+      for bd in edges:
+        probe[int32, 16](ad, bd, "int32/Q16.16")
+        probe[int16, 8](ad, bd, "int16/Q8.8")
+        probe[int8, 4](ad, bd, "int8/Q4.4")
+
+  test "randomised operands":
+    var state = 0x853C49E6748FEA9B'u64
+    proc nextI64(): int64 =
+      state = state * 6364136223846793005'u64 + 1442695040888963407'u64
+      cast[int64](state)
+    for trial in 0 .. 3000:
+      let ad = nextI64()
+      let bd = nextI64()
+      probe[int64, 32](ad, bd, "random int64/Q32.32")
+      probe[int64, 16](ad, bd, "random int64/Q16")
+      probe[int32, 16](ad shr 33, bd shr 33, "random int32/Q16.16")
+
+  test "negative products round toward negative infinity, not toward zero":
+    # (-1) * 1 at Q.1 is -0.5, which floors to -1 and truncates to 0.
+    let a = Fixed[int64, 1](data: -1'i64)
+    let b = Fixed[int64, 1](data: 1'i64)
+    check int64((a * b).data) == -1
+    # Same shape one scale up.
+    let c = Fixed[int64, 4](data: -1'i64)
+    let d = Fixed[int64, 4](data: 8'i64)
+    check int64((c * d).data) == -1
