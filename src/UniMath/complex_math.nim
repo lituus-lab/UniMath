@@ -30,10 +30,12 @@
 ## Domain guards (`ln` of zero, `tan` at a pole, division by zero) are body
 ## paths that survive `-d:release`.
 ##
-## `exp`/`ln`/`sin`/`cos`/`tan`/`pow`/`rect` are `proc`, not `func`: the
-## `BigFloat` transcendentals they delegate to read module-level caches, which
-## Nim's effect system flags as global-state access. A purity annotation only —
-## the caches are immutable after module init.
+## `arg`/`polar`/`rect`/`exp`/`ln`/`cln`/`sin`/`cos`/`tan`/`sinh`/`cosh`/`tanh`
+## and the complex `pow` are `proc`, not `func`: the `BigFloat` transcendentals
+## they delegate to read module-level caches, which Nim's effect system flags as
+## global-state access. `arg` and the private `piOf` reach them through
+## `arctan2`, and `polar` through `arg`. A purity annotation only — the caches
+## are immutable after module init.
 import contracts
 import std/math
 import ./arithmetic
@@ -75,14 +77,14 @@ func abs*[T](z: Complex[T]): T {.contractual.} =
     let r = a / b
     return b * sqrt(one + r * r)
 
-func arg*[T](z: Complex[T]): T {.contractual.} =
+proc arg*[T](z: Complex[T]): T {.contractual.} =
   ## Argument `arg(z)` in `(-pi, pi]` via the component's `arctan2`. `arg(0)`
   ## is `arctan2(0, 0)`, which every backend here defines as `0`. Approximate.
   body:
     mixin arctan2
     arctan2(z.im, z.re)
 
-func piOf[T](): T {.inline.} =
+proc piOf[T](): T {.inline.} =
   ## `pi` for the component, as `arctan2(0, -1)` — the principal argument of
   ## `-1`. Derives the constant from the same `arctan2` the branch cut is
   ## defined by, so `ln` of a negative real lands exactly on the cut whatever
@@ -90,7 +92,7 @@ func piOf[T](): T {.inline.} =
   mixin arctan2
   arctan2(fromInt(T, 0), -fromInt(T, 1))
 
-func polar*[T](z: Complex[T]): (T, T) {.contractual.} =
+proc polar*[T](z: Complex[T]): (T, T) {.contractual.} =
   ## `(modulus, argument)`. Approximate.
   body:
     (abs(z), arg(z))
