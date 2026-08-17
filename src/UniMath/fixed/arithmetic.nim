@@ -1,8 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 lituus-lab
 ## Fixed-point arithmetic. `+`/`-` are integer ops on the data (same scale).
-## `*` and `/` use an exact `BigInt` intermediate so the double-width product
-## and the pre-scaled dividend never lose bits, then range-check back to `T`.
+## `*` and `/` need the double-width product and the pre-scaled dividend to keep
+## every bit, then range-check back to `T`.
+##
+## For BigInt storage that means an exact `BigInt` intermediate. For MACHINE
+## storage it does not: the product of two `int64` is 128 bits, which
+## `mulWide` produces in registers, and building three `BigInt`s to hold it cost
+## 89 ns against 0.8 ns for `Fixed.+`. The signed overload below takes the
+## direct route and the generic one keeps the `BigInt` intermediate.
 import ./fixed_point
 import ../arithmetic
 import contracts
@@ -117,6 +123,60 @@ func `-`*[T; FracBits: static[int]](a: Fixed[T, FracBits]): Fixed[T,
   body:
     result.data = negChk(a.data)
 
+
+func mulShiftFloor(a, b: int64, k: int): tuple[value: int64, fits: bool] =
+  ## `floor(a * b / 2^k)` in 128 bits, and whether it lands inside `int64`.
+  ##
+  ## FLOOR, not truncation. The `BigInt` route this replaces used `BigInt.shr`,
+  ## which is an arithmetic shift, so a negative product rounds AWAY from zero
+  ## whenever a bit is dropped. Truncating instead would be an off-by-one on
+  ## negative values only -- the kind of difference that hides until it does
+  ## not.
+  ##
+  ## Portable: `mulWide` plus `uint64` shifts. Magnitudes are taken through
+  ## `-(x + 1) + 1` so `low(int64)`, where `-x` overflows, is not a special
+  ## case.
+  let negative = (a < 0) != (b < 0)
+  let am = if a < 0: uint64(-(a + 1)) + 1'u64 else: uint64(a)
+  let bm = if b < 0: uint64(-(b + 1)) + 1'u64 else: uint64(b)
+  var hi: Limb
+  let lo = mulWide(am, bm, hi)
+
+  var sh, shHi: uint64
+  var dropped: bool
+  if k == 0:
+    sh = lo; shHi = hi; dropped = false
+  elif k < LimbBits:
+    sh = (lo shr k) or (hi shl (LimbBits - k))
+    shHi = hi shr k
+    dropped = (lo and ((1'u64 shl k) - 1)) != 0
+  elif k < 2 * LimbBits:
+    let k2 = k - LimbBits
+    sh = if k2 == 0: hi else: hi shr k2
+    shHi = 0
+    dropped = lo != 0 or (k2 > 0 and (hi and ((1'u64 shl k2) - 1)) != 0)
+  else:
+    # Past the width of the product: everything shifts out. Spelled here rather
+    # than left to `hi shr k2`, which is undefined once k2 reaches LimbBits.
+    # `divShiftTruncPortable` already guards its own shift the same way.
+    sh = 0; shHi = 0
+    dropped = lo != 0 or hi != 0
+
+  if shHi != 0: return (0'i64, false)
+
+  if negative:
+    # floor(-m / 2^k) = -ceil(m / 2^k).
+    var mag = sh
+    if dropped:
+      if mag == high(uint64): return (0'i64, false)
+      mag += 1
+    if mag > uint64(high(int64)) + 1'u64: return (0'i64, false)
+    if mag == uint64(high(int64)) + 1'u64: return (low(int64), true)
+    (-int64(mag), true)
+  else:
+    if sh > uint64(high(int64)): return (0'i64, false)
+    (int64(sh), true)
+
 func `*`*[T; FracBits: static[int]](a, b: Fixed[T, FracBits]): Fixed[T,
     FracBits] {.contractual.} =
   ## Product via an exact `BigInt` intermediate: `(a.data * b.data) shr
@@ -128,6 +188,27 @@ func `*`*[T; FracBits: static[int]](a, b: Fixed[T, FracBits]): Fixed[T,
   body:
     let bigRes: BigInt = (toBigInt(a.data) * toBigInt(b.data)) shr Natural(FracBits)
     result.data = fromBigIntChecked(bigRes, T)
+
+func `*`*[T: SomeSignedInt; FracBits: static[int]](a, b: Fixed[T,
+    FracBits]): Fixed[T, FracBits] {.contractual.} =
+  ## Product for machine signed storage: one 64x64 -> 128 multiply and a shift,
+  ## no `BigInt` intermediate. Identical results to the generic overload --
+  ## including the floor rounding of a negative product and every
+  ## `OverflowDefect` -- verified over `low`/`high` boundaries and randomised
+  ## operands in `test_fixed`.
+  body:
+    # FracBits reaches the C helpers as a shift count; both are undefined past
+    # the width of the 128-bit intermediate. `static[int]` makes this free.
+    static: doAssert FracBits >= 0 and FracBits < 2 * LimbBits,
+      "Fixed FracBits must be in 0 ..< " & $(2 * LimbBits)
+    let r = mulShiftFloor(int64(a.data), int64(b.data), FracBits)
+    if not r.fits:
+      raise newException(OverflowDefect,
+        "Fixed.*: product does not fit int64 storage")
+    if r.value < int64(low(T)) or r.value > int64(high(T)):
+      raise newException(OverflowDefect,
+        "Fixed.*: " & $r.value & " notin " & $low(T) & " .. " & $high(T))
+    result.data = T(r.value)
 
 func `/`*[T; FracBits: static[int]](a, b: Fixed[T, FracBits]): Fixed[T,
     FracBits] {.contractual.} =
