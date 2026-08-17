@@ -130,6 +130,15 @@ suite "Complex over BigFloat":
     check abs(toFloat64(r.im) - 1.0) < 1e-12
   test "ln of a negative real lands on the cut":
     check abs(toFloat64(cln(initBigFloat(-1.0, 128)).im) - PI) < 1e-12
+  test "the logarithm's series budget follows the component's own width":
+    # |z|^2 near 1/2 is where `lnAbs` hands `ln1pGeneric` its largest argument.
+    # A term count fixed at 20 stops around 69 bits whatever the component
+    # carries: at |z|^2 == 0.6 a 256-bit BigFloat came out 4e-26 out. Away from
+    # |z| == 1 the real part is O(1) and does not cancel, so the scalar `ln` is
+    # a sound reference at this radius.
+    let x = sqrt(initBigFloat(0.6, 256))
+    let got = ln(complex(x, initBigFloat(0.0, 256))).re
+    check abs(toFloat64(got - ln(x))) < 1e-40
 
 suite "Complex is not a RealField":
   test "the ordered-field generics reject Complex":
