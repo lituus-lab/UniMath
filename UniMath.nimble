@@ -36,6 +36,7 @@ task docs, "API reference + book into pages/ — what CI publishes":
   cpFile "book/index.html", "pages/index.html"
 
 task test, "Nim tests (debug, contracts active)":
+  exec "nim c -r --path:src -o:build/test_primitives tests/test_primitives.nim"
   exec "nim c -r --path:src -o:build/test_native_float tests/test_native_float.nim"
   exec "nim c -r --path:src -o:build/test_arithmetic tests/test_arithmetic.nim"
   exec "nim c -r --path:src -o:build/test_fixed tests/test_fixed.nim"
@@ -59,6 +60,7 @@ task test, "Nim tests (debug, contracts active)":
   exec "nim c -r --path:src -o:build/test_properties tests/test_properties.nim"
 
 task testRelease, "Nim tests (release, contracts compiled away)":
+  exec "nim c -r -d:release --path:src -o:build/test_primitives_rel tests/test_primitives.nim"
   exec "nim c -r -d:release --path:src -o:build/test_native_float_rel tests/test_native_float.nim"
   exec "nim c -r -d:release --path:src -o:build/test_arithmetic_rel tests/test_arithmetic.nim"
   exec "nim c -r -d:release --path:src -o:build/test_fixed_rel tests/test_fixed.nim"
