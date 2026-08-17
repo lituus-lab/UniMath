@@ -120,7 +120,7 @@ suite "Complex satisfies the Field concept":
     check abs(e.re - 0.5403023058681398) < 1e-12
     check abs(e.im - 0.8414709848078965) < 1e-12
   test "integer coefficients reach the series through fromInt":
-    check sinTaylor(complex(1.0, 0.0), 12).re - 0.8414709848078965 < 1e-12
+    check abs(sinTaylor(complex(1.0, 0.0), 12).re - 0.8414709848078965) < 1e-12
 
 suite "Complex integer power":
   test "binary exponentiation matches repeated multiplication":
@@ -138,3 +138,7 @@ suite "Complex integer power":
   test "a negative exponent of zero raises":
     expect(Defect):
       discard pow(complex(0.0, 0.0), -1)
+  test "the most negative exponent has no negation to overflow":
+    # |low(int)| does not fit in an int, so the exponent's magnitude is taken
+    # unsigned; 1 is its own inverse, which pins the result for all 64 steps.
+    check pow(complex(1.0, 0.0), low(int)) == complex(1.0, 0.0)
