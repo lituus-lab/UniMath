@@ -210,6 +210,54 @@ func `*`*[T: SomeSignedInt; FracBits: static[int]](a, b: Fixed[T,
         "Fixed.*: " & $r.value & " notin " & $low(T) & " .. " & $high(T))
     result.data = T(r.value)
 
+
+func divShiftTrunc(a, b: int64, k: int): tuple[value: int64, fits: bool] =
+  ## `trunc(a * 2^k / b)` in 128 bits, and whether it lands inside `int64`.
+  ##
+  ## TRUNCATION, not floor -- and deliberately not the same rounding as
+  ## `mulShiftFloor`. The `BigInt` route this replaces divides MAGNITUDES and
+  ## applies the sign afterwards, so it truncates toward zero, where `BigInt.shr`
+  ## in the multiply is an arithmetic shift and floors. The two operators really
+  ## do round differently, and matching each one is the point.
+  ##
+  ## Division by zero raises here, as it did from the `BigInt` divide.
+  if b == 0:
+    raise newException(DivByZeroDefect, "Fixed./: division by zero")
+  let negative = (a < 0) != (b < 0)
+  let am = if a < 0: uint64(-(a + 1)) + 1'u64 else: uint64(a)
+  let bm = if b < 0: uint64(-(b + 1)) + 1'u64 else: uint64(b)
+
+  # dividend = am << k, as a 128-bit (hi, lo).
+  var hi, lo: uint64
+  if k == 0:
+    hi = 0'u64
+    lo = am
+  elif k < LimbBits:
+    hi = am shr (LimbBits - k)
+    lo = am shl k
+  else:
+    let k2 = k - LimbBits
+    if k2 >= LimbBits:
+      if am != 0'u64: return (0'i64, false)
+      hi = 0'u64
+    else:
+      if k2 > 0 and (am shr (LimbBits - k2)) != 0'u64: return (0'i64, false)
+      hi = am shl k2
+    lo = 0'u64
+
+  # `udiv128` needs hi < divisor; otherwise the quotient needs more than 64
+  # bits and cannot fit the storage anyway.
+  if hi >= bm: return (0'i64, false)
+  let (q, _) = udiv128(hi, lo, bm)
+
+  if negative:
+    if q > uint64(high(int64)) + 1'u64: return (0'i64, false)
+    if q == uint64(high(int64)) + 1'u64: return (low(int64), true)
+    (-int64(q), true)
+  else:
+    if q > uint64(high(int64)): return (0'i64, false)
+    (int64(q), true)
+
 func `/`*[T; FracBits: static[int]](a, b: Fixed[T, FracBits]): Fixed[T,
     FracBits] {.contractual.} =
   ## Quotient via an exact `BigInt` intermediate: `(a.data shl FracBits) div
@@ -219,3 +267,23 @@ func `/`*[T; FracBits: static[int]](a, b: Fixed[T, FracBits]): Fixed[T,
   body:
     let bigRes: BigInt = (toBigInt(a.data) shl Natural(FracBits)) div toBigInt(b.data)
     result.data = fromBigIntChecked(bigRes, T)
+
+func `/`*[T: SomeSignedInt; FracBits: static[int]](a, b: Fixed[T,
+    FracBits]): Fixed[T, FracBits] {.contractual.} =
+  ## Quotient for machine signed storage: one 128/64 divide, no `BigInt`
+  ## intermediate. Identical results to the generic overload -- including the
+  ## truncation toward zero and every `OverflowDefect` -- verified over
+  ## boundary and randomised operands in `test_fixed`.
+  body:
+    # FracBits reaches the C helpers as a shift count; both are undefined past
+    # the width of the 128-bit intermediate. `static[int]` makes this free.
+    static: doAssert FracBits >= 0 and FracBits < 2 * LimbBits,
+      "Fixed FracBits must be in 0 ..< " & $(2 * LimbBits)
+    let r = divShiftTrunc(int64(a.data), int64(b.data), FracBits)
+    if not r.fits:
+      raise newException(OverflowDefect,
+        "Fixed./: quotient does not fit int64 storage")
+    if r.value < int64(low(T)) or r.value > int64(high(T)):
+      raise newException(OverflowDefect,
+        "Fixed./: " & $r.value & " notin " & $low(T) & " .. " & $high(T))
+    result.data = T(r.value)
