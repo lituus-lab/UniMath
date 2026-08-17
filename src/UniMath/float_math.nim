@@ -58,6 +58,11 @@ const expReduceBits* {.intdefine.} = 28
   ## terms it removes.
 
 const expGuardBits* {.intdefine.} = 8
+static:
+  # Both are added to a working precision; a negative one would silently ask
+  # for fewer bits than the caller requested.
+  doAssert expReduceBits >= 0, "-d:expReduceBits must be non-negative"
+  doAssert expGuardBits >= 0, "-d:expGuardBits must be non-negative"
   ## MARGIN above the `k` bits that the squaring chain itself requires.
   ##
   ## The load-bearing term is `k`, not this one: `k` squarings multiply the
@@ -438,7 +443,11 @@ func sqrt*(x: BigFloat, iterations: int = 15): BigFloat {.contractual.} =
       return x
     if x.sign:
       raise newException(ValueError, "sqrt: input is negative (sqrt undefined)")
-    const p = 256
+    # From the argument, as every other function here does. This was a fixed
+    # 256, so `sqrt` of a 1024-bit value silently returned 256 bits -- and made
+    # the precision test vacuous, since its higher-precision reference computed
+    # at 256 too and matched the candidate exactly.
+    let p = workingPrecision(x)
     # value = M * 2^E, M in [2^(p-1), 2^p). Split E = 2*q + r (r in {0,1}) so
     # sqrt(value) = sqrt(M * 2^r) * 2^q, then reduce M*2^r to g in [1,4) with an
     # even bit length e: sqrt(M*2^r) = sqrt(g) * 2^(e/2). The reduction is by
