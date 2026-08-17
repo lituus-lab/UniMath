@@ -43,6 +43,16 @@ when hasNativeWide:
   proc mulWideC(a, b: Limb, hi: var Limb): Limb {.importc: "unimath_mulwide",
       header: currentSourcePath().parentDir / "limb_intrinsics.h".}
 
+when hasInt128:
+  proc mulBasecase*(r: ptr Limb, a: ptr Limb, an: int, b: ptr Limb, bn: int)
+      {.importc: "unimath_mul_basecase",
+        header: currentSourcePath().parentDir / "limb_intrinsics.h".}
+    ## Schoolbook `a * b` into `r`, which need not be zeroed. Only where the
+    ## toolchain has a 128-bit integer: the accumulator is `unsigned __int128`
+    ## and the compiler keeps its carry in the flags, which the hand-threaded
+    ## `mulAdd` loop cannot ask for. See `limb_intrinsics.h` for the measured
+    ## margin.
+
 func addC*(carryIn: Limb, a, b: Limb, carryOut: var Limb): Limb {.inline.} =
   ## `r = a + b + carryIn`; `carryOut` is 0 or 1.
   let partial = a + b
