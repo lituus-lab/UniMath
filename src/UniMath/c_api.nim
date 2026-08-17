@@ -1524,7 +1524,7 @@ proc unimath_complex_tanh(a: ComplexC): ComplexC =
   if c.re == 0.0 and c.im == 0.0: return NaNComplexC
   cxTo(sinh(z) / c)
 
-proc unimath_complex_pow_int(a: ComplexC, n: cint): ComplexC =
+proc unimath_complex_pow_int(a: ComplexC; n: cint): ComplexC =
   ## Integer power by binary exponentiation. `n == 0` is 1 for every base; a
   ## negative `n` on a zero base is the NaN complex.
   if n < 0 and a.re == 0.0 and a.im == 0.0: return NaNComplexC
@@ -1644,7 +1644,7 @@ proc unimath_complex_bigfloat_cos(a: pointer): pointer =
   if a == nil: return nil
   pinCxFloat(cos(cxfOf(a)))
 
-proc unimath_complex_bigfloat_pow_int(a: pointer, n: cint): pointer =
+proc unimath_complex_bigfloat_pow_int(a: pointer; n: cint): pointer =
   ## NULL on a negative `n` with a zero base; `n == 0` is 1 for every base.
   if a == nil: return nil
   if n < 0 and cxfOf(a).isZero: return nil
@@ -1749,7 +1749,7 @@ proc unimath_complex_rational_sqrt(a: pointer): pointer =
   if a == nil: return nil
   pinCxRat(sqrt(cxrOf(a)))
 
-proc unimath_complex_rational_pow_int(a: pointer, n: cint): pointer =
+proc unimath_complex_rational_pow_int(a: pointer; n: cint): pointer =
   ## EXACT integer power. NULL on a negative `n` with a zero base.
   if a == nil: return nil
   if n < 0 and cxrOf(a).isZero: return nil
@@ -1775,7 +1775,7 @@ proc unimath_complex_rational_destroy(h: pointer) =
 # intermediate, and division by zero returns the zero complex.
 # ------------------------------------------------------------------------------
 
-proc unimath_complex_fixed_from_int(re, im: int64,
+proc unimath_complex_fixed_from_int(re, im: int64;
     frac_bits: cint): ComplexFixedC =
   ComplexFixedC(re: unimath_fixed_from_int(re, frac_bits),
                 im: unimath_fixed_from_int(im, frac_bits))
@@ -1798,7 +1798,7 @@ proc unimath_complex_fixed_neg(a: ComplexFixedC): ComplexFixedC =
 proc unimath_complex_fixed_conj(a: ComplexFixedC): ComplexFixedC =
   ComplexFixedC(re: a.re, im: unimath_fixed_sub(0, a.im))
 
-proc unimath_complex_fixed_mul(a, b: ComplexFixedC,
+proc unimath_complex_fixed_mul(a, b: ComplexFixedC;
                                frac_bits: cint): ComplexFixedC =
   ## `(ac - bd) >> f`, `(ad + bc) >> f`. The products are formed as exact
   ## BigInts before the shift, so no intermediate overflows on the way to a
@@ -1813,7 +1813,7 @@ proc unimath_complex_fixed_mul(a, b: ComplexFixedC,
   ComplexFixedC(re: clampToInt64((ar * br - ai * bi) shr f),
                 im: clampToInt64((ar * bi + ai * br) shr f))
 
-proc unimath_complex_fixed_div(a, b: ComplexFixedC,
+proc unimath_complex_fixed_div(a, b: ComplexFixedC;
                                frac_bits: cint): ComplexFixedC =
   ## The textbook quotient over an exact BigInt denominator — no Smith scaling
   ## needed, since `c^2 + d^2` cannot overflow a BigInt. The zero complex on a
@@ -1831,7 +1831,7 @@ proc unimath_complex_fixed_div(a, b: ComplexFixedC,
   ComplexFixedC(re: clampToInt64(((ar * br + ai * bi) shl f) div den),
                 im: clampToInt64(((ai * br - ar * bi) shl f) div den))
 
-proc unimath_complex_fixed_norm2(a: ComplexFixedC, frac_bits: cint): int64 =
+proc unimath_complex_fixed_norm2(a: ComplexFixedC; frac_bits: cint): int64 =
   ## `(re^2 + im^2) >> f`, clamped.
   if frac_bits < 0 or frac_bits > MaxFracBits: return 0
   let ar = initBigInt(a.re)
@@ -1857,7 +1857,7 @@ proc unimath_complex_fixed_sqrt(a: ComplexFixedC): ComplexFixedC =
   except CatchableError, Defect:
     ComplexFixedC(re: 0, im: 0)
 
-proc unimath_complex_fixed_pow_int(a: ComplexFixedC, n: cint,
+proc unimath_complex_fixed_pow_int(a: ComplexFixedC; n: cint;
                                    frac_bits: cint): ComplexFixedC =
   ## Binary exponentiation over the raw words. `n == 0` is 1; a negative `n`
   ## inverts at the end, and a zero base then yields the zero complex.
