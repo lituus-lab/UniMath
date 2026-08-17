@@ -511,6 +511,7 @@ typedef void *unimath_complex_bigfloat;
 /* The two component handles are copied in; the caller still owns them. */
 unimath_complex_bigfloat unimath_complex_bigfloat_from_bigfloat(
     unimath_bigfloat re, unimath_bigfloat im);
+/* NULL if either component is Inf or NaN. */
 unimath_complex_bigfloat unimath_complex_bigfloat_from_f64(double re, double im);
 /* NEW component handles; destroy them separately. */
 unimath_bigfloat unimath_complex_bigfloat_re(unimath_complex_bigfloat h);

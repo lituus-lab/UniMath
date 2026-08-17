@@ -1506,9 +1506,10 @@ proc unimath_complex_cos(a: ComplexC): ComplexC =
 
 proc unimath_complex_tan(a: ComplexC): ComplexC =
   ## The NaN complex at a pole (zero cosine).
-  let c = cos(cxOf(a))
+  let z = cxOf(a)
+  let c = cos(z)
   if c.re == 0.0 and c.im == 0.0: return NaNComplexC
-  cxTo(sin(cxOf(a)) / c)
+  cxTo(sin(z) / c)
 
 proc unimath_complex_sinh(a: ComplexC): ComplexC =
   cxTo(sinh(cxOf(a)))
@@ -1518,9 +1519,10 @@ proc unimath_complex_cosh(a: ComplexC): ComplexC =
 
 proc unimath_complex_tanh(a: ComplexC): ComplexC =
   ## The NaN complex at a pole (zero hyperbolic cosine).
-  let c = cosh(cxOf(a))
+  let z = cxOf(a)
+  let c = cosh(z)
   if c.re == 0.0 and c.im == 0.0: return NaNComplexC
-  cxTo(sinh(cxOf(a)) / c)
+  cxTo(sinh(z) / c)
 
 proc unimath_complex_pow_int(a: ComplexC, n: cint): ComplexC =
   ## Integer power by binary exponentiation. `n == 0` is 1 for every base; a
@@ -1560,7 +1562,9 @@ proc unimath_complex_bigfloat_from_bigfloat(re, im: pointer): pointer =
   pinCxFloat(complex(bfOf(re), bfOf(im)))
 
 proc unimath_complex_bigfloat_from_f64(re, im: float64): pointer =
-  pinCxFloat(complex(initBigFloat(re), initBigFloat(im)))
+  ## NULL if either component is Inf or NaN, as the scalar constructor is.
+  try: pinCxFloat(complex(initBigFloat(re), initBigFloat(im)))
+  except ValueError: nil
 
 proc unimath_complex_bigfloat_re(h: pointer): pointer =
   ## A NEW BigFloat handle for the real part; destroy it separately.
@@ -1835,17 +1839,23 @@ proc unimath_complex_fixed_norm2(a: ComplexFixedC, frac_bits: cint): int64 =
   clampToInt64((ar * ar + ai * ai) shr Natural(int(frac_bits)))
 
 proc unimath_complex_fixed_abs(a: ComplexFixedC): int64 =
-  ## Q32.32 modulus, matching `unimath_fixed_sqrt`'s fixed scale.
-  abs(complex(fxOf(a.re), fxOf(a.im))).data
+  ## Q32.32 modulus, matching `unimath_fixed_sqrt`'s fixed scale. Zero where
+  ## the fixed-point core overflows, as the scalar entry points are.
+  try: abs(complex(fxOf(a.re), fxOf(a.im))).data
+  except CatchableError, Defect: 0
 
 proc unimath_complex_fixed_arg(a: ComplexFixedC): int64 =
   ## Q32.32 principal argument, via the CORDIC `atan2`.
-  arg(complex(fxOf(a.re), fxOf(a.im))).data
+  try: arg(complex(fxOf(a.re), fxOf(a.im))).data
+  except CatchableError, Defect: 0
 
 proc unimath_complex_fixed_sqrt(a: ComplexFixedC): ComplexFixedC =
   ## Q32.32 principal square root.
-  let r = sqrt(complex(fxOf(a.re), fxOf(a.im)))
-  ComplexFixedC(re: r.re.data, im: r.im.data)
+  try:
+    let r = sqrt(complex(fxOf(a.re), fxOf(a.im)))
+    ComplexFixedC(re: r.re.data, im: r.im.data)
+  except CatchableError, Defect:
+    ComplexFixedC(re: 0, im: 0)
 
 proc unimath_complex_fixed_pow_int(a: ComplexFixedC, n: cint,
                                    frac_bits: cint): ComplexFixedC =
@@ -1870,7 +1880,10 @@ proc unimath_complex_fixed_pow_int(a: ComplexFixedC, n: cint,
 proc unimath_csqrt_fixed(q: int64): ComplexFixedC =
   ## Square root of a REAL Q32.32 value, returned as a complex instead of
   ## clamping a negative input to zero.
-  let r = csqrt(fxOf(q))
-  ComplexFixedC(re: r.re.data, im: r.im.data)
+  try:
+    let r = csqrt(fxOf(q))
+    ComplexFixedC(re: r.re.data, im: r.im.data)
+  except CatchableError, Defect:
+    ComplexFixedC(re: 0, im: 0)
 
 {.pop.}
