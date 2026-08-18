@@ -69,7 +69,7 @@ proc main() =
       "per-op handle allocation). The ratio column names which one it " &
       "divides by: the handle surfaces are measured against `orc-alloc`, " &
       "the by-value `Complex[float64]` against `orc-reuse`, since it " &
-      "allocates nothing. Below 1.0 means UniMath is faster:\n\n```\n" &
+      "allocates nothing. Below 1.0 means UniMath is faster:\n\n```text\n" &
       readFile(speedPath).strip() & "\n```\n\n"
   else:
     stderr.writeLine("[readme] no " & speedPath &
