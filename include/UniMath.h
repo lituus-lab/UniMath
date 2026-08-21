@@ -97,6 +97,13 @@ double unimath_f64_erf(double x);
 double unimath_f64_erfc(double x);
 double unimath_f64_gamma(double x);
 double unimath_f64_lgamma(double x);
+/* Beta-family functions require positive finite a and b with a finite,
+   representable sum. The regularized
+   function additionally requires 0 <= x <= 1. Invalid input or failure to
+   converge returns NaN. */
+double unimath_f64_log_beta(double a, double b);
+double unimath_f64_beta(double a, double b);
+double unimath_f64_regularized_incomplete_beta(double x, double a, double b);
 double unimath_f64_floor(double x);
 double unimath_f64_ceil(double x);
 double unimath_f64_trunc(double x);
