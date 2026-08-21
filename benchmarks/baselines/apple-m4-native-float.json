@@ -14,42 +14,42 @@
   "semantics": "preallocated output; exact same-process facade parity; regularized beta over 0 < x < 1",
   "direct_transform": {
     "run_mean_ms": [
-      0.61889605,
-      0.6239750000000001,
-      0.64019785
+      0.6141355499999999,
+      0.6138396,
+      0.6315395
     ],
-    "median_run_mean_ms": 0.6239750000000001
+    "median_run_mean_ms": 0.6141355499999999
   },
   "facade_transform": {
     "run_mean_ms": [
-      0.5892312,
-      0.6074810999999999,
-      0.5990749499999999
+      0.5768561,
+      0.58179585,
+      0.5901937500000001
     ],
-    "median_run_mean_ms": 0.5990749499999999
+    "median_run_mean_ms": 0.58179585
   },
   "direct_polar": {
     "run_mean_ms": [
-      1.1836019999999998,
-      1.2251271999999997,
-      1.1920021
+      1.2031813,
+      1.1870479500000002,
+      1.19254375
     ],
-    "median_run_mean_ms": 1.1920021
+    "median_run_mean_ms": 1.19254375
   },
   "facade_polar": {
     "run_mean_ms": [
-      1.2018583500000002,
-      1.2578936999999997,
-      1.1925082999999999
+      1.17191875,
+      1.1674416,
+      1.1977312500000001
     ],
-    "median_run_mean_ms": 1.2018583500000002
+    "median_run_mean_ms": 1.17191875
   },
   "regularized_beta": {
     "run_mean_ms": [
-      10.964052099999998,
-      11.117479250000002,
-      11.01514595
+      10.801168650000001,
+      10.8135418,
+      11.176428999999999
     ],
-    "median_run_mean_ms": 11.01514595
+    "median_run_mean_ms": 10.8135418
   }
 }
