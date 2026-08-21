@@ -8,6 +8,9 @@
 import std/[unittest, math]
 import UniMath
 import UniMath/special/gamma
+import UniMath/special/beta
+when not defined(release) and not defined(danger):
+  import contracts
 
 proc sqrtF64(v: float64): float64 {.noSideEffect.} = math.sqrt(v)
 
@@ -85,6 +88,60 @@ suite "Gamma — Lanczos (float64)":
       discard gammaLanczosFloat(-1.0)
     expect ValueError:
       discard gammaLanczosFloat(-3.0)
+
+suite "Beta functions — float64":
+  test "complete beta uses a logarithmic evaluation":
+    check abs(logBeta(2.0, 3.0) - ln(1.0 / 12.0)) < 2e-15
+    check abs(beta(2.0, 3.0) - 1.0 / 12.0) < 2e-16
+
+  test "regularized values agree with independent reference vectors":
+    let cases = [
+      (0.1, 0.5, 0.5, 0.20483276469913345),
+      (0.2, 2.0, 5.0, 0.34464000000000006),
+      (0.8, 5.0, 2.0, 0.65536000000000005),
+      (0.4, 10.0, 20.0, 0.78531838976282597),
+      (1e-8, 3.0, 4.0, 1.9999999549999838e-23)
+    ]
+    for (x, a, b, expected) in cases:
+      let actual = regularizedIncompleteBeta(x, a, b)
+      check abs(actual - expected) <= max(2e-14 * abs(expected), 1e-37)
+
+  test "endpoints and complementary symmetry remain exact":
+    check regularizedIncompleteBeta(0.0, 2.0, 3.0) == 0.0
+    check regularizedIncompleteBeta(1.0, 2.0, 3.0) == 1.0
+    for x in [0.01, 0.2, 0.5, 0.9]:
+      let lower = regularizedIncompleteBeta(x, 2.5, 7.5)
+      let upper = regularizedIncompleteBeta(1.0 - x, 7.5, 2.5)
+      check abs(lower + upper - 1.0) < 3e-14
+
+  test "closed forms remain stable across large shape ratios":
+    for a in [1e2, 1e15, 1e20, 1e308]:
+      check abs(logBeta(a, 1.0) + ln(a)) <= 2e-15 * ln(a)
+      check abs(beta(a, 1.0) - 1.0 / a) <= 2e-15 / a
+      check logBeta(a, 1.0) == logBeta(1.0, a)
+    let
+      x = 1.0 - 1e-15
+      expected = pow(x, 1e15)
+    check abs(regularizedIncompleteBeta(x, 1e15, 1.0) - expected) < 2e-15
+    check abs(regularizedIncompleteBeta(0.25, 1.0, 12.0) -
+      (1.0 - pow(0.75, 12.0))) < 2e-15
+
+  test "invalid domains raise in every build mode":
+    when not defined(release) and not defined(danger):
+      expect PreConditionDefect: discard logBeta(0.0, 1.0)
+      expect PreConditionDefect: discard beta(1.0, Inf)
+      expect PreConditionDefect:
+        discard regularizedIncompleteBeta(-0.1, 1.0, 1.0)
+      expect PreConditionDefect:
+        discard regularizedIncompleteBeta(1.1, 1.0, 1.0)
+      expect PreConditionDefect:
+        discard regularizedIncompleteBeta(0.5, NaN, 1.0)
+    else:
+      expect ValueError: discard logBeta(0.0, 1.0)
+      expect ValueError: discard beta(1.0, Inf)
+      expect ValueError: discard regularizedIncompleteBeta(-0.1, 1.0, 1.0)
+      expect ValueError: discard regularizedIncompleteBeta(1.1, 1.0, 1.0)
+      expect ValueError: discard regularizedIncompleteBeta(0.5, NaN, 1.0)
 
 suite "Integer combinatorics":
   test "factorial":
