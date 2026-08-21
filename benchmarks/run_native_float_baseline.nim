@@ -6,7 +6,7 @@ const
   DefaultRuns = 3
   DefaultIterations = 20
   PhaseNames = ["direct_transform", "facade_transform", "direct_polar",
-    "facade_polar"]
+    "facade_polar", "regularized_beta"]
   # Metadata plus the result checksum: deterministic, so equal across runs.
   InvariantFields = ["warmup_iterations", "point_count", "semantics", "guard"]
 
@@ -119,7 +119,8 @@ proc main() =
     "direct_transform": phaseSummary(reports, "direct_transform"),
     "facade_transform": phaseSummary(reports, "facade_transform"),
     "direct_polar": phaseSummary(reports, "direct_polar"),
-    "facade_polar": phaseSummary(reports, "facade_polar")
+    "facade_polar": phaseSummary(reports, "facade_polar"),
+    "regularized_beta": phaseSummary(reports, "regularized_beta")
   }
   let encoded = pretty(report)
   echo encoded
