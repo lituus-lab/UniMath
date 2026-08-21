@@ -100,8 +100,9 @@ double unimath_f64_gamma(double x);
 double unimath_f64_lgamma(double x);
 /* Beta-family functions require positive finite a and b with a finite,
    representable sum. The regularized
-   function additionally requires 0 <= x <= 1 and, unless a or b is exactly
-   1, a + b <= UNIMATH_MAX_REGULARIZED_BETA_SHAPE_SUM. Invalid input or failure
+   function additionally requires 0 <= x <= 1, normal (not subnormal) shapes,
+   and, unless a or b is exactly 1,
+   a + b <= UNIMATH_MAX_REGULARIZED_BETA_SHAPE_SUM. Invalid input or failure
    to converge returns NaN. */
 double unimath_f64_log_beta(double a, double b);
 double unimath_f64_beta(double a, double b);
