@@ -416,7 +416,9 @@ fraction outside it; Bessel `J0` via its term-ratio series; and
 complete beta function is evaluated in the logarithmic domain, and the
 regularized incomplete beta uses a bounded continued fraction with a symmetry
 transform. Its domain is `0 <= x <= 1` with positive finite shape parameters
-whose sum remains representable as `float64`.
+whose sum remains representable as `float64` and does not exceed the explicit
+v1 limit `MaximumRegularizedBetaShapeSum` (200,000), except for the analytic
+`a == 1` or `b == 1` cases.
 series advance by term-ratio recurrence, so the denominator factorial is never
 formed as an integer. `Gamma` has no zeros — only poles at the non-positive
 integers, where the Nim core raises `ValueError` (the C ABI returns `NaN`).
