@@ -102,11 +102,18 @@ re-exports Nim's `std/math` API, so consumers use the normal overloaded names
 (`sqrt`, `sin`, `cos`, `sinh`, `erf`, `gamma`, `floor`, `frexp`, and the rest)
 without importing `std/math` separately. UniMath adds `log1p`, `expm1`, and
 `sinCos`; the latter evaluates its argument once and returns `(sin, cos)`.
+Statistical consumers also get `logBeta`, `beta`, and
+`regularizedIncompleteBeta` from the same import. These functions require
+positive finite shape parameters whose sum remains representable; the regularized form additionally requires
+`0 <= x <= 1` and raises `ValueError` on an invalid Nim call.
 
 The operations retain host-libm IEEE-754 behavior. They do not promise
 bit-identical last bits across operating systems. C uses explicit
 `unimath_f64_*` symbols because C has no overloads, while Python exposes the
 same surface through `NativeFloat`.
+The value-only C and Python beta bindings return `NaN` for invalid domains or
+non-convergence, matching the ABI rule that exceptions never cross a language
+boundary.
 
 The deliberate exclusions are `std/math.gcd` and `std/math.lcm`: UniMath
 already provides its own exact generic implementations, including `BigInt`,
