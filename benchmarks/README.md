@@ -29,8 +29,8 @@ The versioned Apple M4 baseline records:
 
 The regularized-beta median is 11.0151 ms, or 23.80 million values per second.
 
-The transform result is effectively equal at this resolution. The polar and
-beta results are observations from three run means, not portable performance
-claims; compiler, libm and CPU changes may alter them. Standard operations are the original
+All differences in the table are observations from three run means, not
+portable performance claims; compiler, libm and CPU changes may alter them.
+Standard operations are the original
 `std/math` declarations re-exported by UniMath; only `log1p`, `expm1` and
 `sinCos` are additional templates.
