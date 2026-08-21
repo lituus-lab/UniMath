@@ -104,8 +104,9 @@ without importing `std/math` separately. UniMath adds `log1p`, `expm1`, and
 `sinCos`; the latter evaluates its argument once and returns `(sin, cos)`.
 Statistical consumers also get `logBeta`, `beta`, and
 `regularizedIncompleteBeta` from the same import. These functions require
-positive finite shape parameters whose sum remains representable; the regularized form additionally requires
-`0 <= x <= 1` and raises `ValueError` on an invalid Nim call.
+positive finite shape parameters whose sum remains representable; the
+regularized form additionally requires `0 <= x <= 1`. Invalid Nim calls raise
+`PreConditionDefect` with contracts active and `ValueError` in release/danger.
 
 The operations retain host-libm IEEE-754 behavior. They do not promise
 bit-identical last bits across operating systems. C uses explicit
