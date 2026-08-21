@@ -137,6 +137,15 @@ suite "Beta functions — float64":
       expect ValueError:
         discard regularizedIncompleteBeta(0.5, 100_001.0, 100_000.0)
 
+  test "subnormal regularized shapes are outside the stable domain":
+    let leastPositive = nextUp(0.0)
+    when not defined(release) and not defined(danger):
+      expect PreConditionDefect:
+        discard regularizedIncompleteBeta(0.5, leastPositive, leastPositive)
+    else:
+      expect ValueError:
+        discard regularizedIncompleteBeta(0.5, leastPositive, leastPositive)
+
   test "invalid domains raise in every build mode":
     when not defined(release) and not defined(danger):
       expect PreConditionDefect: discard logBeta(0.0, 1.0)

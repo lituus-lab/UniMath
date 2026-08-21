@@ -63,6 +63,12 @@ def test_hyperbolic_special_and_rounding():
             0.5, NativeFloat.MAX_REGULARIZED_BETA_SHAPE_SUM, 2.0
         )
     )
+    least_positive = math.nextafter(0.0, 1.0)
+    assert math.isnan(
+        NativeFloat.regularized_incomplete_beta(
+            0.5, least_positive, least_positive
+        )
+    )
     assert NativeFloat.floor(1.75) == 1.0
     assert NativeFloat.ceil(1.25) == 2.0
     assert NativeFloat.trunc(-1.75) == -1.0
