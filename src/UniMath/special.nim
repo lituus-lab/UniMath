@@ -7,5 +7,6 @@
 import ./special/polynomials
 import ./special/error_functions
 import ./special/gamma
+import ./special/beta
 import ./special/bessel
-export polynomials, error_functions, gamma, bessel
+export polynomials, error_functions, gamma, beta, bessel
