@@ -60,9 +60,10 @@ earlier is required to run it.
 - `rmNearest`/`rmUp`/`rmDown`: rounding modes — round to nearest, or round so
   the result is guaranteed `>=`/`<=` the exact value (used to build
   `Interval` enclosures).
-- The C ABI never raises: out-of-range input clamps (`Fixed`) or returns a
-  sentinel (`NaN` interval, null handle) instead of an exception crossing the
-  language boundary. Only the Nim and Python surfaces raise.
+- The C ABI never raises: invalid input clamps where explicitly documented
+  (`Fixed`) or returns a sentinel (`NaN`, null handle) instead of an exception
+  crossing the language boundary. Python value-only helpers mirror those C
+  sentinels; higher-level Python objects raise where their API documents it.
 
 ## The Nim surface
 
@@ -83,6 +84,8 @@ as `sqrt`, `sin`, `cos`, `sinh`, `erf`, `gamma`, `floor` and `frexp` coexist
 with UniMath's arbitrary-precision, rational, fixed-point and interval
 algorithms. `log1p`, `expm1` and the argument-once `sinCos` helper complete the
 surface without forcing consumers to import `std/math` themselves.
+The same umbrella import exposes `logBeta`, `beta`, and
+`regularizedIncompleteBeta` for statistical algorithms.
 """
 
 nbCode:
@@ -92,6 +95,7 @@ nbCode:
   echo "log1p(1e-16) = ", log1p(1e-16)
   echo "sin/cos(pi/4) = ", nativePair
   echo "hypot(3, 4) = ", hypot(3.0, 4.0)
+  echo "I_0.2(2, 5) = ", regularizedIncompleteBeta(0.2, 2.0, 5.0)
 
 var nativePath = ""
 for index in 0 .. 160:
@@ -125,9 +129,12 @@ second member is cosine. Python provides the stateless `NativeFloat` namespace:
 from unimath import NativeFloat
 sine, cosine = NativeFloat.sin_cos(0.5)
 radius = NativeFloat.hypot(3.0, 4.0)
+probability = NativeFloat.regularized_incomplete_beta(0.2, 2.0, 5.0)
 ```
 
-The C suffix remains useful because C has no overloads. The Python namespace
+The C suffix remains useful because C has no overloads; statistical callers use
+`unimath_f64_log_beta`, `unimath_f64_beta`, and
+`unimath_f64_regularized_incomplete_beta`. The Python namespace
 also exposes trigonometric, hyperbolic, special, rounding, decomposition and
 classification helpers. The reproducible overhead benchmark is documented in
 `benchmarks/README.md`.
@@ -406,6 +413,10 @@ Orthogonal polynomials (Chebyshev T/U, Legendre, Hermite) via three-term
 recurrences; `erf` via a term-ratio series on `|x| <= 1` and an `erfc` continued
 fraction outside it; Bessel `J0` via its term-ratio series; and
 `Gamma` via the Lanczos approximation (g=7, n=9, `< 1e-10` relative error). The
+complete beta function is evaluated in the logarithmic domain, and the
+regularized incomplete beta uses a bounded continued fraction with a symmetry
+transform. Its domain is `0 <= x <= 1` with positive finite shape parameters
+whose sum remains representable as `float64`.
 series advance by term-ratio recurrence, so the denominator factorial is never
 formed as an integer. `Gamma` has no zeros — only poles at the non-positive
 integers, where the Nim core raises `ValueError` (the C ABI returns `NaN`).
@@ -424,6 +435,8 @@ nbCode:
   echo "erf(0.5) = ", erfTaylor(0.5, 15, PI, spSqrt)
   echo "erf(3.0) = ", error_functions.erf(3.0, 32, PI, spSqrt, spExp)
   echo "Gamma(5) = ", gammaLanczosFloat(5.0)
+  echo "Beta(2, 3) = ", beta(2.0, 3.0)
+  echo "I_0.2(2, 5) = ", regularizedIncompleteBeta(0.2, 2.0, 5.0)
   echo "factorial(5) = ", gamma.factorial[float64](5)
   echo "J0(0.5) = ", besselJ0(0.5, 15)
 

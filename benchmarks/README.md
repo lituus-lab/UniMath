@@ -1,10 +1,13 @@
 # Native float64 facade benchmark
 
-The benchmark measures two preallocated 262,144-value workloads: a numeric
-transform (`sqrt + log10`) and a polar kernel (`sin + cos + hypot`). Each
-workload is executed through direct `std/math` calls and through UniMath's
-native facade in the same release process. Outputs must compare exactly before
-a sample is accepted.
+The benchmark measures three preallocated 262,144-value workloads: a numeric
+transform (`sqrt + log10`), a polar kernel (`sin + cos + hypot`), and
+`regularizedIncompleteBeta(x, 2, 5)` across evenly spaced probabilities. The
+first two workloads are executed through direct `std/math` calls and through
+UniMath's native facade in the same release process. Their outputs must compare
+exactly before a sample is accepted. The beta phase is an absolute throughput
+measurement of UniMath's continued-fraction implementation, not a comparison
+against another library.
 
 `nimble benchmarkNativeFloatBaseline` performs three independent processes,
 twenty measured iterations per process and three warmups per process, then
@@ -21,11 +24,13 @@ The versioned Apple M4 baseline records:
 
 | Workload | Direct | UniMath facade | Observed difference |
 |---|---:|---:|---:|
-| transform | 0.6046 ms | 0.6054 ms | +0.13% |
-| polar | 1.2013 ms | 1.1813 ms | -1.67% |
+| transform | 0.6240 ms | 0.5991 ms | -3.99% |
+| polar | 1.1920 ms | 1.2019 ms | +0.83% |
 
-The transform result is effectively equal at this resolution. The polar result
-is an observation from three run means, not a portable speedup claim; compiler
-and libm lowering may change it. Standard operations are the original
+The regularized-beta median is 11.0151 ms, or 23.80 million values per second.
+
+The transform result is effectively equal at this resolution. The polar and
+beta results are observations from three run means, not portable performance
+claims; compiler, libm and CPU changes may alter them. Standard operations are the original
 `std/math` declarations re-exported by UniMath; only `log1p`, `expm1` and
 `sinCos` are additional templates.
