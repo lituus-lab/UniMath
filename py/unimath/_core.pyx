@@ -9,6 +9,7 @@ from libc.string cimport memcpy
 from libc.stdint cimport int64_t, INT64_MIN, INT64_MAX
 
 cdef extern from "UniMath.h":
+    double UNIMATH_MAX_REGULARIZED_BETA_SHAPE_SUM
     const char *unimath_version()
     int unimath_init()
     void unimath_cleanup()
@@ -1272,6 +1273,7 @@ cdef class NativeFloat:
     NAN = 4
     INF = 5
     NEG_INF = 6
+    MAX_REGULARIZED_BETA_SHAPE_SUM = UNIMATH_MAX_REGULARIZED_BETA_SHAPE_SUM
 
     @staticmethod
     def sqrt(x): return unimath_f64_sqrt(<double>x)

@@ -9,6 +9,7 @@ const
   BetaMaxIterations = 256
   BetaEpsilon = 3.0e-14
   BetaMinDenominator = 1.0e-300
+  MaximumRegularizedBetaShapeSum* = 200_000.0
 
 func validBetaParameters(a, b: float64): bool {.inline.} =
   classify(a) notin {fcNan, fcInf, fcNegInf} and
@@ -17,6 +18,10 @@ func validBetaParameters(a, b: float64): bool {.inline.} =
 
 func isFiniteValue(value: float64): bool {.inline.} =
   classify(value) notin {fcNan, fcInf, fcNegInf}
+
+func validRegularizedBetaParameters(a, b: float64): bool {.inline.} =
+  validBetaParameters(a, b) and
+    (a == 1.0 or b == 1.0 or a + b <= MaximumRegularizedBetaShapeSum)
 
 func stirlingCorrection(value: float64): float64 {.inline.} =
   let inverse = 1.0 / value
@@ -40,8 +45,14 @@ func stableLogBeta(a, b: float64): float64 =
       return direct
 
   if smaller < 8.0:
+    let
+      inverse = 1.0 / larger
+      second = smaller * (smaller - 1.0) *
+        (smaller - 0.5) / (6.0) * inverse * inverse
+      third = -smaller * smaller * (smaller - 1.0) *
+        (smaller - 1.0) / 12.0 * inverse * inverse * inverse
     return lgamma(smaller) - smaller * ln(larger) -
-      smaller * (smaller - 1.0) / (2.0 * larger)
+      smaller * (smaller - 1.0) * 0.5 * inverse + second + third
 
   let
     ratio = smaller / larger
@@ -123,14 +134,14 @@ func regularizedIncompleteBeta*(x, a, b: float64): float64 {.contractual.} =
   ## Regularized incomplete beta `I_x(a, b)` for `0 <= x <= 1`.
   require:
     isFiniteValue(x) and x >= 0.0 and x <= 1.0
-    validBetaParameters(a, b)
+    validRegularizedBetaParameters(a, b)
   ensure:
     result >= 0.0 and result <= 1.0
   body:
     if not isFiniteValue(x) or x < 0.0 or x > 1.0 or
-        not validBetaParameters(a, b):
+        not validRegularizedBetaParameters(a, b):
       raise newException(ValueError,
-        "regularizedIncompleteBeta requires 0 <= x <= 1 and positive finite parameters")
+        "regularizedIncompleteBeta requires 0 <= x <= 1 and positive finite parameters within the supported shape sum")
     if x == 0.0:
       return 0.0
     if x == 1.0:

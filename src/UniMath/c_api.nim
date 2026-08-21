@@ -295,7 +295,9 @@ proc unimath_f64_regularized_incomplete_beta(x, a, b: float64): float64 =
   if classify(x) in {fcNan, fcInf, fcNegInf} or x < 0.0 or x > 1.0 or
       classify(a) in {fcNan, fcInf, fcNegInf} or
       classify(b) in {fcNan, fcInf, fcNegInf} or a <= 0.0 or b <= 0.0 or
-      classify(a + b) in {fcNan, fcInf, fcNegInf}:
+      classify(a + b) in {fcNan, fcInf, fcNegInf} or
+      (a != 1.0 and b != 1.0 and
+        a + b > MaximumRegularizedBetaShapeSum):
     return NaN
   try:
     beta_functions.regularizedIncompleteBeta(x, a, b)
