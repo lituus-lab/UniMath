@@ -28,15 +28,17 @@ static void check_u64(const char *name, unsigned long long got, unsigned long lo
   else printf("ok   %s = %llu\n", name, got);
 }
 
+/* NaN compares false against every tolerance, so a failed computation would
+ * report as a pass: both checks below reject it before the tolerance test. */
 static void check_dbl(const char *name, double got, double want) {
-  if (fabs(got - want) > 1e-12) { printf("FAIL %s: got %.17g want %.17g\n", name, got, want); failures++; }
+  if (isnan(got) || fabs(got - want) > 1e-12) { printf("FAIL %s: got %.17g want %.17g\n", name, got, want); failures++; }
   else printf("ok   %s = %.17g\n", name, got);
 }
 
 /* Approximate cores (Taylor with few terms, CORDIC, LUT, Chebyshev) are not
  * bit-exact: compare with an algorithm-specific tolerance. */
 static void check_dbl_tol(const char *name, double got, double want, double tol) {
-  if (fabs(got - want) > tol) { printf("FAIL %s: got %.17g want %.17g (tol %.0e)\n", name, got, want, tol); failures++; }
+  if (isnan(got) || fabs(got - want) > tol) { printf("FAIL %s: got %.17g want %.17g (tol %.0e)\n", name, got, want, tol); failures++; }
   else printf("ok   %s = %.17g\n", name, got);
 }
 
@@ -175,6 +177,29 @@ int main(void) {
   check_dbl("f64 erf", unimath_f64_erf(0.0), 0.0);
   check_dbl("f64 erfc", unimath_f64_erfc(0.0), 1.0);
   check_dbl_tol("f64 gamma", unimath_f64_gamma(5.0), 24.0, 1e-14);
+  check_dbl_tol("f64 log beta", unimath_f64_log_beta(2.0, 3.0),
+                log(1.0 / 12.0), 2e-15);
+  check_dbl_tol("f64 beta", unimath_f64_beta(2.0, 3.0), 1.0 / 12.0,
+                2e-16);
+  check_dbl_tol("f64 regularized incomplete beta",
+                unimath_f64_regularized_incomplete_beta(0.2, 2.0, 5.0),
+                0.34464000000000006, 2e-14);
+  check_int("f64 log beta invalid",
+            isnan(unimath_f64_log_beta(0.0, 1.0)) != 0, 1);
+  check_int("f64 beta invalid",
+            isnan(unimath_f64_beta(1.0, INFINITY)) != 0, 1);
+  check_int("f64 regularized incomplete beta invalid",
+            isnan(unimath_f64_regularized_incomplete_beta(
+                -0.1, 1.0, 1.0)) != 0,
+            1);
+  check_int("f64 beta rejects unrepresentable shape sum",
+            isnan(unimath_f64_beta(1e308, 1e308)) != 0, 1);
+  check_int("f64 regularized beta enforces shape limit",
+            isnan(unimath_f64_regularized_incomplete_beta(
+                0.5, UNIMATH_MAX_REGULARIZED_BETA_SHAPE_SUM, 2.0)) != 0, 1);
+  check_int("f64 regularized beta rejects subnormal shapes",
+            isnan(unimath_f64_regularized_incomplete_beta(
+                0.5, nextafter(0.0, 1.0), nextafter(0.0, 1.0))) != 0, 1);
   check_dbl("f64 floor", unimath_f64_floor(1.75), 1.0);
   check_dbl("f64 ceil", unimath_f64_ceil(1.25), 2.0);
   check_dbl("f64 trunc", unimath_f64_trunc(-1.75), -1.0);
