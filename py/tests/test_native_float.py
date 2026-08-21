@@ -57,6 +57,12 @@ def test_hyperbolic_special_and_rounding():
     assert math.isnan(NativeFloat.beta(1.0, math.inf))
     assert math.isnan(NativeFloat.regularized_incomplete_beta(-0.1, 1.0, 1.0))
     assert math.isnan(NativeFloat.beta(1e308, 1e308))
+    assert NativeFloat.MAX_REGULARIZED_BETA_SHAPE_SUM == 200_000.0
+    assert math.isnan(
+        NativeFloat.regularized_incomplete_beta(
+            0.5, NativeFloat.MAX_REGULARIZED_BETA_SHAPE_SUM, 2.0
+        )
+    )
     assert NativeFloat.floor(1.75) == 1.0
     assert NativeFloat.ceil(1.25) == 2.0
     assert NativeFloat.trunc(-1.75) == -1.0

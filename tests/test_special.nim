@@ -125,6 +125,17 @@ suite "Beta functions — float64":
     check abs(regularizedIncompleteBeta(x, 1e15, 1.0) - expected) < 2e-15
     check abs(regularizedIncompleteBeta(0.25, 1.0, 12.0) -
       (1.0 - pow(0.75, 12.0))) < 2e-15
+    check abs(logBeta(1e6, 7.9) - (-100.81829479484175)) < 2e-13
+
+  test "regularized shape-sum boundary is explicit":
+    let symmetric = regularizedIncompleteBeta(0.5, 100_000.0, 100_000.0)
+    check abs(symmetric - 0.5) < 2e-10
+    when not defined(release) and not defined(danger):
+      expect PreConditionDefect:
+        discard regularizedIncompleteBeta(0.5, 100_001.0, 100_000.0)
+    else:
+      expect ValueError:
+        discard regularizedIncompleteBeta(0.5, 100_001.0, 100_000.0)
 
   test "invalid domains raise in every build mode":
     when not defined(release) and not defined(danger):
