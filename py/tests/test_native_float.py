@@ -47,6 +47,16 @@ def test_hyperbolic_special_and_rounding():
     assert NativeFloat.erfc(0.0) == 1.0
     assert NativeFloat.gamma(5.0) == 24.0
     assert abs(NativeFloat.lgamma(5.0) - math.log(24.0)) < 1e-15
+    assert abs(NativeFloat.log_beta(2.0, 3.0) - math.log(1.0 / 12.0)) < 2e-15
+    assert abs(NativeFloat.beta(2.0, 3.0) - 1.0 / 12.0) < 2e-16
+    assert abs(
+        NativeFloat.regularized_incomplete_beta(0.2, 2.0, 5.0)
+        - 0.34464000000000006
+    ) < 2e-14
+    assert math.isnan(NativeFloat.log_beta(0.0, 1.0))
+    assert math.isnan(NativeFloat.beta(1.0, math.inf))
+    assert math.isnan(NativeFloat.regularized_incomplete_beta(-0.1, 1.0, 1.0))
+    assert math.isnan(NativeFloat.beta(1e308, 1e308))
     assert NativeFloat.floor(1.75) == 1.0
     assert NativeFloat.ceil(1.25) == 2.0
     assert NativeFloat.trunc(-1.75) == -1.0
