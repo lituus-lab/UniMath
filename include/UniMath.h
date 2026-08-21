@@ -13,6 +13,7 @@ extern "C" {
 #define UNIMATH_VERSION_MINOR 0
 #define UNIMATH_VERSION_PATCH 0
 #define UNIMATH_VERSION "1.0.0"
+#define UNIMATH_MAX_REGULARIZED_BETA_SHAPE_SUM 200000.0
 
 #define UNIMATH_VERSION_AT_LEAST(ma, mi, pa) \
   ((UNIMATH_VERSION_MAJOR > (ma)) || \
@@ -99,8 +100,9 @@ double unimath_f64_gamma(double x);
 double unimath_f64_lgamma(double x);
 /* Beta-family functions require positive finite a and b with a finite,
    representable sum. The regularized
-   function additionally requires 0 <= x <= 1. Invalid input or failure to
-   converge returns NaN. */
+   function additionally requires 0 <= x <= 1 and, unless a or b is exactly
+   1, a + b <= UNIMATH_MAX_REGULARIZED_BETA_SHAPE_SUM. Invalid input or failure
+   to converge returns NaN. */
 double unimath_f64_log_beta(double a, double b);
 double unimath_f64_beta(double a, double b);
 double unimath_f64_regularized_incomplete_beta(double x, double a, double b);
