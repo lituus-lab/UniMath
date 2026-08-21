@@ -24,10 +24,10 @@ The versioned Apple M4 baseline records:
 
 | Workload | Direct | UniMath facade | Observed difference |
 |---|---:|---:|---:|
-| transform | 0.6240 ms | 0.5991 ms | -3.99% |
-| polar | 1.1920 ms | 1.2019 ms | +0.83% |
+| transform | 0.6141 ms | 0.5818 ms | -5.27% |
+| polar | 1.1925 ms | 1.1719 ms | -1.73% |
 
-The regularized-beta median is 11.0151 ms, or 23.80 million values per second.
+The regularized-beta median is 10.8135 ms, or 24.24 million values per second.
 
 All differences in the table are observations from three run means, not
 portable performance claims; compiler, libm and CPU changes may alter them.
