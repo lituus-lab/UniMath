@@ -1,5 +1,5 @@
 {
-  "date": "2026-08-16",
+  "date": "2026-08-21",
   "machine": "Apple M4",
   "architecture": "arm64",
   "os": "macosx",
@@ -11,37 +11,45 @@
   "iterations_per_run": 20,
   "warmup_iterations": 3,
   "point_count": 262144,
-  "semantics": "preallocated output; exact same-process result parity",
+  "semantics": "preallocated output; exact same-process facade parity; regularized beta over 0 < x < 1",
   "direct_transform": {
     "run_mean_ms": [
-      0.6046041,
-      0.6105103999999999,
-      0.6023374000000001
+      0.61889605,
+      0.6239750000000001,
+      0.64019785
     ],
-    "median_run_mean_ms": 0.6046041
+    "median_run_mean_ms": 0.6239750000000001
   },
   "facade_transform": {
     "run_mean_ms": [
-      0.6053875,
-      0.6061562000000001,
-      0.6021584499999999
+      0.5892312,
+      0.6074810999999999,
+      0.5990749499999999
     ],
-    "median_run_mean_ms": 0.6053875
+    "median_run_mean_ms": 0.5990749499999999
   },
   "direct_polar": {
     "run_mean_ms": [
-      1.2013083500000001,
-      1.1947,
-      1.24645835
+      1.1836019999999998,
+      1.2251271999999997,
+      1.1920021
     ],
-    "median_run_mean_ms": 1.2013083500000001
+    "median_run_mean_ms": 1.1920021
   },
   "facade_polar": {
     "run_mean_ms": [
-      1.1860645500000002,
-      1.1812958,
-      1.1737208
+      1.2018583500000002,
+      1.2578936999999997,
+      1.1925082999999999
     ],
-    "median_run_mean_ms": 1.1812958
+    "median_run_mean_ms": 1.2018583500000002
+  },
+  "regularized_beta": {
+    "run_mean_ms": [
+      10.964052099999998,
+      11.117479250000002,
+      11.01514595
+    ],
+    "median_run_mean_ms": 11.01514595
   }
 }
