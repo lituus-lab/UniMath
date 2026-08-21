@@ -46,6 +46,10 @@ cdef extern from "UniMath.h":
     double unimath_f64_erfc(double x)
     double unimath_f64_gamma(double x)
     double unimath_f64_lgamma(double x)
+    double unimath_f64_log_beta(double a, double b)
+    double unimath_f64_beta(double a, double b)
+    double unimath_f64_regularized_incomplete_beta(double x, double a,
+                                                    double b)
     double unimath_f64_floor(double x)
     double unimath_f64_ceil(double x)
     double unimath_f64_trunc(double x)
@@ -1361,6 +1365,19 @@ cdef class NativeFloat:
 
     @staticmethod
     def lgamma(x): return unimath_f64_lgamma(<double>x)
+
+    @staticmethod
+    def log_beta(a, b):
+        return unimath_f64_log_beta(<double>a, <double>b)
+
+    @staticmethod
+    def beta(a, b):
+        return unimath_f64_beta(<double>a, <double>b)
+
+    @staticmethod
+    def regularized_incomplete_beta(x, a, b):
+        return unimath_f64_regularized_incomplete_beta(
+            <double>x, <double>a, <double>b)
 
     @staticmethod
     def floor(x): return unimath_f64_floor(<double>x)
