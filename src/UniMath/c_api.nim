@@ -26,6 +26,7 @@ import ./trigonometry
 import ./hyperbolic
 import ./special
 import ./special/gamma
+import ./special/beta as beta_functions
 import ./constants
 import ./reduction
 import ./float_math
@@ -278,6 +279,28 @@ proc unimath_f64_erf(x: float64): float64 = native_float.erf(x)
 proc unimath_f64_erfc(x: float64): float64 = native_float.erfc(x)
 proc unimath_f64_gamma(x: float64): float64 = native_float.gamma(x)
 proc unimath_f64_lgamma(x: float64): float64 = native_float.lgamma(x)
+proc unimath_f64_log_beta(a, b: float64): float64 =
+  if classify(a) in {fcNan, fcInf, fcNegInf} or
+      classify(b) in {fcNan, fcInf, fcNegInf} or a <= 0.0 or b <= 0.0 or
+      classify(a + b) in {fcNan, fcInf, fcNegInf}:
+    return NaN
+  beta_functions.logBeta(a, b)
+proc unimath_f64_beta(a, b: float64): float64 =
+  if classify(a) in {fcNan, fcInf, fcNegInf} or
+      classify(b) in {fcNan, fcInf, fcNegInf} or a <= 0.0 or b <= 0.0 or
+      classify(a + b) in {fcNan, fcInf, fcNegInf}:
+    return NaN
+  beta_functions.beta(a, b)
+proc unimath_f64_regularized_incomplete_beta(x, a, b: float64): float64 =
+  if classify(x) in {fcNan, fcInf, fcNegInf} or x < 0.0 or x > 1.0 or
+      classify(a) in {fcNan, fcInf, fcNegInf} or
+      classify(b) in {fcNan, fcInf, fcNegInf} or a <= 0.0 or b <= 0.0 or
+      classify(a + b) in {fcNan, fcInf, fcNegInf}:
+    return NaN
+  try:
+    beta_functions.regularizedIncompleteBeta(x, a, b)
+  except ValueError:
+    NaN
 proc unimath_f64_floor(x: float64): float64 = native_float.floor(x)
 proc unimath_f64_ceil(x: float64): float64 = native_float.ceil(x)
 proc unimath_f64_trunc(x: float64): float64 = native_float.trunc(x)
