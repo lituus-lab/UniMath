@@ -19,7 +19,8 @@ Stirling expansion; `beta(a, b)` exponentiates that result.
 and evaluates the complementary tail by symmetry to avoid subtracting a small
 lower-tail value from one. Parameters require `a > 0`, `b > 0`, and a finite
 representable `a + b`. The regularized function additionally requires
-`0 <= x <= 1` and `a + b <= 200000`; the analytic cases `a == 1` or `b == 1`
+`0 <= x <= 1`, normal rather than subnormal shapes, and `a + b <= 200000`;
+the analytic cases `a == 1` or `b == 1`
 are exempt. This explicit v1 bound excludes the large-shape regime where the
 continued fraction does not guarantee convergence.
 Invalid inputs trigger

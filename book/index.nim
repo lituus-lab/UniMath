@@ -415,7 +415,8 @@ fraction outside it; Bessel `J0` via its term-ratio series; and
 `Gamma` via the Lanczos approximation (g=7, n=9, `< 1e-10` relative error). The
 complete beta function is evaluated in the logarithmic domain, and the
 regularized incomplete beta uses a bounded continued fraction with a symmetry
-transform. Its domain is `0 <= x <= 1` with positive finite shape parameters
+transform. Its domain is `0 <= x <= 1` with positive finite, non-subnormal
+shape parameters
 whose sum remains representable as `float64` and does not exceed the explicit
 v1 limit `MaximumRegularizedBetaShapeSum` (200,000), except for the analytic
 `a == 1` or `b == 1` cases.

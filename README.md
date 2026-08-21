@@ -105,7 +105,8 @@ without importing `std/math` separately. UniMath adds `log1p`, `expm1`, and
 Statistical consumers also get `logBeta`, `beta`, and
 `regularizedIncompleteBeta` from the same import. These functions require
 positive finite shape parameters whose sum remains representable; the
-regularized form additionally requires `0 <= x <= 1` and, outside the analytic
+regularized form additionally requires `0 <= x <= 1`, normal rather than
+subnormal shapes, and, outside the analytic
 `a == 1` or `b == 1` cases, a shape sum no larger than
 `MaximumRegularizedBetaShapeSum` (200,000). Invalid Nim calls raise
 `PreConditionDefect` with contracts active and `ValueError` in release/danger.
