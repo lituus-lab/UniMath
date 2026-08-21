@@ -11,9 +11,9 @@ const
   BetaMinDenominator = 1.0e-300
 
 func validBetaParameters(a, b: float64): bool {.inline.} =
-    classify(a) notin {fcNan, fcInf, fcNegInf} and
-    classify(b) notin {fcNan, fcInf, fcNegInf} and a > 0.0 and b > 0.0 and
-    classify(a + b) notin {fcNan, fcInf, fcNegInf}
+  classify(a) notin {fcNan, fcInf, fcNegInf} and
+  classify(b) notin {fcNan, fcInf, fcNegInf} and a > 0.0 and b > 0.0 and
+  classify(a + b) notin {fcNan, fcInf, fcNegInf}
 
 func isFiniteValue(value: float64): bool {.inline.} =
   classify(value) notin {fcNan, fcInf, fcNegInf}
