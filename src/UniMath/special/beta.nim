@@ -20,7 +20,8 @@ func isFiniteValue(value: float64): bool {.inline.} =
   classify(value) notin {fcNan, fcInf, fcNegInf}
 
 func validRegularizedBetaParameters(a, b: float64): bool {.inline.} =
-  validBetaParameters(a, b) and
+  validBetaParameters(a, b) and classify(a) != fcSubnormal and
+    classify(b) != fcSubnormal and
     (a == 1.0 or b == 1.0 or a + b <= MaximumRegularizedBetaShapeSum)
 
 func stirlingCorrection(value: float64): float64 {.inline.} =
@@ -155,7 +156,8 @@ func regularizedIncompleteBeta*(x, a, b: float64): float64 {.contractual.} =
       a * ln(x) + b * log1p(-x)
     let front = exp(logFront)
     if x < (a + 1.0) / (a + b + 2.0):
-      result = front * betaContinuedFraction(a, b, x) / a
+      result = (front / a) * betaContinuedFraction(a, b, x)
     else:
-      result = 1.0 - front * betaContinuedFraction(b, a, 1.0 - x) / b
+      result = 1.0 - (front / b) *
+        betaContinuedFraction(b, a, 1.0 - x)
     result = min(1.0, max(0.0, result))
