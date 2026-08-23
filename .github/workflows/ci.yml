@@ -92,6 +92,8 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install make --no-progress -y
       - run: nimble ctest
+      # The C demo is part of the documented surface; nothing else builds it.
+      - run: nimble cexample
       # nimble ctest only builds the static lib (clibStatic); the shared lib
       # this job uploads below needs its own explicit build step.
       - run: nimble clib
@@ -152,6 +154,9 @@ jobs:
           delocate-wheel py/dist/*.whl -w py/dist/repaired/
       - name: Repair Wheel (Windows)
         if: matrix.os == 'windows-latest'
+        # bash, not the default PowerShell: pwsh does not expand
+        # py/dist/*.whl, so delvewheel would receive the pattern itself.
+        shell: bash
         run: |
           pip install delvewheel
           delvewheel repair py/dist/*.whl -w py/dist/repaired/
