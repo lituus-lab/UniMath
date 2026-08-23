@@ -1,5 +1,5 @@
-# SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 lituus-lab
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 lituus-lab -->
 # AGENTS.md — UniMath
 
 ## Build & gates

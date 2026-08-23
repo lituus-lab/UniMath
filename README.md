@@ -137,6 +137,7 @@ machine's block; a second machine (say a FreeBSD/Zen4 box,
 alongside, so this table can carry more than one machine's numbers at once
 without either overwriting the other.
 
+<!-- markdownlint-disable MD013 MD036 -->
 <!-- bench:insert -->
 
 <!-- bench:machine=freebsd-amd64 -->
@@ -228,7 +229,6 @@ UniMath 1.0.0 vs GMP/MPFR/MPC; ns/op, lower is faster
   Complex sin 256        | uni   13134.16 | orc-reuse    5177.07 | orc-alloc    5368.99 | uni/orc-alloc 2.45
   checksum = 4.77938e+24 (keeps every result live)
 ```
-
 
 <!-- /bench:machine=freebsd-amd64 -->
 
@@ -322,8 +322,9 @@ UniMath 1.0.0 vs GMP/MPFR/MPC; ns/op, lower is faster
   checksum = 4.77935e+24 (keeps every result live)
 ```
 
-
 <!-- /bench:machine=macosx-apple-m4 -->
+
+<!-- markdownlint-enable MD013 MD036 -->
 
 ## CI
 

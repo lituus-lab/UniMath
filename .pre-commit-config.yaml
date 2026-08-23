@@ -21,6 +21,16 @@ repos:
         args: [--fix=lf]
       - id: check-case-conflict
 
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.49.1
+    hooks:
+      # Rules in .markdownlint.yaml: MD040 (a fence needs a language) is the
+      # one that catches real drift; table style and wrapped columns are off.
+      - id: markdownlint
+        # The pull-request template is a fragment GitHub pastes into a PR body,
+        # not a document: it has no H1 and its checklist lines do not wrap.
+        exclude: ^\.github/pull_request_template\.md$
+
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v4.16.5
     hooks:

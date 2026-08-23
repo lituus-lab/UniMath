@@ -69,7 +69,8 @@ a value-dependent return type; changing `sqrt`'s return type under a
 compile flag was rejected — it would break `RealField`, the C ABI and every
 caller according to how the library was built.
 
-The Python binding resolves types per value and so needs no second name: `unimath.sqrt(-1)` returns a complex, `unimath.sqrt(4)` a
+The Python binding resolves types per value and so needs no second name:
+`unimath.sqrt(-1)` returns a complex, `unimath.sqrt(4)` a
 float. `Complex[float64]` maps to Python's builtin `complex` so the result
 interoperates with `cmath` and NumPy.
 
