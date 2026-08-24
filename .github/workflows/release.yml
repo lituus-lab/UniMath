@@ -66,6 +66,13 @@ jobs:
         with:
           nim-version: '2.2.10'
       - run: nimble install -y
+      # gcc arrives with Nim's MinGW, GNU make does not ship on the runner image.
+      - name: Install GNU make (Windows)
+        if: runner.os == 'Windows'
+        run: choco install make --no-progress -y
+      # Test the ABI before packaging it: a release that ships a lib failing
+      # its own header test is worse than no release.
+      - run: nimble ctest
       - run: nimble clibStatic
       - run: nimble clib
       - name: Package
@@ -149,7 +156,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    needs: [test, cabi, wheels]
+    needs: [test, cabi, wheels, sdist]
     runs-on: ubuntu-latest
     permissions:
       # softprops/action-gh-release creates the release and uploads the assets.
