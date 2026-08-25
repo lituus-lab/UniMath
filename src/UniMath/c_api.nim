@@ -201,6 +201,47 @@ var gInited: bool
 proc sqrtF64Abi(v: float64): float64 {.noSideEffect.} = math.sqrt(v)
 proc expF64Abi(v: float64): float64 {.noSideEffect.} = math.exp(v)
 
+
+# A shared library runs NimMain from DllMain (Windows) or an ELF constructor;
+# a static one has neither, so nothing initializes the Nim runtime. The first
+# entry point then enters Nim code whose globals were never set up and the
+# process faults. The static-library tasks pass -d:staticNoAutoInit; shared
+# builds must not, or NimMain runs twice.
+when defined(staticNoAutoInit):
+  # A once primitive, not a plain flag: two threads reaching an entry point
+  # together would both see the flag unset, both call NimMain, and the second
+  # would enter Nim code the first had not finished initializing. The platform
+  # primitives block the losers until the winner returns, which a flag cannot.
+  #
+  # C statics, not Nim globals: module initialization would reset a Nim one and
+  # NimMain would run again. NimMain is declared here too — the generated
+  # prototype comes after this section.
+  {.emit: """/*VARSECTION*/
+void NimMain(void);
+#ifdef _WIN32
+#  include <windows.h>
+static INIT_ONCE unimath_runtime_once = INIT_ONCE_STATIC_INIT;
+static BOOL CALLBACK unimath_runtime_init(PINIT_ONCE o, PVOID p, PVOID *c) {
+  (void)o; (void)p; (void)c; NimMain(); return TRUE;
+}
+static void unimath_runtime_ensure(void) {
+  InitOnceExecuteOnce(&unimath_runtime_once, unimath_runtime_init, NULL, NULL);
+}
+#else
+#  include <pthread.h>
+static pthread_once_t unimath_runtime_once = PTHREAD_ONCE_INIT;
+static void unimath_runtime_init(void) { NimMain(); }
+static void unimath_runtime_ensure(void) {
+  pthread_once(&unimath_runtime_once, unimath_runtime_init);
+}
+#endif
+""".}
+  template ensureRuntime() =
+    {.emit: "  unimath_runtime_ensure();".}
+else:
+  template ensureRuntime() = discard
+
+
 {.push exportc, cdecl, dynlib.}
 
 # ------------------------------------------------------------------------------
@@ -209,6 +250,7 @@ proc expF64Abi(v: float64): float64 {.noSideEffect.} = math.exp(v)
 
 proc unimath_version(): cstring =
   ## Library version (e.g. "1.0.0"); static, do not free.
+  ensureRuntime()
   UniMathVersionC
 
 proc NimMain() {.importc, cdecl.}
@@ -223,6 +265,7 @@ proc unimath_init(): cint =
   ## `GC_unref`, and those counts are non-atomic in this build, so sharing one
   ## handle across threads corrupts them and either leaks or frees early.
   ## Stated in `include/UniMath.h` alongside the init requirement.
+  ensureRuntime()
   if not gInited:
     NimMain()
     gInited = true
@@ -230,9 +273,11 @@ proc unimath_init(): cint =
 
 proc unimath_cleanup() =
   ## No-op (matches `unimath_init`); handles are freed per-call by `*_destroy`.
+  ensureRuntime()
   discard
 
 proc unimath_get_error_string(error_code: cint): cstring =
+  ensureRuntime()
   case int(error_code)
   of 0: "Success"
   of 1: "Division by zero"
@@ -245,53 +290,110 @@ proc unimath_get_error_string(error_code: cint): cstring =
 # Native float64 mathematics — value-only, preserving host libm semantics.
 # ------------------------------------------------------------------------------
 
-proc unimath_f64_sqrt(x: float64): float64 = native_float.sqrt(x)
-proc unimath_f64_cbrt(x: float64): float64 = native_float.cbrt(x)
-proc unimath_f64_ln(x: float64): float64 = native_float.ln(x)
-proc unimath_f64_log(x, base: float64): float64 = native_float.log(x, base)
-proc unimath_f64_log2(x: float64): float64 = native_float.log2(x)
-proc unimath_f64_log10(x: float64): float64 = native_float.log10(x)
-proc unimath_f64_log1p(x: float64): float64 = native_float.log1p(x)
-proc unimath_f64_exp(x: float64): float64 = native_float.exp(x)
-proc unimath_f64_expm1(x: float64): float64 = native_float.expm1(x)
+proc unimath_f64_sqrt(x: float64): float64 =
+  ensureRuntime()
+  native_float.sqrt(x)
+proc unimath_f64_cbrt(x: float64): float64 =
+  ensureRuntime()
+  native_float.cbrt(x)
+proc unimath_f64_ln(x: float64): float64 =
+  ensureRuntime()
+  native_float.ln(x)
+proc unimath_f64_log(x, base: float64): float64 =
+  ensureRuntime()
+  native_float.log(x, base)
+proc unimath_f64_log2(x: float64): float64 =
+  ensureRuntime()
+  native_float.log2(x)
+proc unimath_f64_log10(x: float64): float64 =
+  ensureRuntime()
+  native_float.log10(x)
+proc unimath_f64_log1p(x: float64): float64 =
+  ensureRuntime()
+  native_float.log1p(x)
+proc unimath_f64_exp(x: float64): float64 =
+  ensureRuntime()
+  native_float.exp(x)
+proc unimath_f64_expm1(x: float64): float64 =
+  ensureRuntime()
+  native_float.expm1(x)
 proc unimath_f64_pow(base, exponent: float64): float64 =
+  ensureRuntime()
   native_float.pow(base, exponent)
-proc unimath_f64_sin(x: float64): float64 = native_float.sin(x)
-proc unimath_f64_cos(x: float64): float64 = native_float.cos(x)
-proc unimath_f64_tan(x: float64): float64 = native_float.tan(x)
+proc unimath_f64_sin(x: float64): float64 =
+  ensureRuntime()
+  native_float.sin(x)
+proc unimath_f64_cos(x: float64): float64 =
+  ensureRuntime()
+  native_float.cos(x)
+proc unimath_f64_tan(x: float64): float64 =
+  ensureRuntime()
+  native_float.tan(x)
 proc unimath_f64_sin_cos(x: float64): F64PairC =
+  ensureRuntime()
   let pair = native_float.sinCos(x)
   F64PairC(first: pair.sin, second: pair.cos)
 proc unimath_f64_atan2(y, x: float64): float64 =
+  ensureRuntime()
   native_float.arctan2(y, x)
-proc unimath_f64_arcsin(x: float64): float64 = native_float.arcsin(x)
-proc unimath_f64_arccos(x: float64): float64 = native_float.arccos(x)
-proc unimath_f64_arctan(x: float64): float64 = native_float.arctan(x)
-proc unimath_f64_sinh(x: float64): float64 = native_float.sinh(x)
-proc unimath_f64_cosh(x: float64): float64 = native_float.cosh(x)
-proc unimath_f64_tanh(x: float64): float64 = native_float.tanh(x)
-proc unimath_f64_arcsinh(x: float64): float64 = native_float.arcsinh(x)
-proc unimath_f64_arccosh(x: float64): float64 = native_float.arccosh(x)
-proc unimath_f64_arctanh(x: float64): float64 = native_float.arctanh(x)
+proc unimath_f64_arcsin(x: float64): float64 =
+  ensureRuntime()
+  native_float.arcsin(x)
+proc unimath_f64_arccos(x: float64): float64 =
+  ensureRuntime()
+  native_float.arccos(x)
+proc unimath_f64_arctan(x: float64): float64 =
+  ensureRuntime()
+  native_float.arctan(x)
+proc unimath_f64_sinh(x: float64): float64 =
+  ensureRuntime()
+  native_float.sinh(x)
+proc unimath_f64_cosh(x: float64): float64 =
+  ensureRuntime()
+  native_float.cosh(x)
+proc unimath_f64_tanh(x: float64): float64 =
+  ensureRuntime()
+  native_float.tanh(x)
+proc unimath_f64_arcsinh(x: float64): float64 =
+  ensureRuntime()
+  native_float.arcsinh(x)
+proc unimath_f64_arccosh(x: float64): float64 =
+  ensureRuntime()
+  native_float.arccosh(x)
+proc unimath_f64_arctanh(x: float64): float64 =
+  ensureRuntime()
+  native_float.arctanh(x)
 proc unimath_f64_hypot(x, y: float64): float64 =
+  ensureRuntime()
   native_float.hypot(x, y)
-proc unimath_f64_erf(x: float64): float64 = native_float.erf(x)
-proc unimath_f64_erfc(x: float64): float64 = native_float.erfc(x)
-proc unimath_f64_gamma(x: float64): float64 = native_float.gamma(x)
-proc unimath_f64_lgamma(x: float64): float64 = native_float.lgamma(x)
+proc unimath_f64_erf(x: float64): float64 =
+  ensureRuntime()
+  native_float.erf(x)
+proc unimath_f64_erfc(x: float64): float64 =
+  ensureRuntime()
+  native_float.erfc(x)
+proc unimath_f64_gamma(x: float64): float64 =
+  ensureRuntime()
+  native_float.gamma(x)
+proc unimath_f64_lgamma(x: float64): float64 =
+  ensureRuntime()
+  native_float.lgamma(x)
 proc unimath_f64_log_beta(a, b: float64): float64 =
+  ensureRuntime()
   if classify(a) in {fcNan, fcInf, fcNegInf} or
       classify(b) in {fcNan, fcInf, fcNegInf} or a <= 0.0 or b <= 0.0 or
       classify(a + b) in {fcNan, fcInf, fcNegInf}:
     return NaN
   beta_functions.logBeta(a, b)
 proc unimath_f64_beta(a, b: float64): float64 =
+  ensureRuntime()
   if classify(a) in {fcNan, fcInf, fcNegInf} or
       classify(b) in {fcNan, fcInf, fcNegInf} or a <= 0.0 or b <= 0.0 or
       classify(a + b) in {fcNan, fcInf, fcNegInf}:
     return NaN
   beta_functions.beta(a, b)
 proc unimath_f64_regularized_incomplete_beta(x, a, b: float64): float64 =
+  ensureRuntime()
   if classify(x) in {fcNan, fcInf, fcNegInf} or x < 0.0 or x > 1.0 or
       classify(a) in {fcNan, fcInf, fcNegInf} or
       classify(b) in {fcNan, fcInf, fcNegInf} or a <= 0.0 or b <= 0.0 or
@@ -304,27 +406,47 @@ proc unimath_f64_regularized_incomplete_beta(x, a, b: float64): float64 =
     beta_functions.regularizedIncompleteBeta(x, a, b)
   except ValueError:
     NaN
-proc unimath_f64_floor(x: float64): float64 = native_float.floor(x)
-proc unimath_f64_ceil(x: float64): float64 = native_float.ceil(x)
-proc unimath_f64_trunc(x: float64): float64 = native_float.trunc(x)
-proc unimath_f64_round(x: float64): float64 = native_float.round(x)
+proc unimath_f64_floor(x: float64): float64 =
+  ensureRuntime()
+  native_float.floor(x)
+proc unimath_f64_ceil(x: float64): float64 =
+  ensureRuntime()
+  native_float.ceil(x)
+proc unimath_f64_trunc(x: float64): float64 =
+  ensureRuntime()
+  native_float.trunc(x)
+proc unimath_f64_round(x: float64): float64 =
+  ensureRuntime()
+  native_float.round(x)
 proc unimath_f64_round_places(x: float64; places: cint): float64 =
+  ensureRuntime()
   native_float.round(x, int(places))
 proc unimath_f64_copy_sign(x, sign: float64): float64 =
+  ensureRuntime()
   native_float.copySign(x, sign)
 proc unimath_f64_next_after(x, direction: float64): float64 =
+  ensureRuntime()
   nextafterF64(x, direction)
-proc unimath_f64_deg_to_rad(x: float64): float64 = native_float.degToRad(x)
-proc unimath_f64_rad_to_deg(x: float64): float64 = native_float.radToDeg(x)
+proc unimath_f64_deg_to_rad(x: float64): float64 =
+  ensureRuntime()
+  native_float.degToRad(x)
+proc unimath_f64_rad_to_deg(x: float64): float64 =
+  ensureRuntime()
+  native_float.radToDeg(x)
 proc unimath_f64_split_decimal(x: float64): F64PairC =
+  ensureRuntime()
   let parts = native_float.splitDecimal(x)
   F64PairC(first: parts.intpart, second: parts.floatpart)
 proc unimath_f64_frexp(x: float64; exponent: ptr cint): float64 =
+  ensureRuntime()
   let parts = native_float.frexp(x)
   if exponent != nil: exponent[] = cint(parts.exp)
   parts.frac
-proc unimath_f64_signbit(x: float64): cint = cint(native_float.signbit(x))
+proc unimath_f64_signbit(x: float64): cint =
+  ensureRuntime()
+  cint(native_float.signbit(x))
 proc unimath_f64_classify(x: float64): cint =
+  ensureRuntime()
   case native_float.classify(x)
   of fcNormal: 0
   of fcSubnormal: 1
@@ -334,6 +456,7 @@ proc unimath_f64_classify(x: float64): cint =
   of fcInf: 5
   of fcNegInf: 6
 proc unimath_f64_almost_equal(x, y: float64; ulps: cint): cint =
+  ensureRuntime()
   if ulps < 0: return 0
   cint(native_float.almostEqual(x, y, Natural(ulps)))
 
@@ -342,11 +465,13 @@ proc unimath_f64_almost_equal(x, y: float64; ulps: cint): cint =
 # ------------------------------------------------------------------------------
 
 proc unimath_bigint_from_i64(v: int64): pointer =
+  ensureRuntime()
   pin(initBigInt(v))
 
 proc unimath_bigint_from_decimal(s: cstring): pointer =
   ## Parse base-10. NULL on nil input or a malformed string (no digits, or
   ## trailing non-digit characters — strict parse).
+  ensureRuntime()
   if s == nil: return nil
   try: pin(initBigIntFromDecimal($s))
   except ValueError: nil
@@ -356,6 +481,7 @@ proc unimath_bigint_to_decimal(h: pointer; buf: ptr char; size: csize_t): cint =
   ## (excluding NUL), the required character count when the buffer is too
   ## small, or -1 on a nil handle / nil buffer. A zero-sized non-nil buffer is
   ## a size query. Nothing is written unless the buffer also holds the NUL.
+  ensureRuntime()
   if h == nil or buf == nil: return cint(-1)
   let s = toDecimal(bigOf(h))
   if csize_t(s.len) >= size: return cint(s.len)
@@ -365,20 +491,24 @@ proc unimath_bigint_to_decimal(h: pointer; buf: ptr char; size: csize_t): cint =
   cint(s.len)
 
 proc unimath_bigint_add(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pin(bigOf(a) + bigOf(b))
 
 proc unimath_bigint_sub(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pin(bigOf(a) - bigOf(b))
 
 proc unimath_bigint_mul(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pin(bigOf(a) * bigOf(b))
 
 proc unimath_bigint_mul_into(acc, k: pointer): pointer =
   ## Consume the accumulator handle and return its replacement. The owned box
   ## is reused; a distinct single-limb multiplier also reuses its limb buffer.
+  ensureRuntime()
   if acc == nil: return nil
   if k == nil:
     unrefBigInt(acc)
@@ -406,26 +536,31 @@ proc unimath_bigint_mul_into(acc, k: pointer): pointer =
 proc unimath_bigint_div(a, b: pointer): pointer =
   ## Truncated-toward-zero quotient (matches the signed `div`). NULL on
   ## division by zero or a nil handle.
+  ensureRuntime()
   if a == nil or b == nil: return nil
   if isZero(bigOf(b)): return nil
   pin(bigOf(a) div bigOf(b))
 
 proc unimath_bigint_mod(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   if isZero(bigOf(b)): return nil
   pin(bigOf(a) mod bigOf(b))
 
 proc unimath_bigint_neg(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pin(-bigOf(a))
 
 proc unimath_bigint_abs(a: pointer): pointer =
   ## Magnitude as a non-negative BigInt.
+  ensureRuntime()
   if a == nil: return nil
   pin(initBigInt(abs(bigOf(a)), false))
 
 proc unimath_bigint_cmp(a, b: pointer): cint =
   ## -1 / 0 / 1. Returns 0 if either handle is nil.
+  ensureRuntime()
   if a == nil or b == nil: return cint(0)
   cint(cmp(bigOf(a), bigOf(b)))
 
@@ -433,6 +568,7 @@ proc unimath_bigint_to_i64(h: pointer; out_ok: ptr cint): int64 =
   ## Best-effort int64, clamped to the int64 range. If `out_ok` is non-NULL,
   ## `*out_ok` is false when the value was out of range (clamped) or the handle
   ## is nil.
+  ensureRuntime()
   if h == nil:
     if out_ok != nil: out_ok[] = cint(false)
     return 0
@@ -445,6 +581,7 @@ proc unimath_bigint_to_u64(h: pointer; out_ok: ptr cint): uint64 =
   ## Best-effort uint64, clamped to `[0, UINT64_MAX]`. If `out_ok` is non-NULL,
   ## `*out_ok` is false when the value was negative or out of range (clamped)
   ## or the handle is nil.
+  ensureRuntime()
   if h == nil:
     if out_ok != nil: out_ok[] = cint(false)
     return 0
@@ -460,16 +597,19 @@ proc unimath_bigint_to_u64(h: pointer; out_ok: ptr cint): uint64 =
 
 proc unimath_bigint_shl(a: pointer; k: cint): pointer =
   ## `a << k` (sign preserved). NULL on a nil handle or negative `k`.
+  ensureRuntime()
   if a == nil or k < 0: return nil
   pin(bigOf(a) shl Natural(int(k)))
 
 proc unimath_bigint_shr(a: pointer; k: cint): pointer =
   ## Arithmetic shift right (floor division by `2^k`, sign-extending). NULL on
   ## a nil handle or negative `k`.
+  ensureRuntime()
   if a == nil or k < 0: return nil
   pin(bigOf(a) shr Natural(int(k)))
 
 proc unimath_bigint_destroy(h: pointer) =
+  ensureRuntime()
   unrefBigInt(h)
 
 # ------------------------------------------------------------------------------
@@ -489,32 +629,38 @@ proc unimath_fixed_from_int(val: int64; frac_bits: cint): int64 =
   ## `val << frac_bits` as a raw Q-format value, clamped to int64. A negative
   ## `frac_bits` is malformed (wraps `Natural` to ~2^64); return 0, matching
   ## `unimath_fixed_from_rational`, so the ABI never raises.
+  ensureRuntime()
   if frac_bits < 0 or frac_bits > MaxFracBits: return 0
   clampToInt64(initBigInt(val) shl Natural(int(frac_bits)))
 
 proc unimath_fixed_to_int(q: int64; frac_bits: cint): int64 =
   ## Integer part `q >> frac_bits` (arithmetic shift). A negative `frac_bits`
   ## would reverse the shift; return 0 (never raises).
+  ensureRuntime()
   if frac_bits < 0 or frac_bits > MaxFracBits: return 0
   ashr(q, int(frac_bits))
 
 proc unimath_fixed_add(a, b: int64): int64 =
   ## Same-scale sum, clamped to int64.
+  ensureRuntime()
   clampToInt64(initBigInt(a) + initBigInt(b))
 
 proc unimath_fixed_sub(a, b: int64): int64 =
   ## Same-scale difference, clamped to int64.
+  ensureRuntime()
   clampToInt64(initBigInt(a) - initBigInt(b))
 
 proc unimath_fixed_mul(a, b: int64; frac_bits: cint): int64 =
   ## `(a * b) >> frac_bits` (arithmetic shift), clamped to int64. A negative
   ## `frac_bits` is malformed; return 0 (never raises).
+  ensureRuntime()
   if frac_bits < 0 or frac_bits > MaxFracBits: return 0
   clampToInt64((initBigInt(a) * initBigInt(b)) shr Natural(int(frac_bits)))
 
 proc unimath_fixed_div(a, b: int64; frac_bits: cint): int64 =
   ## `(a << frac_bits) / b` (truncated toward zero), clamped to int64. Returns
   ## 0 on division by zero or a negative `frac_bits` (never raises).
+  ensureRuntime()
   if b == 0: return 0
   if frac_bits < 0: return 0
   clampToInt64((initBigInt(a) shl Natural(int(frac_bits))) div initBigInt(b))
@@ -522,25 +668,30 @@ proc unimath_fixed_div(a, b: int64; frac_bits: cint): int64 =
 proc unimath_fixed_cmp(a, b: int64): cint =
   ## -1/0/1, scale-invariant: two Q-format values of the same `frac_bits`
   ## compare as their raw words, order-preserving.
+  ensureRuntime()
   cint(cmp(a, b))
 
 proc unimath_fixed_abs(a: int64): int64 =
   ## Absolute value, clamped (the raw `low(int64)` word has no positive int64
   ## counterpart; clamps to `high(int64)` rather than overflow, never raises).
+  ensureRuntime()
   clampToInt64(initBigInt(abs(initBigInt(a)), false))
 
 proc unimath_fixed_sign(a: int64): cint =
   ## -1/0/1, scale-invariant.
+  ensureRuntime()
   if a > 0: 1 elif a < 0: -1 else: 0
 
 proc unimath_fixed_clamp(val, lo, hi: int64): int64 =
   ## Clamp `val` to `[lo, hi]` (raw Q-format words, same `frac_bits`).
+  ensureRuntime()
   if val < lo: lo elif val > hi: hi else: val
 
 proc unimath_fixed_floor_mod(a, b: int64): int64 =
   ## Floored modulo, scale-invariant (the scale cancels in `a mod b`, so the
   ## same floored-remainder adjustment as the integer case applies to the raw
   ## words directly). Returns 0 on division by zero (never raises).
+  ensureRuntime()
   if b == 0: return 0
   let r = a mod b
   if (r > 0 and b < 0) or (r < 0 and b > 0): r + b else: r
@@ -560,20 +711,24 @@ const Q32Mask = Q32One - 1'i64
 
 proc unimath_fixed_floor(a: int64): int64 =
   ## Q32.32 floor: clear the fractional bits (no overflow possible).
+  ensureRuntime()
   a and not Q32Mask
 
 proc unimath_fixed_ceil(a: int64): int64 =
   ## Q32.32 ceiling, clamped.
+  ensureRuntime()
   if (a and Q32Mask) == 0: return a
   clampToInt64(initBigInt(a and not Q32Mask) + initBigInt(Q32One))
 
 proc unimath_fixed_round(a: int64): int64 =
   ## Q32.32 round-half-up, clamped.
+  ensureRuntime()
   let summed = clampToInt64(initBigInt(a) + initBigInt(Q32One shr 1))
   summed and not Q32Mask
 
 proc unimath_fixed_lerp(a, b, t: int64): int64 =
   ## Q32.32 linear interpolation `a + (b - a) * t`, clamped.
+  ensureRuntime()
   clampToInt64(initBigInt(a) +
     ((initBigInt(b) - initBigInt(a)) * initBigInt(t)) shr Natural(Q32Frac))
 
@@ -585,60 +740,73 @@ proc unimath_fixed_lerp(a, b, t: int64): int64 =
 
 proc unimath_bigfloat_from_f64(v: float64): pointer =
   ## Build from a float64. NULL on Inf/NaN (not representable).
+  ensureRuntime()
   try: pinFloat(initBigFloat(v))
   except ValueError: nil
 
 proc unimath_bigfloat_from_i64(v: int64): pointer =
   ## Build from an int64, exactly (via BigInt, no float64 detour).
+  ensureRuntime()
   pinFloat(fromBigInt(initBigInt(v)))
 
 proc unimath_bigfloat_to_f64(h: pointer): float64 =
   ## Correctly-rounded float64. 0.0 on a nil handle.
+  ensureRuntime()
   toFloat64(bfOf(h))
 
 proc unimath_bigfloat_add(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinFloat(bfOf(a) + bfOf(b))
 
 proc unimath_bigfloat_sub(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinFloat(bfOf(a) - bfOf(b))
 
 proc unimath_bigfloat_mul(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinFloat(bfOf(a) * bfOf(b))
 
 proc unimath_bigfloat_div(a, b: pointer): pointer =
   ## NULL on a nil handle or division by zero (never raises).
+  ensureRuntime()
   if a == nil or b == nil: return nil
   if isZero(bfOf(b)): return nil
   pinFloat(bfOf(a) / bfOf(b))
 
 proc unimath_bigfloat_cmp(a, b: pointer): cint =
   ## -1 / 0 / 1. Returns 0 if either handle is nil.
+  ensureRuntime()
   if a == nil or b == nil: return cint(0)
   cint(cmp(bfOf(a), bfOf(b)))
 
 proc unimath_bigfloat_is_zero(h: pointer): cint =
   ## 0 on a nil handle (not the zero value).
+  ensureRuntime()
   if h == nil: return cint(0)
   cint(isZero(bfOf(h)))
 
 proc unimath_bigfloat_neg(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinFloat(-bfOf(a))
 
 proc unimath_bigfloat_abs(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinFloat(abs(bfOf(a)))
 
 proc unimath_bigfloat_from_bigint(h: pointer): pointer =
   ## Exact conversion (via the BigInt's own mantissa, no float64 detour).
   ## NULL on a nil handle.
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(fromBigInt(bigOf(h)))
 
 proc unimath_bigfloat_destroy(h: pointer) =
+  ensureRuntime()
   unrefBigFloat(h)
 
 # ------------------------------------------------------------------------------
@@ -649,72 +817,87 @@ proc unimath_bigfloat_destroy(h: pointer) =
 
 proc unimath_rational_from_i64(num, den: int64): pointer =
   ## `num/den` reduced. NULL on a zero denominator (never raises).
+  ensureRuntime()
   if den == 0: return nil
   pinRational(initRational(initBigInt(num), initBigInt(den)))
 
 proc unimath_rational_from_bigint(num, den: pointer): pointer =
   ## `num/den` from BigInt handles, reduced. NULL on a nil handle or a zero
   ## denominator.
+  ensureRuntime()
   if num == nil or den == nil: return nil
   if isZero(bigOf(den)): return nil
   pinRational(initRational(bigOf(num), bigOf(den)))
 
 proc unimath_rational_to_f64(h: pointer): float64 =
   ## Approximate float64 (rounded division). 0.0 on a nil handle.
+  ensureRuntime()
   toFloat64(ratOf(h))
 
 proc unimath_rational_num(h: pointer): pointer =
   ## Numerator as a new pinned BigInt handle (caller owns it). NULL on nil.
+  ensureRuntime()
   if h == nil: return nil
   pin(ratOf(h).num)
 
 proc unimath_rational_den(h: pointer): pointer =
   ## Denominator as a new pinned BigInt handle (caller owns it). NULL on nil.
+  ensureRuntime()
   if h == nil: return nil
   pin(ratOf(h).den)
 
 proc unimath_rational_add(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinRational(ratOf(a) + ratOf(b))
 
 proc unimath_rational_sub(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinRational(ratOf(a) - ratOf(b))
 
 proc unimath_rational_mul(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinRational(ratOf(a) * ratOf(b))
 
 proc unimath_rational_div(a, b: pointer): pointer =
   ## NULL on a nil handle or division by zero (never raises).
+  ensureRuntime()
   if a == nil or b == nil: return nil
   if isZero(ratOf(b)): return nil
   pinRational(ratOf(a) / ratOf(b))
 
 proc unimath_rational_neg(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinRational(-ratOf(a))
 
 proc unimath_rational_abs(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinRational(abs(ratOf(a)))
 
 proc unimath_rational_cmp(a, b: pointer): cint =
   ## -1 / 0 / 1. Returns 0 if either handle is nil.
+  ensureRuntime()
   if a == nil or b == nil: return cint(0)
   cint(cmp(ratOf(a), ratOf(b)))
 
 proc unimath_rational_is_zero(h: pointer): cint =
   ## 0 on a nil handle (not the zero value).
+  ensureRuntime()
   if h == nil: return cint(0)
   cint(isZero(ratOf(h)))
 
 proc unimath_rational_is_one(h: pointer): cint =
   ## 0 on a nil handle (not the value one).
+  ensureRuntime()
   if h == nil: return cint(0)
   cint(isOne(ratOf(h)))
 
 proc unimath_rational_destroy(h: pointer) =
+  ensureRuntime()
   unrefRational(h)
 
 # ------------------------------------------------------------------------------
@@ -725,36 +908,47 @@ proc unimath_rational_destroy(h: pointer) =
 # ------------------------------------------------------------------------------
 
 proc unimath_interval_from_f64(lo, hi: float64): IntervalC =
+  ensureRuntime()
   IntervalC(lo: lo, hi: hi)
 
-proc unimath_interval_lo(a: IntervalC): float64 = a.lo
-proc unimath_interval_hi(a: IntervalC): float64 = a.hi
+proc unimath_interval_lo(a: IntervalC): float64 =
+  ensureRuntime()
+  a.lo
+proc unimath_interval_hi(a: IntervalC): float64 =
+  ensureRuntime()
+  a.hi
 
 proc unimath_interval_add(a, b: IntervalC): IntervalC =
+  ensureRuntime()
   let r = initInterval(a.lo, a.hi) + initInterval(b.lo, b.hi)
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_sub(a, b: IntervalC): IntervalC =
+  ensureRuntime()
   let r = initInterval(a.lo, a.hi) - initInterval(b.lo, b.hi)
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_mul(a, b: IntervalC): IntervalC =
+  ensureRuntime()
   let r = initInterval(a.lo, a.hi) * initInterval(b.lo, b.hi)
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_div(a, b: IntervalC): IntervalC =
+  ensureRuntime()
   let bi = initInterval(b.lo, b.hi)
   if isUncertain(bi): return IntervalC(lo: -Inf, hi: Inf)
   let r = initInterval(a.lo, a.hi) / bi
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_sqrt(a: IntervalC): IntervalC =
+  ensureRuntime()
   if a.hi < 0.0: return IntervalC(lo: NaN, hi: NaN)
   let lo = if a.lo < 0.0: 0.0 else: a.lo
   let r = sqrt(initInterval(lo, a.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_neg(a: IntervalC): IntervalC =
+  ensureRuntime()
   let r = -initInterval(a.lo, a.hi)
   IntervalC(lo: r.lower, hi: r.upper)
 
@@ -764,6 +958,7 @@ proc unimath_interval_pow(a: IntervalC; n: cint): IntervalC =
   ## to the `except`: catching a Defect only works while the library is built
   ## with `--panics:off`, which `clib`/`clibStatic`/`clibMsvc` now pass
   ## explicitly, but a cheap precondition needs no such dependency.
+  ensureRuntime()
   let bi = initInterval(a.lo, a.hi)
   if n < 0 and isUncertain(bi):
     return IntervalC(lo: NaN, hi: NaN)
@@ -774,37 +969,46 @@ proc unimath_interval_pow(a: IntervalC; n: cint): IntervalC =
     IntervalC(lo: NaN, hi: NaN)
 
 proc unimath_interval_arctan(a: IntervalC): IntervalC =
+  ensureRuntime()
   let r = arctan(initInterval(a.lo, a.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_arctan2(y, x: IntervalC): IntervalC =
+  ensureRuntime()
   let r = arctan2(initInterval(y.lo, y.hi), initInterval(x.lo, x.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_is_valid(a: IntervalC): cint =
   ## `lo <= hi` (0 if either bound is NaN).
+  ensureRuntime()
   cint(isValid(initInterval(a.lo, a.hi)))
 
 proc unimath_interval_width(a: IntervalC): float64 =
+  ensureRuntime()
   width(initInterval(a.lo, a.hi))
 
 proc unimath_interval_midpoint(a: IntervalC): float64 =
+  ensureRuntime()
   midpoint(initInterval(a.lo, a.hi))
 
 proc unimath_interval_contains(a: IntervalC; x: float64): cint =
   ## `x in [lo, hi]` (closed bounds).
+  ensureRuntime()
   cint(contains(initInterval(a.lo, a.hi), x))
 
 proc unimath_interval_contains_interval(outer, inner: IntervalC): cint =
   ## `inner ⊆ outer`.
+  ensureRuntime()
   cint(contains(initInterval(outer.lo, outer.hi), initInterval(inner.lo, inner.hi)))
 
 proc unimath_interval_overlaps(a, b: IntervalC): cint =
   ## `a ∩ b ≠ ∅`.
+  ensureRuntime()
   cint(overlaps(initInterval(a.lo, a.hi), initInterval(b.lo, b.hi)))
 
 proc unimath_interval_hull(a, b: IntervalC): IntervalC =
   ## Smallest interval containing both `a` and `b`.
+  ensureRuntime()
   let r = hull(initInterval(a.lo, a.hi), initInterval(b.lo, b.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
@@ -812,14 +1016,17 @@ proc unimath_interval_intersect(a, b: IntervalC): IntervalC =
   ## `a ∩ b`. Valid (`lo <= hi`, check with `unimath_interval_is_valid`) iff
   ## `unimath_interval_overlaps(a, b)` -- the caller checks that, matching the
   ## underlying `intersect`'s own contract.
+  ensureRuntime()
   let r = intersect(initInterval(a.lo, a.hi), initInterval(b.lo, b.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_exp(a: IntervalC): IntervalC =
+  ensureRuntime()
   let r = exp(initInterval(a.lo, a.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_ln(a: IntervalC): IntervalC =
+  ensureRuntime()
   if a.hi <= 0.0: return IntervalC(lo: NaN, hi: NaN)
   if a.lo <= 0.0:
     IntervalC(lo: -Inf, hi: up2(ln(a.hi)))
@@ -828,10 +1035,12 @@ proc unimath_interval_ln(a: IntervalC): IntervalC =
     IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_sin(a: IntervalC): IntervalC =
+  ensureRuntime()
   let r = sin(initInterval(a.lo, a.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
 proc unimath_interval_cos(a: IntervalC): IntervalC =
+  ensureRuntime()
   let r = cos(initInterval(a.lo, a.hi))
   IntervalC(lo: r.lower, hi: r.upper)
 
@@ -844,17 +1053,20 @@ proc unimath_interval_cos(a: IntervalC): IntervalC =
 proc unimath_isqrt_i64(n: int64): int64 =
   ## Integer square root, clamped to the int64 range (exact BigInt intermediate,
   ## no int64 overflow). 0 on a negative input (never raises).
+  ensureRuntime()
   if n < 0: return 0
   clampToInt64(isqrt(initBigInt(n)))
 
 proc unimath_sqrt_newton_f64(x: float64): float64 =
   ## Newton-Raphson square root. NaN on a negative input (never raises).
+  ensureRuntime()
   if x < 0.0: return NaN
   sqrtNewtonGeneric(x)
 
 proc unimath_sqrt_newton_bigfloat(h: pointer): pointer =
   ## Newton-Raphson square root of a BigFloat. NULL on a nil handle or a
   ## negative input (never raises).
+  ensureRuntime()
   if h == nil: return nil
   let b = bfOf(h)
   if b < zero(BigFloat): return nil
@@ -868,10 +1080,12 @@ proc unimath_sqrt_newton_bigfloat(h: pointer): pointer =
 
 proc unimath_exp_taylor_f64(x: float64): float64 =
   ## Taylor `exp(x)`. Defined everywhere (never raises).
+  ensureRuntime()
   expTaylor(x)
 
 proc unimath_ln_taylor_f64(x: float64): float64 =
   ## Taylor `ln(1+x)`. NaN on `x <= -1` (never raises).
+  ensureRuntime()
   if 1.0 + x <= 0.0: return NaN
   lnTaylor(x)
 
@@ -879,11 +1093,13 @@ proc unimath_ln_generic_f64(z: float64): float64 =
   ## Generic `ln(z)` for any positive z. NaN on `z <= 0` or non-finite
   ## (never raises; the reduced `float_math.ln` path round-trips through a
   ## 256-bit BigFloat, so `initBigFloat` is guarded against Inf/NaN).
+  ensureRuntime()
   if not (z > 0.0 and z < Inf): return NaN
   toFloat64(ln(initBigFloat(z, 256)))
 
 proc unimath_exp_taylor_bigfloat(h: pointer): pointer =
   ## Taylor `exp` of a BigFloat. NULL on a nil handle (never raises).
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(expTaylor(bfOf(h)))
 
@@ -891,6 +1107,7 @@ proc unimath_ln_generic_bigfloat(h: pointer): pointer =
   ## Generic `ln(z)` of a BigFloat via the reduced `float_math.ln` path
   ## (mantissa range reduction). NULL on a nil handle or `z <= 0`
   ## (never raises).
+  ensureRuntime()
   if h == nil: return nil
   let b = bfOf(h)
   if b <= zero(BigFloat): return nil
@@ -924,42 +1141,51 @@ proc clampQ32(a: int64): int64 {.inline.} =
 
 proc unimath_taylor_sin_f64(x: float64): float64 =
   ## `sin(x)` via the generic Taylor series (float64).
+  ensureRuntime()
   sinTaylor(x)
 
 proc unimath_taylor_cos_f64(x: float64): float64 =
   ## `cos(x)` via the generic Taylor series (float64).
+  ensureRuntime()
   cosTaylor(x)
 
 proc unimath_taylor_atan_f64(x: float64): float64 =
   ## `atan(x)` via the generic Taylor series (float64).
+  ensureRuntime()
   atanTaylor(x)
 
 proc unimath_cordic_sin(q: int64): int64 =
   ## `sin` of a Q32.32 angle via CORDIC. The angle is mod-reduced first.
+  ensureRuntime()
   sinCordic(initFixed[int64, 32](reduceQ32(q))).data
 
 proc unimath_cordic_cos(q: int64): int64 =
   ## `cos` of a Q32.32 angle via CORDIC. The angle is mod-reduced first.
+  ensureRuntime()
   cosCordic(initFixed[int64, 32](reduceQ32(q))).data
 
 proc unimath_cordic_atan2(y, x: int64): int64 =
   ## `atan2(y, x)` of Q32.32 coordinates via CORDIC vectoring. The origin
   ## returns 0 by convention; coordinates are clamped to the safe range.
+  ensureRuntime()
   atan2Cordic(initFixed[int64, 32](clampQ32(y)),
               initFixed[int64, 32](clampQ32(x))).data
 
 proc unimath_lut_sin(q: int64): int64 =
   ## `sin` of a Q32.32 angle via the compile-time LUT (nearest-neighbour).
+  ensureRuntime()
   sin_lut(initFixed[int64, 32](reduceQ32(q))).data
 
 proc unimath_lut_cos(q: int64): int64 =
   ## `cos` of a Q32.32 angle via the compile-time LUT (nearest-neighbour).
+  ensureRuntime()
   cos_lut(initFixed[int64, 32](reduceQ32(q))).data
 
 proc unimath_chebyshev_tan(q: int64): int64 =
   ## `tan` of a Q32.32 angle via the Chebyshev minimax polynomial on
   ## `[-pi/4, pi/4]`. The input is clamped to the safe range; reduce to the
   ## primary interval on the host for angles outside it.
+  ensureRuntime()
   tanChebyshev(initFixed[int64, 32](clampQ32(q))).data
 
 # ------------------------------------------------------------------------------
@@ -982,21 +1208,25 @@ proc clampHyperbolicQ32(a: int64): int64 {.inline.} =
 proc unimath_cordic_sinh(q: int64): int64 =
   ## `sinh` of a Q32.32 angle via CORDIC. The angle is clamped to the
   ## convergence domain first.
+  ensureRuntime()
   sinhCordic(initFixed[int64, 32](clampHyperbolicQ32(q))).data
 
 proc unimath_cordic_cosh(q: int64): int64 =
   ## `cosh` of a Q32.32 angle via CORDIC. The angle is clamped to the
   ## convergence domain first.
+  ensureRuntime()
   coshCordic(initFixed[int64, 32](clampHyperbolicQ32(q))).data
 
 proc unimath_cordic_tanh(q: int64): int64 =
   ## `tanh` of a Q32.32 angle via CORDIC. The angle is clamped to the
   ## convergence domain first.
+  ensureRuntime()
   tanhCordic(initFixed[int64, 32](clampHyperbolicQ32(q))).data
 
 proc unimath_cordic_exp(q: int64): int64 =
   ## `e^x` of a Q32.32 angle via CORDIC (`cosh + sinh`). The angle is clamped
   ## to the convergence domain first.
+  ensureRuntime()
   expCordic(initFixed[int64, 32](clampHyperbolicQ32(q))).data
 
 # ------------------------------------------------------------------------------
@@ -1010,38 +1240,46 @@ proc unimath_cordic_exp(q: int64): int64 =
 
 proc unimath_chebyshev_t(n: cint; x: cdouble): cdouble =
   ## Chebyshev polynomial of the first kind `T_n(x)`, float64.
+  ensureRuntime()
   chebyshevT(n.int, x.float64).float64
 
 proc unimath_chebyshev_u(n: cint; x: cdouble): cdouble =
   ## Chebyshev polynomial of the second kind `U_n(x)`, float64.
+  ensureRuntime()
   chebyshevU(n.int, x.float64).float64
 
 proc unimath_legendre(n: cint; x: cdouble): cdouble =
   ## Legendre polynomial `P_n(x)`, float64.
+  ensureRuntime()
   legendreP(n.int, x.float64).float64
 
 proc unimath_hermite(n: cint; x: cdouble): cdouble =
   ## Hermite polynomial `H_n(x)`, float64.
+  ensureRuntime()
   hermiteH(n.int, x.float64).float64
 
 proc unimath_erf(x: cdouble): cdouble =
   ## Error function over the full float64 domain.
+  ensureRuntime()
   error_functions.erf(x.float64, 32, PI, sqrtF64Abi, expF64Abi).float64
 
 proc unimath_gamma(x: cdouble): cdouble =
   ## `Gamma(x)` via Lanczos (g=7, n=9), float64. Returns NaN at the
   ## non-positive-integer poles (the Nim core raises `ValueError` there); the
   ## C ABI never raises.
+  ensureRuntime()
   if x <= 0.0 and x == round(x):
     return NaN
   gammaLanczosFloat(x.float64).float64
 
 proc unimath_factorial(n: cint): cdouble =
   ## `n!` for non-negative `n` (0 for `n < 0`, undefined), float64.
+  ensureRuntime()
   gamma.factorial[float64](n.int).float64
 
 proc unimath_bessel_j0(x: cdouble): cdouble =
   ## Bessel `J0(x)` via the power series (15 terms), float64.
+  ensureRuntime()
   besselJ0(x.float64, 15).float64
 
 # ------------------------------------------------------------------------------
@@ -1053,19 +1291,23 @@ proc unimath_bessel_j0(x: cdouble): cdouble =
 proc unimath_pi_bigfloat(): pointer =
   ## `pi` as a 256-bit BigFloat handle (Machin's formula). Destroy with
   ## `unimath_bigfloat_destroy`.
+  ensureRuntime()
   pinFloat(piBigFloat(256))
 
 proc unimath_e_bigfloat(): pointer =
   ## `e` as a 256-bit BigFloat handle (the `exp(1)` series). Destroy with
   ## `unimath_bigfloat_destroy`.
+  ensureRuntime()
   pinFloat(eBigFloat(256))
 
 proc unimath_pi_fixed(): int64 =
   ## `pi` as a raw Q32.32 word (the float64 literal rounded to the grid).
+  ensureRuntime()
   piFixed[int64, 32]().data
 
 proc unimath_e_fixed(): int64 =
   ## `e` as a raw Q32.32 word (the float64 literal rounded to the grid).
+  ensureRuntime()
   eFixed[int64, 32]().data
 
 # ------------------------------------------------------------------------------
@@ -1076,6 +1318,7 @@ proc unimath_e_fixed(): int64 =
 
 proc unimath_bigfloat_reduce(h: pointer): pointer =
   ## Reduce a BigFloat argument mod `2*pi` into `[-pi, pi]`.
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(reduceModTwoPi(bfOf(h)))
 
@@ -1088,24 +1331,29 @@ proc unimath_bigfloat_reduce(h: pointer): pointer =
 
 proc unimath_bigfloat_sin(h: pointer): pointer =
   ## `sin(x)` with octant range reduction.
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(sin(bfOf(h)))
 
 proc unimath_bigfloat_sin_terms(h: pointer; terms: cint): pointer =
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(sin(bfOf(h), terms.int))
 
 proc unimath_bigfloat_cos(h: pointer): pointer =
   ## `cos(x)` with octant range reduction.
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(cos(bfOf(h)))
 
 proc unimath_bigfloat_cos_terms(h: pointer; terms: cint): pointer =
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(cos(bfOf(h), terms.int))
 
 proc unimath_bigfloat_tan(h: pointer): pointer =
   ## `tan(x) = sin(x)/cos(x)`. NULL on a nil handle or a cos-zero singularity.
+  ensureRuntime()
   if h == nil: return nil
   try:
     pinFloat(tan(bfOf(h)))
@@ -1113,6 +1361,7 @@ proc unimath_bigfloat_tan(h: pointer): pointer =
     nil
 
 proc unimath_bigfloat_tan_terms(h: pointer; terms: cint): pointer =
+  ensureRuntime()
   if h == nil: return nil
   try:
     pinFloat(tan(bfOf(h), terms.int))
@@ -1121,21 +1370,25 @@ proc unimath_bigfloat_tan_terms(h: pointer; terms: cint): pointer =
 
 proc unimath_bigfloat_exp(h: pointer): pointer =
   ## `exp(x)` by scaling-and-squaring.
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(exp(bfOf(h)))
 
 proc unimath_bigfloat_exp_terms(h: pointer; terms: cint): pointer =
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(exp(bfOf(h), terms.int))
 
 proc unimath_bigfloat_ln(h: pointer): pointer =
   ## `ln(x)` with mantissa range reduction. NULL on a nil handle or `x <= 0`.
+  ensureRuntime()
   if h == nil: return nil
   let b = bfOf(h)
   if b <= zero(BigFloat): return nil
   pinFloat(ln(b))
 
 proc unimath_bigfloat_ln_terms(h: pointer; terms: cint): pointer =
+  ensureRuntime()
   if h == nil: return nil
   let b = bfOf(h)
   if b <= zero(BigFloat): return nil
@@ -1143,6 +1396,7 @@ proc unimath_bigfloat_ln_terms(h: pointer; terms: cint): pointer =
 
 proc unimath_bigfloat_sqrt(h: pointer): pointer =
   ## `sqrt(x)` via Newton iteration. NULL on a nil handle or a negative input.
+  ensureRuntime()
   if h == nil: return nil
   let b = bfOf(h)
   if b < zero(BigFloat): return nil
@@ -1150,36 +1404,43 @@ proc unimath_bigfloat_sqrt(h: pointer): pointer =
 
 proc unimath_bigfloat_arctan(h: pointer): pointer =
   ## `arctan(x)` with argument reduction.
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(arctan(bfOf(h)))
 
 proc unimath_bigfloat_arctan_terms(h: pointer; terms: cint): pointer =
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(arctan(bfOf(h), terms.int))
 
 proc unimath_bigfloat_arctan2(y, x: pointer): pointer =
   ## `arctan2(y, x)` with quadrant dispatch. NULL if either handle is nil.
+  ensureRuntime()
   if y == nil or x == nil: return nil
   pinFloat(arctan2(bfOf(y), bfOf(x)))
 
 proc unimath_bigfloat_arctan2_terms(y, x: pointer; terms: cint): pointer =
+  ensureRuntime()
   if y == nil or x == nil: return nil
   pinFloat(arctan2(bfOf(y), bfOf(x), terms.int))
 
 proc unimath_bigfloat_pow_int(h: pointer; n: cint): pointer =
   ## `x^n`, integer exponent (repeated squaring). NULL on a nil handle.
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(pow(bfOf(h), n.int))
 
 proc unimath_bigfloat_pow(h, e: pointer): pointer =
   ## `x^e = exp(e·ln(x))` for `x > 0`. NULL on a nil handle or a non-positive
   ## base.
+  ensureRuntime()
   if h == nil or e == nil: return nil
   let b = bfOf(h)
   if not (b > zero(BigFloat)): return nil
   pinFloat(pow(b, bfOf(e)))
 
 proc unimath_bigfloat_pow_terms(h, e: pointer; terms: cint): pointer =
+  ensureRuntime()
   if h == nil or e == nil: return nil
   let b = bfOf(h)
   if not (b > zero(BigFloat)): return nil
@@ -1196,16 +1457,19 @@ proc unimath_bigfloat_pow_terms(h, e: pointer; terms: cint): pointer =
 
 proc unimath_rational_sin(h: pointer): pointer =
   ## `sin(x)` via the generic Taylor core (truncated at 5 terms).
+  ensureRuntime()
   if h == nil: return nil
   pinRational(sin(ratOf(h)))
 
 proc unimath_rational_cos(h: pointer): pointer =
   ## `cos(x)` via the generic Taylor core (truncated at 5 terms).
+  ensureRuntime()
   if h == nil: return nil
   pinRational(cos(ratOf(h)))
 
 proc unimath_rational_tan(h: pointer): pointer =
   ## `tan(x) = sin(x)/cos(x)`. NULL on a nil handle or a cos-zero singularity.
+  ensureRuntime()
   if h == nil: return nil
   try:
     pinRational(tan(ratOf(h)))
@@ -1214,11 +1478,13 @@ proc unimath_rational_tan(h: pointer): pointer =
 
 proc unimath_rational_exp(h: pointer): pointer =
   ## `e^x` as an exact rational approximation (truncated at 10 terms).
+  ensureRuntime()
   if h == nil: return nil
   pinRational(exp(ratOf(h)))
 
 proc unimath_rational_ln(h: pointer): pointer =
   ## `ln(x)` via the atanh series. NULL on a nil handle or `x <= 0`.
+  ensureRuntime()
   if h == nil: return nil
   let r = ratOf(h)
   if r <= zero(Rational[BigInt]): return nil
@@ -1229,6 +1495,7 @@ proc unimath_rational_ln(h: pointer): pointer =
 
 proc unimath_rational_sqrt(h: pointer): pointer =
   ## `sqrt(x)` via Newton's method. NULL on a nil handle or a negative input.
+  ensureRuntime()
   if h == nil: return nil
   let r = ratOf(h)
   if r < zero(Rational[BigInt]): return nil
@@ -1239,17 +1506,20 @@ proc unimath_rational_sqrt(h: pointer): pointer =
 
 proc unimath_rational_atan(h: pointer): pointer =
   ## `atan(x)` with range reduction (`pi` as `355/113`).
+  ensureRuntime()
   if h == nil: return nil
   pinRational(atan(ratOf(h)))
 
 proc unimath_rational_atan2(y, x: pointer): pointer =
   ## `atan2(y, x)` with quadrant dispatch. NULL if either handle is nil.
+  ensureRuntime()
   if y == nil or x == nil: return nil
   pinRational(atan2(ratOf(y), ratOf(x)))
 
 proc unimath_rational_pow(h, e: pointer): pointer =
   ## `base^exponent = exp(exponent·ln(base))` for `base > 0`. NULL on a nil
   ## handle or a non-positive base.
+  ensureRuntime()
   if h == nil or e == nil: return nil
   let b = ratOf(h)
   if not (b > zero(Rational[BigInt])): return nil
@@ -1269,16 +1539,19 @@ proc unimath_rational_pow(h, e: pointer): pointer =
 
 proc unimath_fixed_sin(q: int64): int64 =
   ## `sin(q)` (Q32.32) via CORDIC. Clamps to 0 on a domain/overflow defect.
+  ensureRuntime()
   try: sin(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_cos(q: int64): int64 =
   ## `cos(q)` (Q32.32) via CORDIC. Clamps to 0 on a domain/overflow defect.
+  ensureRuntime()
   try: cos(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_tan(q: int64): int64 =
   ## `tan(q)` (Q32.32) via Chebyshev. Clamps to 0 on a singularity/overflow.
+  ensureRuntime()
   try: tan(fxOf(q)).data
   except CatchableError, Defect: 0
 
@@ -1286,42 +1559,50 @@ proc unimath_fixed_exp(q: int64): int64 =
   ## `exp(q)` (Q32.32) via hyperbolic CORDIC scaling-and-squaring (in-domain
   ## up to the Q32.32 representable ceiling, `q` up to ~21.5), else (result
   ## overflow) clamps to 0.
+  ensureRuntime()
   try: exp(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_ln(q: int64): int64 =
   ## `ln(q)` (Q32.32) via the area-hyperbolic-tangent series (globally
   ## convergent for any `q > 0`). `q <= 0` clamps to 0.
+  ensureRuntime()
   try: ln(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_sqrt(q: int64): int64 =
   ## `sqrt(q)` (Q32.32) via Newton. `q < 0` clamps to 0.
+  ensureRuntime()
   try: sqrt(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_atan(q: int64): int64 =
   ## `atan(q)` (Q32.32) via CORDIC. Clamps to 0 on a defect.
+  ensureRuntime()
   try: atan(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_atan2(y, x: int64): int64 =
   ## `atan2(y, x)` (Q32.32) via CORDIC. Clamps to 0 on a defect.
+  ensureRuntime()
   try: atan2(fxOf(y), fxOf(x)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_sinh(q: int64): int64 =
   ## `sinh(q)` (Q32.32) via exponentials; overflow clamps to 0.
+  ensureRuntime()
   try: sinh(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_cosh(q: int64): int64 =
   ## `cosh(q)` (Q32.32) via exponentials; overflow clamps to 0.
+  ensureRuntime()
   try: cosh(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_tanh(q: int64): int64 =
   ## `tanh(q)` (Q32.32) via a stable exponential identity over the full domain.
+  ensureRuntime()
   try: tanh(fxOf(q)).data
   except CatchableError, Defect: 0
 
@@ -1329,50 +1610,59 @@ proc unimath_fixed_pow(base, exponent: int64): int64 =
   ## `base^exponent` (Q32.32) via `exp(exponent·ln(base))`, domain `base > 0`.
   ## Out-of-domain or a `base^exponent` result past the Q32.32 ceiling clamps
   ## to 0.
+  ensureRuntime()
   try: pow(fxOf(base), fxOf(exponent)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_asin(q: int64): int64 =
   ## `asin(q)` (Q32.32) via `atan2(q, sqrt(1-q^2))`, domain `|q| <= 1`.
   ## Out-of-domain or out-of-convergence clamps to 0.
+  ensureRuntime()
   try: asin(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_acos(q: int64): int64 =
   ## `acos(q)` (Q32.32) via `atan2(sqrt(1-q^2), q)`, domain `|q| <= 1`.
   ## Out-of-domain or out-of-convergence clamps to 0.
+  ensureRuntime()
   try: acos(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_asinh(q: int64): int64 =
   ## `asinh(q)` (Q32.32) via `ln(q + sqrt(q^2+1))`. Clamps to 0 on a defect.
+  ensureRuntime()
   try: asinh(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_acosh(q: int64): int64 =
   ## `acosh(q)` (Q32.32) via `ln(q + sqrt(q^2-1))`, domain `q >= 1`.
   ## Out-of-domain or out-of-convergence clamps to 0.
+  ensureRuntime()
   try: acosh(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_atanh(q: int64): int64 =
   ## `atanh(q)` (Q32.32) via `(1/2)*ln((1+q)/(1-q))`, domain `|q| < 1`.
   ## Out-of-domain or out-of-convergence clamps to 0.
+  ensureRuntime()
   try: atanh(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_factorial(n: cint): int64 =
   ## `n!` (Q32.32), exact within range. 0 for `n < 0` (undefined).
+  ensureRuntime()
   try: gamma.factorial[Fixed[int64, 32]](n.int).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_erf(q: int64): int64 =
   ## `erf(q)` (Q32.32) via the Taylor core. Clamps to 0 on a defect.
+  ensureRuntime()
   try: erf(fxOf(q)).data
   except CatchableError, Defect: 0
 
 proc unimath_fixed_bessel_j0(q: int64): int64 =
   ## Bessel `J0(q)` (Q32.32) via the series core. Clamps to 0 on a defect.
+  ensureRuntime()
   try: besselJ0(fxOf(q)).data
   except CatchableError, Defect: 0
 
@@ -1384,6 +1674,7 @@ proc unimath_fixed_bessel_j0(q: int64): int64 =
 
 proc unimath_rational_from_f64(v: float64): pointer =
   ## EXACT float64 -> Rational[BigInt] (no exponent limit). NaN/Inf -> NULL.
+  ensureRuntime()
   try: pinRational(toRationalBig(v))
   except ValueError: nil
 
@@ -1392,21 +1683,25 @@ proc unimath_rational_from_fixed(q: int64; frac_bits: cint): pointer =
   ## Out-of-range `frac_bits` (negative, or above 63) -> NULL: a negative
   ## denominator width would be non-integer, and a large one allocates a
   ## multi-hundred-megabyte shift.
+  ensureRuntime()
   if frac_bits < 0 or frac_bits > MaxFracBits: return nil
   pinRational(initRational(initBigInt(q), initBigInt(1) shl Natural(frac_bits)))
 
 proc unimath_bigfloat_from_rational(h: pointer): pointer =
   ## ROUNDED Rational -> BigFloat (nearest, 256-bit). nil -> NULL.
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(toBigFloat(ratOf(h), 256, rmNearest))
 
 proc unimath_bigint_from_bigfloat(h: pointer): pointer =
   ## TRUNCATED BigFloat -> BigInt. nil -> NULL.
+  ensureRuntime()
   if h == nil: return nil
   pin(toBigInt(bfOf(h)))
 
 proc unimath_bigint_from_rational(h: pointer): pointer =
   ## TRUNCATED Rational -> BigInt. nil -> NULL.
+  ensureRuntime()
   if h == nil: return nil
   pin(toBigInt(ratOf(h)))
 
@@ -1414,6 +1709,7 @@ proc unimath_fixed_from_rational(h: pointer; frac_bits: cint): int64 =
   ## TRUNCATED Rational[BigInt] -> raw Q-format fixed:
   ## `data = (num * 2^frac_bits) div den`. nil -> 0; `frac_bits < 0` or a
   ## result that does not fit in 63 bits -> 0 (clamped, never raises).
+  ensureRuntime()
   if h == nil or frac_bits < 0 or frac_bits > MaxFracBits: return 0
   try:
     let r = ratOf(h)
@@ -1431,18 +1727,21 @@ proc unimath_fixed_from_rational(h: pointer; frac_bits: cint): int64 =
 
 proc unimath_interval_from_bigfloat(h: pointer): IntervalC =
   ## ENCLOSURE BigFloat -> Interval. nil -> the NaN interval.
+  ensureRuntime()
   if h == nil: return IntervalC(lo: NaN, hi: NaN)
   let i = toInterval(bfOf(h))
   IntervalC(lo: i.lower, hi: i.upper)
 
 proc unimath_interval_from_rational(h: pointer): IntervalC =
   ## ENCLOSURE Rational -> Interval. nil -> the NaN interval.
+  ensureRuntime()
   if h == nil: return IntervalC(lo: NaN, hi: NaN)
   let i = toInterval(ratOf(h))
   IntervalC(lo: i.lower, hi: i.upper)
 
 proc unimath_interval_from_bigint(h: pointer): IntervalC =
   ## ENCLOSURE BigInt -> Interval. nil -> the NaN interval.
+  ensureRuntime()
   if h == nil: return IntervalC(lo: NaN, hi: NaN)
   let i = toInterval(bigOf(h))
   IntervalC(lo: i.lower, hi: i.upper)
@@ -1459,92 +1758,118 @@ proc unimath_interval_from_bigint(h: pointer): IntervalC =
 # ------------------------------------------------------------------------------
 
 proc unimath_complex_from_f64(re, im: float64): ComplexC =
+  ensureRuntime()
   ComplexC(re: re, im: im)
 
-proc unimath_complex_re(z: ComplexC): float64 = z.re
-proc unimath_complex_im(z: ComplexC): float64 = z.im
+proc unimath_complex_re(z: ComplexC): float64 =
+  ensureRuntime()
+  z.re
+proc unimath_complex_im(z: ComplexC): float64 =
+  ensureRuntime()
+  z.im
 
 proc unimath_complex_is_nan(z: ComplexC): cint =
   ## 1 when either component is NaN — the sentinel check for every entry point
   ## below that can hit a domain error.
+  ensureRuntime()
   cint(z.re != z.re or z.im != z.im)
 
 proc unimath_complex_add(a, b: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(cxOf(a) + cxOf(b))
 
 proc unimath_complex_sub(a, b: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(cxOf(a) - cxOf(b))
 
 proc unimath_complex_mul(a, b: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(cxOf(a) * cxOf(b))
 
 proc unimath_complex_div(a, b: ComplexC): ComplexC =
   ## The NaN complex on a zero divisor. Guarded up front rather than left to
   ## an `except`: catching a Defect only works while the library is built with
   ## `--panics:off`, and a cheap precondition needs no such dependency.
+  ensureRuntime()
   if b.re == 0.0 and b.im == 0.0: return NaNComplexC
   cxTo(cxOf(a) / cxOf(b))
 
 proc unimath_complex_neg(a: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(-cxOf(a))
 
 proc unimath_complex_conj(a: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(conj(cxOf(a)))
 
 proc unimath_complex_inv(a: ComplexC): ComplexC =
   ## `1/a`. The NaN complex on zero.
+  ensureRuntime()
   if a.re == 0.0 and a.im == 0.0: return NaNComplexC
   cxTo(inv(cxOf(a)))
 
 proc unimath_complex_abs(a: ComplexC): float64 =
   ## Modulus. Scaled by the larger component, so it stays finite where
   ## `sqrt(norm2)` would overflow.
+  ensureRuntime()
   abs(cxOf(a))
 
 proc unimath_complex_norm2(a: ComplexC): float64 =
   ## Squared modulus `re*re + im*im` — overflows to +Inf where `abs` does not.
+  ensureRuntime()
   norm2(cxOf(a))
 
 proc unimath_complex_arg(a: ComplexC): float64 =
   ## Principal argument in (-pi, pi]. `arg(0)` is 0.
+  ensureRuntime()
   arg(cxOf(a))
 
 proc unimath_complex_rect(r, theta: float64): ComplexC =
   ## Polar to Cartesian.
+  ensureRuntime()
   cxTo(rect(r, theta))
 
 proc unimath_complex_sqrt(a: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(sqrt(cxOf(a)))
 
 proc unimath_complex_exp(a: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(exp(cxOf(a)))
 
 proc unimath_complex_ln(a: ComplexC): ComplexC =
   ## The NaN complex on zero — no branch of the complex log is finite there.
+  ensureRuntime()
   if a.re == 0.0 and a.im == 0.0: return NaNComplexC
   cxTo(ln(cxOf(a)))
 
 proc unimath_complex_sin(a: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(sin(cxOf(a)))
 
 proc unimath_complex_cos(a: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(cos(cxOf(a)))
 
 proc unimath_complex_tan(a: ComplexC): ComplexC =
   ## The NaN complex at a pole (zero cosine).
+  ensureRuntime()
   let z = cxOf(a)
   let c = cos(z)
   if c.re == 0.0 and c.im == 0.0: return NaNComplexC
   cxTo(sin(z) / c)
 
 proc unimath_complex_sinh(a: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(sinh(cxOf(a)))
 
 proc unimath_complex_cosh(a: ComplexC): ComplexC =
+  ensureRuntime()
   cxTo(cosh(cxOf(a)))
 
 proc unimath_complex_tanh(a: ComplexC): ComplexC =
   ## The NaN complex at a pole (zero hyperbolic cosine).
+  ensureRuntime()
   let z = cxOf(a)
   let c = cosh(z)
   if c.re == 0.0 and c.im == 0.0: return NaNComplexC
@@ -1553,12 +1878,14 @@ proc unimath_complex_tanh(a: ComplexC): ComplexC =
 proc unimath_complex_pow_int(a: ComplexC; n: cint): ComplexC =
   ## Integer power by binary exponentiation. `n == 0` is 1 for every base; a
   ## negative `n` on a zero base is the NaN complex.
+  ensureRuntime()
   if n < 0 and a.re == 0.0 and a.im == 0.0: return NaNComplexC
   cxTo(pow(cxOf(a), int(n)))
 
 proc unimath_complex_pow(a, b: ComplexC): ComplexC =
   ## Principal `a^b = exp(b * ln a)`. A zero base is the NaN complex — use
   ## `unimath_complex_pow_int` for the `0^0 == 1` convention.
+  ensureRuntime()
   if a.re == 0.0 and a.im == 0.0: return NaNComplexC
   cxTo(pow(cxOf(a), cxOf(b)))
 
@@ -1566,11 +1893,13 @@ proc unimath_csqrt(x: float64): ComplexC =
   ## Square root of a REAL, returned as a complex: `unimath_csqrt(-1.0)` is
   ## 0+1i where the root has no real value. `unimath_sqrt_newton_f64` keeps
   ## its NaN-on-negative contract.
+  ensureRuntime()
   cxTo(csqrt(x))
 
 proc unimath_cln(x: float64): ComplexC =
   ## Logarithm of a REAL that promotes instead of failing: `unimath_cln(-1.0)`
   ## is 0 + pi*i. Zero is the NaN complex.
+  ensureRuntime()
   if x == 0.0: return NaNComplexC
   cxTo(cln(x))
 
@@ -1584,115 +1913,140 @@ proc unimath_cln(x: float64): ComplexC =
 proc unimath_complex_bigfloat_from_bigfloat(re, im: pointer): pointer =
   ## Builds from two BigFloat handles, which the caller still owns and must
   ## destroy separately: the components are copied in, not adopted.
+  ensureRuntime()
   if re == nil or im == nil: return nil
   pinCxFloat(complex(bfOf(re), bfOf(im)))
 
 proc unimath_complex_bigfloat_from_f64(re, im: float64): pointer =
   ## NULL if either component is Inf or NaN, as the scalar constructor is.
+  ensureRuntime()
   try: pinCxFloat(complex(initBigFloat(re), initBigFloat(im)))
   except ValueError: nil
 
 proc unimath_complex_bigfloat_re(h: pointer): pointer =
   ## A NEW BigFloat handle for the real part; destroy it separately.
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(cxfOf(h).re)
 
 proc unimath_complex_bigfloat_im(h: pointer): pointer =
+  ensureRuntime()
   if h == nil: return nil
   pinFloat(cxfOf(h).im)
 
 proc unimath_complex_bigfloat_is_zero(h: pointer): cint =
+  ensureRuntime()
   if h == nil: return 0
   cint(cxfOf(h).isZero)
 
 proc unimath_complex_bigfloat_add(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinCxFloat(cxfOf(a) + cxfOf(b))
 
 proc unimath_complex_bigfloat_sub(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinCxFloat(cxfOf(a) - cxfOf(b))
 
 proc unimath_complex_bigfloat_mul(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinCxFloat(cxfOf(a) * cxfOf(b))
 
 proc unimath_complex_bigfloat_div(a, b: pointer): pointer =
   ## NULL on a zero divisor.
+  ensureRuntime()
   if a == nil or b == nil or cxfOf(b).isZero: return nil
   pinCxFloat(cxfOf(a) / cxfOf(b))
 
 proc unimath_complex_bigfloat_neg(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinCxFloat(-cxfOf(a))
 
 proc unimath_complex_bigfloat_conj(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinCxFloat(conj(cxfOf(a)))
 
 proc unimath_complex_bigfloat_inv(a: pointer): pointer =
+  ensureRuntime()
   if a == nil or cxfOf(a).isZero: return nil
   pinCxFloat(inv(cxfOf(a)))
 
 proc unimath_complex_bigfloat_abs(a: pointer): pointer =
   ## Modulus as a NEW BigFloat handle.
+  ensureRuntime()
   if a == nil: return nil
   pinFloat(abs(cxfOf(a)))
 
 proc unimath_complex_bigfloat_norm2(a: pointer): pointer =
   ## Squared modulus as a NEW BigFloat handle.
+  ensureRuntime()
   if a == nil: return nil
   pinFloat(norm2(cxfOf(a)))
 
 proc unimath_complex_bigfloat_arg(a: pointer): pointer =
   ## Principal argument as a NEW BigFloat handle.
+  ensureRuntime()
   if a == nil: return nil
   pinFloat(arg(cxfOf(a)))
 
 proc unimath_complex_bigfloat_sqrt(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinCxFloat(sqrt(cxfOf(a)))
 
 proc unimath_complex_bigfloat_exp(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinCxFloat(exp(cxfOf(a)))
 
 proc unimath_complex_bigfloat_ln(a: pointer): pointer =
   ## NULL on zero.
+  ensureRuntime()
   if a == nil or cxfOf(a).isZero: return nil
   pinCxFloat(ln(cxfOf(a)))
 
 proc unimath_complex_bigfloat_sin(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinCxFloat(sin(cxfOf(a)))
 
 proc unimath_complex_bigfloat_cos(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinCxFloat(cos(cxfOf(a)))
 
 proc unimath_complex_bigfloat_pow_int(a: pointer; n: cint): pointer =
   ## NULL on a negative `n` with a zero base; `n == 0` is 1 for every base.
+  ensureRuntime()
   if a == nil: return nil
   if n < 0 and cxfOf(a).isZero: return nil
   pinCxFloat(pow(cxfOf(a), int(n)))
 
 proc unimath_complex_bigfloat_pow(a, b: pointer): pointer =
   ## Principal `a^b = exp(b * ln a)`. NULL on a zero base.
+  ensureRuntime()
   if a == nil or b == nil or cxfOf(a).isZero: return nil
   pinCxFloat(pow(cxfOf(a), cxfOf(b)))
 
 proc unimath_csqrt_bigfloat(h: pointer): pointer =
   ## Square root of a REAL BigFloat, returned as a complex handle instead of
   ## failing on a negative argument.
+  ensureRuntime()
   if h == nil: return nil
   pinCxFloat(csqrt(bfOf(h)))
 
 proc unimath_cln_bigfloat(h: pointer): pointer =
   ## Logarithm of a REAL BigFloat as a complex handle. NULL on zero.
+  ensureRuntime()
   if h == nil or bfOf(h).isZero: return nil
   pinCxFloat(cln(bfOf(h)))
 
 proc unimath_complex_bigfloat_destroy(h: pointer) =
+  ensureRuntime()
   unrefCxFloat(h)
 
 # ------------------------------------------------------------------------------
@@ -1707,76 +2061,92 @@ proc unimath_complex_bigfloat_destroy(h: pointer) =
 
 proc unimath_complex_rational_from_rational(re, im: pointer): pointer =
   ## Builds from two Rational handles, which the caller still owns.
+  ensureRuntime()
   if re == nil or im == nil: return nil
   pinCxRat(complex(ratOf(re), ratOf(im)))
 
 proc unimath_complex_rational_from_i64(re_num, re_den, im_num,
                                        im_den: int64): pointer =
   ## NULL if either denominator is zero.
+  ensureRuntime()
   if re_den == 0 or im_den == 0: return nil
   pinCxRat(complex(initRational(initBigInt(re_num), initBigInt(re_den)),
                    initRational(initBigInt(im_num), initBigInt(im_den))))
 
 proc unimath_complex_rational_re(h: pointer): pointer =
   ## A NEW Rational handle for the real part; destroy it separately.
+  ensureRuntime()
   if h == nil: return nil
   pinRational(cxrOf(h).re)
 
 proc unimath_complex_rational_im(h: pointer): pointer =
+  ensureRuntime()
   if h == nil: return nil
   pinRational(cxrOf(h).im)
 
 proc unimath_complex_rational_is_zero(h: pointer): cint =
+  ensureRuntime()
   if h == nil: return 0
   cint(cxrOf(h).isZero)
 
 proc unimath_complex_rational_add(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinCxRat(cxrOf(a) + cxrOf(b))
 
 proc unimath_complex_rational_sub(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinCxRat(cxrOf(a) - cxrOf(b))
 
 proc unimath_complex_rational_mul(a, b: pointer): pointer =
+  ensureRuntime()
   if a == nil or b == nil: return nil
   pinCxRat(cxrOf(a) * cxrOf(b))
 
 proc unimath_complex_rational_div(a, b: pointer): pointer =
   ## Exact. NULL on a zero divisor.
+  ensureRuntime()
   if a == nil or b == nil or cxrOf(b).isZero: return nil
   pinCxRat(cxrOf(a) / cxrOf(b))
 
 proc unimath_complex_rational_neg(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinCxRat(-cxrOf(a))
 
 proc unimath_complex_rational_conj(a: pointer): pointer =
+  ensureRuntime()
   if a == nil: return nil
   pinCxRat(conj(cxrOf(a)))
 
 proc unimath_complex_rational_inv(a: pointer): pointer =
+  ensureRuntime()
   if a == nil or cxrOf(a).isZero: return nil
   pinCxRat(inv(cxrOf(a)))
 
 proc unimath_complex_rational_norm2(a: pointer): pointer =
   ## EXACT squared modulus as a NEW Rational handle.
+  ensureRuntime()
   if a == nil: return nil
   pinRational(norm2(cxrOf(a)))
 
 proc unimath_complex_rational_abs(a: pointer): pointer =
   ## APPROXIMATE modulus as a NEW Rational handle: a square root generally
   ## leaves the rationals, so this is the Newton iterate, not the exact value.
+  ensureRuntime()
   if a == nil: return nil
   pinRational(abs(cxrOf(a)))
 
 proc unimath_complex_rational_sqrt(a: pointer): pointer =
   ## APPROXIMATE principal square root — see `unimath_complex_rational_abs`.
+  ensureRuntime()
   if a == nil: return nil
   pinCxRat(sqrt(cxrOf(a)))
 
 proc unimath_complex_rational_pow_int(a: pointer; n: cint): pointer =
   ## EXACT integer power. NULL on a negative `n` with a zero base.
+  ensureRuntime()
   if a == nil: return nil
   if n < 0 and cxrOf(a).isZero: return nil
   pinCxRat(pow(cxrOf(a), int(n)))
@@ -1785,10 +2155,12 @@ proc unimath_csqrt_rational(h: pointer): pointer =
   ## Square root of a REAL Rational as a complex handle. Approximate in
   ## magnitude, exact in which axis it lands on -- a negative input yields a
   ## purely imaginary result.
+  ensureRuntime()
   if h == nil: return nil
   pinCxRat(csqrt(ratOf(h)))
 
 proc unimath_complex_rational_destroy(h: pointer) =
+  ensureRuntime()
   unrefCxRat(h)
 
 # ------------------------------------------------------------------------------
@@ -1803,25 +2175,34 @@ proc unimath_complex_rational_destroy(h: pointer) =
 
 proc unimath_complex_fixed_from_int(re, im: int64;
     frac_bits: cint): ComplexFixedC =
+  ensureRuntime()
   ComplexFixedC(re: unimath_fixed_from_int(re, frac_bits),
                 im: unimath_fixed_from_int(im, frac_bits))
 
-proc unimath_complex_fixed_re(z: ComplexFixedC): int64 = z.re
-proc unimath_complex_fixed_im(z: ComplexFixedC): int64 = z.im
+proc unimath_complex_fixed_re(z: ComplexFixedC): int64 =
+  ensureRuntime()
+  z.re
+proc unimath_complex_fixed_im(z: ComplexFixedC): int64 =
+  ensureRuntime()
+  z.im
 
 proc unimath_complex_fixed_add(a, b: ComplexFixedC): ComplexFixedC =
+  ensureRuntime()
   ComplexFixedC(re: unimath_fixed_add(a.re, b.re),
                 im: unimath_fixed_add(a.im, b.im))
 
 proc unimath_complex_fixed_sub(a, b: ComplexFixedC): ComplexFixedC =
+  ensureRuntime()
   ComplexFixedC(re: unimath_fixed_sub(a.re, b.re),
                 im: unimath_fixed_sub(a.im, b.im))
 
 proc unimath_complex_fixed_neg(a: ComplexFixedC): ComplexFixedC =
+  ensureRuntime()
   ComplexFixedC(re: unimath_fixed_sub(0, a.re),
                 im: unimath_fixed_sub(0, a.im))
 
 proc unimath_complex_fixed_conj(a: ComplexFixedC): ComplexFixedC =
+  ensureRuntime()
   ComplexFixedC(re: a.re, im: unimath_fixed_sub(0, a.im))
 
 proc unimath_complex_fixed_mul(a, b: ComplexFixedC;
@@ -1829,6 +2210,7 @@ proc unimath_complex_fixed_mul(a, b: ComplexFixedC;
   ## `(ac - bd) >> f`, `(ad + bc) >> f`. The products are formed as exact
   ## BigInts before the shift, so no intermediate overflows on the way to a
   ## representable result.
+  ensureRuntime()
   if frac_bits < 0 or frac_bits > MaxFracBits:
     return ComplexFixedC(re: 0, im: 0)
   let f = Natural(int(frac_bits))
@@ -1844,6 +2226,7 @@ proc unimath_complex_fixed_div(a, b: ComplexFixedC;
   ## The textbook quotient over an exact BigInt denominator — no Smith scaling
   ## needed, since `c^2 + d^2` cannot overflow a BigInt. The zero complex on a
   ## zero divisor.
+  ensureRuntime()
   if frac_bits < 0 or frac_bits > MaxFracBits:
     return ComplexFixedC(re: 0, im: 0)
   if b.re == 0 and b.im == 0:
@@ -1859,6 +2242,7 @@ proc unimath_complex_fixed_div(a, b: ComplexFixedC;
 
 proc unimath_complex_fixed_norm2(a: ComplexFixedC; frac_bits: cint): int64 =
   ## `(re^2 + im^2) >> f`, clamped.
+  ensureRuntime()
   if frac_bits < 0 or frac_bits > MaxFracBits: return 0
   let ar = initBigInt(a.re)
   let ai = initBigInt(a.im)
@@ -1867,16 +2251,19 @@ proc unimath_complex_fixed_norm2(a: ComplexFixedC; frac_bits: cint): int64 =
 proc unimath_complex_fixed_abs(a: ComplexFixedC): int64 =
   ## Q32.32 modulus, matching `unimath_fixed_sqrt`'s fixed scale. Zero where
   ## the fixed-point core overflows, as the scalar entry points are.
+  ensureRuntime()
   try: abs(complex(fxOf(a.re), fxOf(a.im))).data
   except CatchableError, Defect: 0
 
 proc unimath_complex_fixed_arg(a: ComplexFixedC): int64 =
   ## Q32.32 principal argument, via the CORDIC `atan2`.
+  ensureRuntime()
   try: arg(complex(fxOf(a.re), fxOf(a.im))).data
   except CatchableError, Defect: 0
 
 proc unimath_complex_fixed_sqrt(a: ComplexFixedC): ComplexFixedC =
   ## Q32.32 principal square root.
+  ensureRuntime()
   try:
     let r = sqrt(complex(fxOf(a.re), fxOf(a.im)))
     ComplexFixedC(re: r.re.data, im: r.im.data)
@@ -1887,6 +2274,7 @@ proc unimath_complex_fixed_pow_int(a: ComplexFixedC; n: cint;
                                    frac_bits: cint): ComplexFixedC =
   ## Binary exponentiation over the raw words. `n == 0` is 1; a negative `n`
   ## inverts at the end, and a zero base then yields the zero complex.
+  ensureRuntime()
   if frac_bits < 0 or frac_bits > MaxFracBits:
     return ComplexFixedC(re: 0, im: 0)
   let one = ComplexFixedC(re: unimath_fixed_from_int(1, frac_bits), im: 0)
@@ -1906,6 +2294,7 @@ proc unimath_complex_fixed_pow_int(a: ComplexFixedC; n: cint;
 proc unimath_csqrt_fixed(q: int64): ComplexFixedC =
   ## Square root of a REAL Q32.32 value, returned as a complex instead of
   ## clamping a negative input to zero.
+  ensureRuntime()
   try:
     let r = csqrt(fxOf(q))
     ComplexFixedC(re: r.re.data, im: r.im.data)
