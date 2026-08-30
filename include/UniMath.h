@@ -185,7 +185,10 @@ long long unimath_fixed_clamp(long long val, long long lo, long long hi);
 /* Floored modulo, scale-invariant. Returns 0 on division by zero. */
 long long unimath_fixed_floor_mod(long long a, long long b);
 
-/* Q32.32 only (no runtime frac_bits -- see the .nim source for why), clamped. */
+/* Q31.32 only (no runtime frac_bits -- see the .nim source for why), clamped.
+ * Q31.32 is Fixed[int64, 32]: 32 fractional bits and one of sign leave 31
+ * integer bits, so the range is [-2^31, 2^31). A value under 2^32 can still
+ * overflow. */
 long long unimath_fixed_floor(long long a);
 long long unimath_fixed_ceil(long long a);
 long long unimath_fixed_round(long long a);
@@ -308,7 +311,7 @@ unimath_bigfloat unimath_ln_generic_bigfloat(unimath_bigfloat h);
 
 /* ---- Trigonometry ----
  * Generic Taylor sin/cos/atan over float64, and the fixed-point CORDIC/LUT/
- * Chebyshev cores over Q32.32 (32 fractional bits). The fixed-point procs take
+ * Chebyshev cores over Q31.32 (32 fractional bits). The fixed-point procs take
  * the raw Q-format long long: angles are mod-reduced to [0, 2pi) first,
  * coordinates are clamped so the CORDIC gain cannot overflow. The ABI never
  * raises. */
@@ -323,7 +326,7 @@ long long unimath_lut_cos(long long q);
 long long unimath_chebyshev_tan(long long q);
 
 /* ---- Hyperbolic ----
- * Fixed-point CORDIC sinh/cosh/tanh/exp over Q32.32. Hyperbolic CORDIC
+ * Fixed-point CORDIC sinh/cosh/tanh/exp over Q31.32. Hyperbolic CORDIC
  * converges only for |z| <= ~1.1182 (no range reduction — not periodic); the
  * ABI clamps the angle to that domain first, so it never raises. Use the
  * BigFloat exp/sinh/cosh for larger arguments. */
@@ -348,7 +351,7 @@ double unimath_bessel_j0(double x);
 
 /* ---- Constants ----
  * `pi`/`e` as 256-bit BigFloat handles (destroy with `unimath_bigfloat_destroy`)
- * and as raw Q32.32 words. */
+ * and as raw Q31.32 words. */
 unimath_bigfloat unimath_pi_bigfloat(void);
 unimath_bigfloat unimath_e_bigfloat(void);
 long long unimath_pi_fixed(void);
@@ -404,8 +407,8 @@ unimath_rational unimath_rational_atan2(unimath_rational y, unimath_rational x);
 unimath_rational unimath_rational_pow(unimath_rational h, unimath_rational e);
 
 /* ---- math_router ----
- * Fixed[int64, 32] (Q32.32) transcendentals via the auto-dispatch cores
- * (CORDIC / Chebyshev / Newton / Taylor). The raw Q32.32 word is the `data`
+ * Fixed[int64, 32] (Q31.32) transcendentals via the auto-dispatch cores
+ * (CORDIC / Chebyshev / Newton / Taylor). The raw Q31.32 word is the `data`
  * field of `Fixed[int64, 32]`. Never raises: a domain error or overflow clamps
  * to `0`. `pow` needs `base > 0`; `ln` needs `q > 0`; `sqrt` needs `q >= 0`.
  * The fixed sinh/cosh/tanh functions use range-reduced exponentials and have
@@ -611,7 +614,7 @@ void unimath_complex_rational_destroy(unimath_complex_rational h);
  * Complex over Fixed - two raw Q-format words, by value like the Fixed
  * scalars, so nothing to destroy. `frac_bits` is the shared fractional width
  * of both components: add/sub/neg/conj are scale-invariant, mul/div/norm2/
- * pow_int take it. abs/arg/sqrt are Q32.32 only, matching unimath_fixed_sqrt.
+ * pow_int take it. abs/arg/sqrt are Q31.32 only, matching unimath_fixed_sqrt.
  *
  * Never raises: results clamp to the long long range through an exact BigInt
  * intermediate; division by zero returns the zero complex.
@@ -642,11 +645,11 @@ long long unimath_complex_fixed_norm2(unimath_complex_fixed a, int frac_bits);
 unimath_complex_fixed unimath_complex_fixed_pow_int(unimath_complex_fixed a,
                                                     int n, int frac_bits);
 
-/* Q32.32 only. */
+/* Q31.32 only. */
 long long unimath_complex_fixed_abs(unimath_complex_fixed a);
 long long unimath_complex_fixed_arg(unimath_complex_fixed a);
 unimath_complex_fixed unimath_complex_fixed_sqrt(unimath_complex_fixed a);
-/* Square root of a REAL raw Q32.32 word, as a complex. */
+/* Square root of a REAL raw Q31.32 word, as a complex. */
 unimath_complex_fixed unimath_csqrt_fixed(long long q);
 
 #ifdef __cplusplus

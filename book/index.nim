@@ -54,7 +54,9 @@ earlier is required to run it.
 
 - `Fixed[T, FracBits]`: Q-format fixed-point — an integer of type `T` holding
   the real value scaled by `2^FracBits`. `Fixed[int64, 32]` is written
-  `Q32.32` below (32 integer bits, 32 fractional bits).
+  `Q31.32` below: 64 storage bits, 32 fractional and one of sign leave **31**
+  integer bits, so the range is `[-2^31, 2^31)` and a value under `2^32` can
+  still overflow.
 - `BigFloat`'s `precision` argument (e.g. `initBigFloat(2.0, 128)`) is the
   mantissa width in bits, not decimal digits; the default is 256.
 - `rmNearest`/`rmUp`/`rmDown`: rounding modes — round to nearest, or round so
@@ -328,14 +330,39 @@ nbText: """
 ## Exponential
 
 Taylor series for `exp(x)` and `ln(1+x)`, plus a generic `ln(z)` built on the
-area-hyperbolic-tangent series (`z = (1+x)/(1-x)`), which converges for every
-positive `z`. All three are generic over `Field` / `OrderedField`; the logs
-raise `ValueError` out of domain.
+area-hyperbolic-tangent series (`z = (1+x)/(1-x)`). All three are generic over
+`Field` / `OrderedField`; the logs raise `ValueError` out of domain.
+
+**Limitation, and it is a hard one.** The substitution sends
+`u = (z-1)/(z+1)` toward 1 as `z` grows, and the `atanh` series converges like
+`u^(2n+1)/(2n+1)`, so the term count needed explodes. Measured, for twelve
+correct digits:
+
+| `z` | `u` | terms needed |
+|---|---|---|
+| 2 | 0.333 | 15 — the default |
+| 10 | 0.818 | 200 |
+| 10³ | 0.998 | 20 000 |
+| 10⁶ | 0.999998 | not reached at 100 000 |
+
+`terms` defaults to 15, and **past `z = 10` the result is wrong rather than
+refused**: no exception, no defect, just a plausible number. Raising `terms` is
+not a remedy beyond small `z`. Scale the argument into range first — for
+`z = m·2^k`, `ln z = ln m + k·ln 2` — or use `ln` from `std/math` on float64.
+This function earns its place on exact backends near 1, not as a general
+logarithm.
+
+The block below shows the default failing, and shows that 200 terms does not
+rescue `z = 10⁶` either.
 """
 
 nbCode:
   echo "expTaylor(1.0) = ", expTaylor(1.0)
   echo "lnGeneric(2.0) = ", lnGeneric(2.0)
+  # The default term count is exhausted past z = 10, and says nothing about it.
+  for z in [10.0, 1e6]:
+    echo "lnGeneric(", z, ") = ", lnGeneric(z),
+         "  with 200 terms = ", lnGeneric(z, terms = 200)
   let bfLn = lnGeneric(initBigFloat(2.0, 128))
   echo "lnGeneric(BigFloat 2.0) = ", toFloat64(bfLn)
 
@@ -354,7 +381,7 @@ Four cores, each for a different precision/cost trade-off: a generic Taylor
 `sin`/`cos`/`atan` (any `Field`, float64 here), fixed-point CORDIC
 (`sin`/`cos`/`atan2`, shifts only — no multiply), a compile-time 256-entry LUT
 (`sin`/`cos`, O(1) with no RAM cost), and a Chebyshev minimax `tan`. The
-fixed-point cores run on `Fixed[int64, 32]` (Q32.32).
+fixed-point cores run on `Fixed[int64, 32]` (Q31.32).
 """
 
 nbCode:
@@ -385,9 +412,11 @@ nbText: """
 Fixed-point CORDIC hyperbolic mode: `sinh`/`cosh`/`tanh`/`exp` via
 `atanh(2^-i)` rotations (shifts only). Hyperbolic CORDIC is not periodic and
 `exp` grows without bound, so there is no range reduction — the core converges
-only for `|z| <= sum atanh(2^-i) ~ 1.1182` and raises `ValueError` beyond it
+only for `|z| <= 1.1182` and raises `ValueError` beyond it. That bound is
+`sum atanh(2^-i)` with the repeat steps counted twice; the plain sum is 1.0555
 (the BigFloat `exp`/`sinh`/`cosh` handle larger arguments via
-scaling-and-squaring). Iterations at `i = 4, 13, 40, 121` are repeated for
+scaling-and-squaring). Repeat iterations come from the recurrence, not a fixed list: `Q31.32` reaches
+`i = 4, 13`, and wider `FracBits` also reach 40, 121, 364. They are repeated for
 convergence.
 """
 
@@ -567,12 +596,12 @@ nbText: """
 nbText: """
 ## math_router
 
-Auto-dispatch `Fixed[int64, 32]` (Q32.32) transcendentals. Each call selects a
+Auto-dispatch `Fixed[int64, 32]` (Q31.32) transcendentals. Each call selects a
 core by algorithm: CORDIC for `sin`/`cos`/`atan2`, Chebyshev for `tan`,
 hyperbolic-CORDIC scaling-and-squaring for `exp`, the area-hyperbolic-tangent
 series after power-of-two reduction for `ln`, exponential identities for
 `sinh`/`cosh`/`tanh`, and Newton for `sqrt`. The router is generic over
-`Fixed[T, FracBits]`; here it runs at Q32.32. Exponential scaling and squaring
+`Fixed[T, FracBits]`; here it runs at Q31.32. Exponential scaling and squaring
 removes the raw hyperbolic CORDIC convergence limit; `tanh` covers the full
 fixed-point domain and saturates only when the exact result rounds to `+/-1`.
 """
