@@ -2,7 +2,7 @@
 # Copyright 2026 lituus-lab
 # UniMath — a multi-precision numeric library.
 
-version = "1.0.0"
+version = "1.1.0"
 author = "lituus-lab"
 description = "Multi-precision numeric library (Nim + C-ABI + Python)"
 license = "Apache-2.0"
@@ -124,6 +124,7 @@ task test, "Nim tests (debug, contracts active)":
   exec "nim c -r --path:src -o:build/test_complex_math tests/test_complex_math.nim"
   exec "nim c -r --path:src -o:build/test_math_router tests/test_math_router.nim"
   exec "nim c -r --path:src -o:build/test_conversions tests/test_conversions.nim"
+  exec "nim c -r --path:src -o:build/test_version tests/test_version.nim"
   exec "nim c -r --path:src -o:build/test_properties tests/test_properties.nim"
   done "test"
 
@@ -150,6 +151,7 @@ task testRelease, "Nim tests (release, contracts compiled away)":
   exec "nim c -r -d:release --path:src -o:build/test_complex_math_rel tests/test_complex_math.nim"
   exec "nim c -r -d:release --path:src -o:build/test_math_router_rel tests/test_math_router.nim"
   exec "nim c -r -d:release --path:src -o:build/test_conversions_rel tests/test_conversions.nim"
+  exec "nim c -r -d:release --path:src -o:build/test_version_rel tests/test_version.nim"
   exec "nim c -r -d:release --path:src -o:build/test_properties_rel tests/test_properties.nim"
   done "testRelease"
 

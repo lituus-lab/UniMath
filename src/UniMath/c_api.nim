@@ -37,7 +37,7 @@ import ./native_float
 import ./complex
 import ./complex_math
 
-const UniMathVersionC: cstring = "1.0.0"
+const UniMathVersionC: cstring = "1.1.0"
 
 # ------------------------------------------------------------------------------
 # Internal helpers (NOT exported): pinned BigInt handle, decimal parse, clamp.
@@ -249,7 +249,7 @@ else:
 # ------------------------------------------------------------------------------
 
 proc unimath_version(): cstring =
-  ## Library version (e.g. "1.0.0"); static, do not free.
+  ## Library version (e.g. "1.1.0"); static, do not free.
   ensureRuntime()
   UniMathVersionC
 

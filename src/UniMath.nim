@@ -26,4 +26,4 @@ export arithmetic, fixed, float, rational, interval, complex, eft, roots,
        float_math, rational_math, conversions, math_router, native_float,
        complex_math
 
-const UniMathVersion* = "1.0.0"
+const UniMathVersion* = "1.1.0"

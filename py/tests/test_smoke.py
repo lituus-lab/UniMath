@@ -4,5 +4,5 @@ import unimath
 
 
 def test_version():
-    assert unimath.version() == "1.0.0"
-    assert unimath.__version__ == "1.0.0"
+    assert unimath.version() == "1.1.0"
+    assert unimath.__version__ == "1.1.0"
