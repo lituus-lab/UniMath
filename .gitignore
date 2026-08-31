@@ -70,3 +70,9 @@ oracles/mpc_oracle
 
 *.log
 *.core
+# Compiling a chapter on its own makes nimib save a page beside it, whose
+# stylesheet paths point wherever the build happened to be. Not a deliverable.
+book/*.html
+
+# nimibook's build output. `docs` copies it to pages/, which is what ships.
+book/__site/

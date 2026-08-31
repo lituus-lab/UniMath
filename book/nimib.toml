@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
+# Only the fields nimibook actually reads. It ignores anything else in silence,
+# which is how UniGraph came to declare a repository URL and a theme that never
+# reached its build.
+[nimib]
+srcDir = "."
+homeDir = "__site"
+
+[nimibook]
+title = "UniMath"
+git_repository_url = "https://github.com/lituus-lab/UniMath"
