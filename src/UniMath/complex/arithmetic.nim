@@ -74,10 +74,14 @@ func `/`*[T](x, y: Complex[T]): Complex[T] {.contractual.} =
 # ------------------------------------------------------------------------------
 
 func `*`*[T](x: Complex[T], s: T): Complex[T] {.contractual, inline.} =
+  ## Scale by a real. Both components move; no cross terms, so this is two
+  ## multiplications rather than the four a complex product needs.
   body:
     Complex[T](re: x.re * s, im: x.im * s)
 
 func `*`*[T](s: T, x: Complex[T]): Complex[T] {.contractual, inline.} =
+  ## Scaling with the real on the left, so a caller need not remember which
+  ## side the library expects.
   body:
     Complex[T](re: s * x.re, im: s * x.im)
 

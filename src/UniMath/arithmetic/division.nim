@@ -36,12 +36,15 @@ func divMod*[Bits: static int](a, b: FixedUInt[Bits]): tuple[q, r: FixedUInt[
 
 func `div`*[Bits: static int](a, b: FixedUInt[Bits]): FixedUInt[
     Bits] {.contractual, inline.} =
+  ## Truncating quotient. The remainder is discarded; `divMod` returns both in
+  ## one pass and costs the same as either alone.
   body:
     let (q, _) = divMod(a, b)
     return q
 
 func `mod`*[Bits: static int](a, b: FixedUInt[Bits]): FixedUInt[
     Bits] {.contractual, inline.} =
+  ## Remainder of the truncating division. Non-negative, `b` being unsigned.
   body:
     let (_, r) = divMod(a, b)
     return r
@@ -80,12 +83,16 @@ func divMod*[Bits: static int](a, b: FixedInt[Bits]): tuple[q, r: FixedInt[
 
 func `div`*[Bits: static int](a, b: FixedInt[Bits]): FixedInt[
     Bits] {.contractual, inline.} =
+  ## Truncating quotient, rounding toward zero as Nim's own `div` does.
+  ## Raises `OverflowDefect` on `low(T) div -1`, the one quotient that does not
+  ## fit the signed range.
   body:
     let (q, _) = divMod(a, b)
     return q
 
 func `mod`*[Bits: static int](a, b: FixedInt[Bits]): FixedInt[
     Bits] {.contractual, inline.} =
+  ## Remainder of the truncating division, taking the sign of `a`.
   body:
     let (_, r) = divMod(a, b)
     return r

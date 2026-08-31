@@ -16,6 +16,9 @@ import ../arithmetic
 # for `FracBits >= 32`); `BigInt` is arbitrary-precision so native `*` then `shr`
 # is exact. A per-storage-type overload set on the storage `T`.
 func mulShrSigned*(a, b: SomeInteger, T: typedesc, shift: int): T {.inline.} =
+  ## `(a * b) >> shift`, in `T`, with the product taken at 128 bits. A plain
+  ## `int64` product overflows here for `FracBits >= 32`, and the shift would
+  ## then be applied to the wrong number rather than to a wide one.
   # Range-checked, not a plain `T(...)` conversion: that wraps in silence under
   # -d:danger, while this layer's guards are documented to survive release.
   let v = mulShiftRightSigned(int64(a), int64(b), shift)

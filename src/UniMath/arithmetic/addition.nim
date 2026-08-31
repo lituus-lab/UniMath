@@ -11,7 +11,7 @@ func add*[Bits: static int, T: AnyFixed[Bits]](a, b: T): tuple[res: T,
     overflow: bool] {.contractual, inline.} =
   ## Wrapping sum and the raw carry out of the most significant limb.
   ensure:
-    result.res.limbs[0] == a.limbs[0] + b.limbs[0]
+    lowLimb(result.res) == lowLimb(a) + lowLimb(b)
   body:
     var carry = ZeroLimb
     for i in 0 ..< a.limbs.len:
@@ -50,7 +50,7 @@ func sub*[Bits: static int, T: AnyFixed[Bits]](a, b: T): tuple[res: T,
     underflow: bool] {.contractual, inline.} =
   ## Wrapping difference and the borrow-out.
   ensure:
-    result.res.limbs[0] == a.limbs[0] - b.limbs[0]
+    lowLimb(result.res) == lowLimb(a) - lowLimb(b)
   body:
     var borrow = ZeroLimb
     for i in 0 ..< a.limbs.len:

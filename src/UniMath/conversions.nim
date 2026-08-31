@@ -45,7 +45,7 @@ func decomposeFloat(val: float64): (int64, int) =
   (m, e)
 
 func toRationalExact*(val: float64): Rational[int64] {.contractual.} =
-  ## EXACT conversion float64 -> Rational[int64]. Every finite float64 is exactly
+  ## EXACT conversion float64 -> `Rational[int64]`. Every finite float64 is exactly
   ## `m * 2^e`; the fraction is `m / 2^-e`. Raises `ValueError` on NaN/Inf, or
   ## when the exponent overflows int64 (`|e| > 62` after reduction) — use
   ## `toRationalBig` in that case.
@@ -67,7 +67,7 @@ func toRationalExact*(val: float64): Rational[int64] {.contractual.} =
       result = initRational(m, 1'i64 shl (-e))
 
 func toRationalBig*(val: float64): Rational[BigInt] {.contractual.} =
-  ## EXACT conversion float64 -> Rational[BigInt], with no exponent limit
+  ## EXACT conversion float64 -> `Rational[BigInt]`, with no exponent limit
   ## (covers subnormals and very large exponents). Raises `ValueError` on
   ## NaN/Inf.
   body:
@@ -90,7 +90,7 @@ func toRationalBig*(val: float64): Rational[BigInt] {.contractual.} =
 
 func toRational*[T; FracBits: static[int]](
     a: Fixed[T, FracBits]): Rational[int64] {.contractual.} =
-  ## EXACT conversion Fixed -> Rational[int64]: value = `data / 2^FracBits`.
+  ## EXACT conversion Fixed -> `Rational[int64]`: value = `data / 2^FracBits`.
   ## `initRational` reduces the fraction (gcd).
   body:
     static: doAssert FracBits <= 62, "FracBits > 62: denominator exceeds int64"

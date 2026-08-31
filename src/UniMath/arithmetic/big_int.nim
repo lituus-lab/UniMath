@@ -30,19 +30,29 @@ func trim*(a: var BigUInt) {.inline.} =
   a.limbs.setLen(i + 1)
 
 func initBigUInt*(val: SomeUnsignedInt): BigUInt =
+  ## A `BigUInt` from a machine integer. Zero is the empty limb sequence, not
+  ## a sequence holding one zero: the representation is normalised so that
+  ## comparison and `isZero` need no special case.
   if val == 0:
     result.limbs = newSeq[Limb](0)
   else:
     result.limbs = @[Limb(val)]
 
 func initBigUInt*(limbs: seq[Limb]): BigUInt =
+  ## A `BigUInt` from limbs, little-endian. Trailing zero limbs are trimmed,
+  ## so the caller may pass a padded sequence.
   result.limbs = limbs
   result.trim()
 
 func isZero*(a: BigUInt): bool {.inline.} =
+  ## True when the magnitude is zero, which the normalised form makes a length
+  ## test rather than a scan.
   a.limbs.len == 0
 
 func initBigInt*(val: SomeSignedInt): BigInt =
+  ## A `BigInt` from a machine integer. `low(T)` is handled without negating
+  ## it: its negation is not representable, so the magnitude comes from the
+  ## two's-complement bit pattern instead.
   if val == 0:
     result.isNegative = false
     result.mag = initBigUInt(0)
@@ -69,10 +79,16 @@ func fromFloat*(val: float64): BigInt {.inline.} =
   initBigInt(int64(val))
 
 func fromUInt*(val: SomeUnsignedInt): BigInt {.inline.} =
+  ## A non-negative `BigInt` from an unsigned machine integer. Distinct from
+  ## `initBigInt`, which takes a signed one and cannot reach the top half of
+  ## a `uint64`.
   result.isNegative = false
   result.mag = initBigUInt(val)
 
 func initBigInt*(mag: BigUInt, isNegative: bool = false): BigInt =
+  ## A `BigInt` from a magnitude and a sign. A zero magnitude is forced
+  ## positive: negative zero would compare unequal to zero everywhere the sign
+  ## is read directly.
   result.mag = mag
   result.isNegative = if isZero(mag): false else: isNegative
 

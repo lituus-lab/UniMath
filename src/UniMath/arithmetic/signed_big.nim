@@ -26,6 +26,9 @@ func isNegationOf*(a, b: BigInt): bool {.inline.} =
   equalMag(a, b) and (a.isNegative != b.isNegative or isZero(a))
 
 func cmp*(a, b: BigInt): int {.contractual.} =
+  ## Signed comparison. Zero is compared before the signs are read, so `0` and
+  ## `-0` -- which the constructors do not produce but a caller can assemble --
+  ## come out equal rather than ordered.
   ensure:
     result >= -1 and result <= 1
   body:
@@ -97,11 +100,14 @@ func divMod*(a, b: BigInt): tuple[q, r: BigInt] {.contractual.} =
     return (initBigInt(qMag, qSign), initBigInt(rMag, rSign))
 
 func `div`*(a, b: BigInt): BigInt {.contractual, inline.} =
+  ## Truncating quotient, rounding toward zero. No overflow case: the
+  ## magnitude grows as needed.
   body:
     let (q, _) = divMod(a, b)
     return q
 
 func `mod`*(a, b: BigInt): BigInt {.contractual, inline.} =
+  ## Remainder of the truncating division, taking the sign of `a`.
   body:
     let (_, r) = divMod(a, b)
     return r

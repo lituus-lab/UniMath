@@ -38,6 +38,9 @@ func `-`*[T](a: Interval[T]): Interval[T] {.contractual, inline.} =
     result.upper = nextUp(-a.lower)
 
 func `*`*[T](a, b: Interval[T]): Interval[T] {.contractual, inline.} =
+  ## Interval product. The four corner products bracket it: a sign change in
+  ## either operand moves which corner is the extreme, so all four are taken
+  ## rather than the endpoints paired.
   require:
     a.lower <= a.upper and b.lower <= b.upper
   ensure:
@@ -75,6 +78,9 @@ func `/`*[T](a, b: Interval[T]): Interval[T] {.contractual, inline.} =
     result.upper = nextUp(hi)
 
 func abs*[T](a: Interval[T]): Interval[T] {.contractual.} =
+  ## Absolute value over an interval. An interval straddling zero has zero as
+  ## its lower bound -- not the smaller endpoint magnitude -- because `abs`
+  ## attains zero inside it.
   require:
     a.lower <= a.upper
   ensure:
@@ -91,6 +97,9 @@ func abs*[T](a: Interval[T]): Interval[T] {.contractual.} =
       result.upper = nextUp(max(abs(a.lower), abs(a.upper)))
 
 func sqrt*[T](a: Interval[T]): Interval[T] {.contractual.} =
+  ## Square root over an interval. Monotonic, so the endpoints map to the
+  ## endpoints, widened by one rounding step each. Raises `ValueError` on a
+  ## negative lower bound rather than returning a complex or an empty result.
   require:
     a.lower <= a.upper
   ensure:

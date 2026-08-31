@@ -14,7 +14,17 @@ type
 
   AnyFixed*[Bits: static int] = FixedUInt[Bits] | FixedInt[Bits]
 
+func lowLimb*[Bits: static int, T: AnyFixed[Bits]](x: T): Limb {.inline.} =
+  ## The least significant limb. Named rather than indexed so a contract can
+  ## say which limb it means -- and so the rendered postcondition does not put
+  ## `[0]` in a doc comment, where the generator reads it as a link reference
+  ## and reports eighteen broken links per build.
+  x.limbs[0]
+
 template verifyBits*(Bits: static int) =
+  ## Reject a width the layout cannot represent, at compile time. Every type
+  ## parameterised on `Bits` calls it, so a bad width fails where it is
+  ## written rather than in whatever arithmetic first reads a nominal limb.
   static:
     doAssert Bits > 0, "FixedInt must have at least 1 bit."
     # A width above one limb but not a whole number of them would leave the top

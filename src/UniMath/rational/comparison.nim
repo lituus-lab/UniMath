@@ -11,13 +11,21 @@ import ./rational_type
 import contracts
 
 func signOf*(v: SomeSignedInt): int {.inline.} =
+  ## -1, 0 or 1. Named rather than written inline because the cross-product
+  ## comparison branches on it three times.
   if v > 0: 1 elif v < 0: -1 else: 0
 
 func signOf*(v: SomeUnsignedInt): int {.inline.} =
+  ## 0 or 1: an unsigned value is never negative, so the third case is not
+  ## reachable and is not written.
   if v == 0: 0 else: 1
 
 # Cross-product compare `nx/dx` vs `ny/dy` (`dx`, `dy > 0` by the invariant).
 func cmpCross*[T: SomeInteger](nx, dx, ny, dy: T): int {.contractual.} =
+  ## Compare `nx/dx` against `ny/dy` without dividing. The denominators are
+  ## positive by the type's invariant, so the cross products keep the order;
+  ## they are taken to 128 bits, which is where a naive `nx * dy` would
+  ## overflow and silently reverse the answer.
   ensure:
     result >= -1 and result <= 1
   body:
@@ -33,6 +41,8 @@ func cmpCross*[T: SomeInteger](nx, dx, ny, dy: T): int {.contractual.} =
     return if sx > 0: m else: -m
 
 func cmpCross*(nx, dx, ny, dy: BigInt): int {.contractual.} =
+  ## The same comparison over arbitrary precision, where the cross products
+  ## cannot overflow and are taken directly.
   ensure:
     result >= -1 and result <= 1
   body:

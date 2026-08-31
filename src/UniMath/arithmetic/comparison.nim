@@ -6,6 +6,7 @@ import ./fixed_int
 import contracts
 
 func cmp*[Bits: static int](a, b: FixedUInt[Bits]): int {.contractual, inline.} =
+  ## Unsigned comparison, most significant limb first. Returns -1, 0 or 1.
   ensure:
     result >= -1 and result <= 1
   body:
@@ -31,6 +32,9 @@ func cmp*[Bits: static int](a, b: FixedInt[Bits]): int {.contractual, inline.} =
     return 0
 
 template generateComparisons*(T: typedesc) =
+  ## Define `==`, `<` and `<=` for `T` in terms of its `cmp`. `>` and `>=`
+  ## come from system, derived from these, so three definitions give five
+  ## operators and none of them can disagree with `cmp`.
   func `==`*[Bits: static int](a, b: T[Bits]): bool {.inline.} = cmp(a, b) == 0
   func `<`*[Bits: static int](a, b: T[Bits]): bool {.inline.} = cmp(a, b) < 0
   func `<=`*[Bits: static int](a, b: T[Bits]): bool {.inline.} = cmp(a, b) <= 0

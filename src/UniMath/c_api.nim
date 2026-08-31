@@ -106,7 +106,7 @@ proc unrefBigFloat(h: pointer) {.inline.} =
 type AbiRational = ref Rational[BigInt]
 
 proc pinRational(r: Rational[BigInt]): pointer =
-  ## Box a Rational[BigInt] in a pinned ref the C host owns until `*_destroy`.
+  ## Box a `Rational[BigInt]` in a pinned ref the C host owns until `*_destroy`.
   let s = new(AbiRational)
   s[] = r
   GC_ref(s)
@@ -1673,13 +1673,13 @@ proc unimath_fixed_bessel_j0(q: int64): int64 =
 # ------------------------------------------------------------------------------
 
 proc unimath_rational_from_f64(v: float64): pointer =
-  ## EXACT float64 -> Rational[BigInt] (no exponent limit). NaN/Inf -> NULL.
+  ## EXACT float64 -> `Rational[BigInt]` (no exponent limit). NaN/Inf -> NULL.
   ensureRuntime()
   try: pinRational(toRationalBig(v))
   except ValueError: nil
 
 proc unimath_rational_from_fixed(q: int64; frac_bits: cint): pointer =
-  ## EXACT raw Q-format fixed -> Rational[BigInt]: value = q / 2^frac_bits.
+  ## EXACT raw Q-format fixed -> `Rational[BigInt]`: value = q / 2^frac_bits.
   ## Out-of-range `frac_bits` (negative, or above 63) -> NULL: a negative
   ## denominator width would be non-integer, and a large one allocates a
   ## multi-hundred-megabyte shift.
@@ -1706,7 +1706,7 @@ proc unimath_bigint_from_rational(h: pointer): pointer =
   pin(toBigInt(ratOf(h)))
 
 proc unimath_fixed_from_rational(h: pointer; frac_bits: cint): int64 =
-  ## TRUNCATED Rational[BigInt] -> raw Q-format fixed:
+  ## TRUNCATED `Rational[BigInt]` -> raw Q-format fixed:
   ## `data = (num * 2^frac_bits) div den`. nil -> 0; `frac_bits < 0` or a
   ## result that does not fit in 63 bits -> 0 (clamped, never raises).
   ensureRuntime()

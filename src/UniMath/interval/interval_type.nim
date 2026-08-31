@@ -70,6 +70,9 @@ func nextDown*(x: float32): float32 {.inline.} = nextafterF32(x, float32(-Inf))
 # ------------------------------------------------------------------------------
 
 func initInterval*[T](lower, upper: T): Interval[T] {.contractual.} =
+  ## An interval from its two bounds, stored as given. Nothing is reordered:
+  ## `lower > upper` is the caller's error, and every operation here has
+  ## `lower <= upper` as a precondition so it is caught where it is made.
   ensure:
     result.lower == lower and result.upper == upper
   body:

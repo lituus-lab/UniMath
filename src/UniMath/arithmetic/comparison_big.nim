@@ -6,6 +6,9 @@ import ./big_int
 import contracts
 
 func cmp*(a, b: BigUInt): int {.contractual.} =
+  ## Unsigned comparison of arbitrary-precision magnitudes. Length decides
+  ## first -- the normalised form has no leading zero limbs, so a longer
+  ## magnitude is the larger -- then the limbs from the top down.
   ensure:
     result >= -1 and result <= 1
   body:

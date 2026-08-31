@@ -42,6 +42,8 @@ func `*`*(a, b: BigFloat, precision: int): BigFloat {.contractual.} =
     result = mulRounded(a, b, precision, rmNearest)
 
 func `*`*(a, b: BigFloat): BigFloat {.contractual, inline.} =
+  ## Product at the wider of the two operand precisions, rounded to nearest.
+  ## Use `mulRounded` to choose the precision or the rounding mode.
   ensure:
     (a.isZero or b.isZero) == result.isZero
     result.isZero or result.sign == (a.sign != b.sign)

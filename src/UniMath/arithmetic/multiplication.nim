@@ -12,7 +12,7 @@ func fullMul*[Bits: static int](a, b: FixedUInt[Bits]): FixedUInt[Bits *
     2] {.contractual.} =
   ## Exact double-width product.
   ensure:
-    result.limbs[0] == a.limbs[0] * b.limbs[0]
+    lowLimb(result) == lowLimb(a) * lowLimb(b)
   body:
     const numLimbs = numLimbs(FixedUInt[Bits])
     for i in 0 ..< numLimbs:
@@ -26,7 +26,7 @@ func mul*[Bits: static int](a, b: FixedUInt[Bits]): FixedUInt[
     Bits] {.contractual.} =
   ## `(a * b) mod 2^Bits` (low half of the full product).
   ensure:
-    result.limbs[0] == a.limbs[0] * b.limbs[0]
+    lowLimb(result) == lowLimb(a) * lowLimb(b)
   body:
     const numLimbs = numLimbs(FixedUInt[Bits])
     for i in 0 ..< numLimbs:
@@ -42,7 +42,7 @@ func fullMul*[Bits: static int](a, b: FixedInt[Bits]): FixedInt[Bits *
     2] {.contractual.} =
   ## Signed full product: `|a*b|` exact in double width, sign = (a<0) xor (b<0).
   ensure:
-    result.limbs[0] == a.toUnsigned().limbs[0] * b.toUnsigned().limbs[0]
+    lowLimb(result) == lowLimb(a.toUnsigned()) * lowLimb(b.toUnsigned())
   body:
     let isNegA = isNegative(a)
     let isNegB = isNegative(b)
@@ -57,7 +57,7 @@ func mul*[Bits: static int](a, b: FixedInt[Bits]): FixedInt[
     Bits] {.contractual.} =
   ## Signed wrapping product (the low Bits are the unsigned product's low bits).
   ensure:
-    result.limbs[0] == a.toUnsigned().limbs[0] * b.toUnsigned().limbs[0]
+    lowLimb(result) == lowLimb(a.toUnsigned()) * lowLimb(b.toUnsigned())
   body:
     mul(a.toUnsigned(), b.toUnsigned()).toSigned()
 

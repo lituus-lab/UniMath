@@ -157,11 +157,14 @@ func divMod*(a, b: BigUInt): tuple[q, r: BigUInt] {.contractual.} =
     return divModKnuth(a, b)
 
 func `div`*(a, b: BigUInt): BigUInt {.contractual, inline.} =
+  ## Truncating quotient. A single-limb divisor takes the short path; anything
+  ## wider goes through Knuth's algorithm D.
   body:
     let (q, _) = divMod(a, b)
     return q
 
 func `mod`*(a, b: BigUInt): BigUInt {.contractual, inline.} =
+  ## Remainder of the truncating division. Non-negative, `b` being unsigned.
   body:
     let (_, r) = divMod(a, b)
     return r

@@ -18,6 +18,9 @@ template log1p*(x: float64): float64 = cLog1p(x)
 template expm1*(x: float64): float64 = cExpm1(x)
 
 template sinCos*(x: float64): tuple[sin, cos: float64] =
+  ## Sine and cosine of one argument. `x` is bound once, so an expression with
+  ## a side effect is not evaluated twice -- which is what a template that
+  ## substituted it into both calls would do.
   block:
     let value = x
     (math.sin(value), math.cos(value))
