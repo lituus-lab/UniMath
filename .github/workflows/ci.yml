@@ -11,6 +11,12 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    # bash on every runner, Windows included: one spelling for the gate call,
+    # whose executable is named differently there.
+    shell: bash
+
 # A newer push makes the previous run's answer irrelevant: cancel it rather
 # than pay for both.
 concurrency:
@@ -67,11 +73,20 @@ jobs:
         with:
           nim-version: '2.2.10'
       - run: nimble install -y
-      - run: nimble testCi
-      - run: nimble testCiRelease
+      - name: Build the failure gate
+        run: |
+          # Nimble exits 0 even when an `exec` inside a task failed, so every
+          # task below runs through the gate, which reads the task's own
+          # success marker instead. Built from std only: nothing is resolved yet.
+          GATE=build/unigate
+          [ "$RUNNER_OS" = Windows ] && GATE=build/unigate.exe
+          nim c --hints:off -o:$GATE tools/gate.nim
+          echo "GATE=$GATE" >> "$GITHUB_ENV"
+      - run: $GATE testCi
+      - run: $GATE testCiRelease
       # The example demos are part of the documented surface but no test
       # pulled them in; build and run them so a broken example fails CI.
-      - run: nimble example
+      - run: $GATE example
 
   cabi:
     name: C ABI (${{ matrix.os }})
@@ -87,16 +102,25 @@ jobs:
         with:
           nim-version: '2.2.10'
       - run: nimble install -y
+      - name: Build the failure gate
+        run: |
+          # Nimble exits 0 even when an `exec` inside a task failed, so every
+          # task below runs through the gate, which reads the task's own
+          # success marker instead. Built from std only: nothing is resolved yet.
+          GATE=build/unigate
+          [ "$RUNNER_OS" = Windows ] && GATE=build/unigate.exe
+          nim c --hints:off -o:$GATE tools/gate.nim
+          echo "GATE=$GATE" >> "$GITHUB_ENV"
       # gcc arrives with Nim's MinGW, GNU make does not ship on the runner image.
       - name: Install GNU make (Windows)
         if: runner.os == 'Windows'
         run: choco install make --no-progress -y
-      - run: nimble ctest
+      - run: $GATE ctest
       # The C demo is part of the documented surface; nothing else builds it.
-      - run: nimble cexample
+      - run: $GATE cexample
       # nimble ctest only builds the static lib (clibStatic); the shared lib
       # this job uploads below needs its own explicit build step.
-      - run: nimble clib
+      - run: $GATE clib
       - name: Upload Library
         uses: actions/upload-artifact@v7
         with:
@@ -127,6 +151,15 @@ jobs:
         with:
           nim-version: '2.2.10'
       - run: nimble install -y
+      - name: Build the failure gate
+        run: |
+          # Nimble exits 0 even when an `exec` inside a task failed, so every
+          # task below runs through the gate, which reads the task's own
+          # success marker instead. Built from std only: nothing is resolved yet.
+          GATE=build/unigate
+          [ "$RUNNER_OS" = Windows ] && GATE=build/unigate.exe
+          nim c --hints:off -o:$GATE tools/gate.nim
+          echo "GATE=$GATE" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
@@ -135,7 +168,7 @@ jobs:
       # PATH for `nimble pyLib`, which routes to clibMsvc on Windows.
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
-      - run: nimble pyLib
+      - run: $GATE pyLib
       # `python3` isn't guaranteed on a Windows runner (actions/setup-python
       # only puts `python.exe` on PATH there); this job's matrix spans
       # windows-latest.
@@ -261,8 +294,17 @@ jobs:
       # checkVGraph compiles tools/vgraph.nim, which imports contracts (its
       # layerOf/layerOfModule postconditions) -- needs deps resolved first.
       - run: nimble install -y
-      - run: nimble lint
-      - run: nimble checkVGraph
+      - name: Build the failure gate
+        run: |
+          # Nimble exits 0 even when an `exec` inside a task failed, so every
+          # task below runs through the gate, which reads the task's own
+          # success marker instead. Built from std only: nothing is resolved yet.
+          GATE=build/unigate
+          [ "$RUNNER_OS" = Windows ] && GATE=build/unigate.exe
+          nim c --hints:off -o:$GATE tools/gate.nim
+          echo "GATE=$GATE" >> "$GITHUB_ENV"
+      - run: $GATE lint
+      - run: $GATE checkVGraph
 
   docs:
     name: Docs
@@ -274,9 +316,18 @@ jobs:
         with:
           nim-version: '2.2.10'
       - run: nimble install -y
-      - run: nimble docsDeps
+      - name: Build the failure gate
+        run: |
+          # Nimble exits 0 even when an `exec` inside a task failed, so every
+          # task below runs through the gate, which reads the task's own
+          # success marker instead. Built from std only: nothing is resolved yet.
+          GATE=build/unigate
+          [ "$RUNNER_OS" = Windows ] && GATE=build/unigate.exe
+          nim c --hints:off -o:$GATE tools/gate.nim
+          echo "GATE=$GATE" >> "$GITHUB_ENV"
+      - run: $GATE docsDeps
       # nimib runs the book's code against this build: a stale book fails here.
-      - run: nimble docs
+      - run: $GATE docs
       - name: Upload Docs
         uses: actions/upload-artifact@v7
         with:
@@ -325,7 +376,16 @@ jobs:
           nim-version: '2.2.10'
       - run: sudo apt-get update && sudo apt-get install -y lcov
       - run: nimble install -y
-      - run: nimble coverage
+      - name: Build the failure gate
+        run: |
+          # Nimble exits 0 even when an `exec` inside a task failed, so every
+          # task below runs through the gate, which reads the task's own
+          # success marker instead. Built from std only: nothing is resolved yet.
+          GATE=build/unigate
+          [ "$RUNNER_OS" = Windows ] && GATE=build/unigate.exe
+          nim c --hints:off -o:$GATE tools/gate.nim
+          echo "GATE=$GATE" >> "$GITHUB_ENV"
+      - run: $GATE coverage
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v7
         with:
@@ -333,3 +393,47 @@ jobs:
           path: |
             coverage/
             lcov.info
+
+  canary:
+    name: Canary (the gate must fail)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.10'
+      - run: nimble install -y
+      - name: Build the failure gate
+        run: nim c --hints:off -o:build/unigate tools/gate.nim
+      - name: A broken build must come back non-zero
+        run: |
+          # `nimble canary` compiles a source that cannot compile. Nimble
+          # reports success for it; the gate is the only thing that does not.
+          # If this step ever passes, every green result in this run is void.
+          if ./build/unigate canary; then
+            echo "canary: the gate let a broken build through" >&2
+            exit 1
+          fi
+          echo "canary: the gate rejected a broken build, as it must"
+
+  all-green:
+    name: All green
+    # The one check branch protection requires, and the only name that has to
+    # stay stable. `skipped` passes: `dco` runs on pull requests only, and
+    # `pages` only on main.
+    needs: [dco, spdx, test, cabi, python, consume-cabi, consume-wheel, lint, docs, pages, coverage, canary]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every required job must have succeeded
+        run: |
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "results: $results"
+          for one in $results; do
+            case "$one" in
+              success) ;;
+              skipped) ;;
+              *) echo "all-green: a required job reported $one" >&2; exit 1 ;;
+            esac
+          done
