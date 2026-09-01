@@ -393,13 +393,14 @@ task coverage, "LCOV + HTML coverage report for the Nim sources (needs lcov)":
   exec "./build/test_coverage"
   exec "lcov --capture --directory " & cache & " --base-directory ." &
        " --include \"*/src/UniMath/*\" --output-file lcov.info --quiet --ignore-errors mismatch"
-  # gcov can attribute a final generated expression to EOF + 1; `range` is
-  # genhtml's filter for that compiler artefact, and it wants the matching
-  # category allowance before applying it. lcov 2.0 -- the one ubuntu-latest
-  # installs -- rejects `range` as a category outright, and does not make the
-  # check that needs it; 2.5 does both. Measured on each, not assumed.
+  # gcov can attribute a final generated expression to EOF + 1, and that one
+  # artefact answers to two names: lcov 2.0, the version ubuntu-latest installs,
+  # calls it `unmapped` and rejects `range` as a category outright, while 2.5
+  # calls it `range` and can filter those lines away. Ask which one is there
+  # rather than assume; both were measured.
   let genhtmlRange =
-    if gorgeEx("genhtml --version").output.contains("LCOV version 2.0"): ""
+    if gorgeEx("genhtml --version").output.contains("LCOV version 2.0"):
+      " --ignore-errors unmapped"
     else: " --filter range --ignore-errors range"
   exec "genhtml lcov.info" & genhtmlRange &
        " --output-directory coverage --legend --quiet"

@@ -35,9 +35,9 @@ CI: 3-OS Nim matrix + C ABI (linux/macOS) + Python.
 - End covered sources with a blank line. Nim maps a trailing statement one line
   past EOF. `nimble coverage` suppresses exactly two lcov categories, both
   compiler artefacts with no source-level fix: `mismatch`, where lcov 2.x and
-  gcov disagree on the end line of Nim's generated destructors, and `range`,
-  that EOF + 1 attribution, which `--filter range` drops. Every other error
-  still fails the build.
+  gcov disagree on the end line of Nim's generated destructors, and that EOF + 1
+  attribution -- `range` on lcov 2.5, `unmapped` on the 2.0 the runners install,
+  which is why the task asks the version first. Every other error still fails.
 
 ## Scope
 
