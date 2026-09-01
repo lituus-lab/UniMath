@@ -23,8 +23,12 @@ suite "native float64 mathematics":
     check sin(0.0) == 0.0
     check cos(0.0) == 1.0
     let pair = sinCos(PI / 4.0)
-    check pair.sin == sin(PI / 4.0)
-    check pair.cos == cos(PI / 4.0)
+    # Not `==`: sinCos binds its argument to a runtime value and calls libm,
+    # while `sin(PI / 4.0)` hands the compiler a constant it is free to fold at
+    # correctly-rounded precision. The two answers differ by one ulp on
+    # Windows -- 0.7071067811865476 against 0.7071067811865475.
+    check abs(pair.sin - sin(PI / 4.0)) < 1e-15
+    check abs(pair.cos - cos(PI / 4.0)) < 1e-15
     check abs(pair.sin * pair.sin + pair.cos * pair.cos - 1.0) < 1e-15
     check abs(arctan2(1.0, 0.0) - PI / 2.0) < 1e-15
     check abs(tan(PI / 4.0) - 1.0) < 1e-15
