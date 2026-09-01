@@ -33,8 +33,11 @@ CI: 3-OS Nim matrix + C ABI (linux/macOS) + Python.
   so prose that outlives its API breaks the build. `py/notebooks/quickstart.ipynb`
   plays the same role for Python and renders natively on GitHub.
 - End covered sources with a blank line. Nim maps a trailing statement one line
-  past EOF; without that line lcov aborts on `range`/`unmapped`, and `nimble
-  coverage` deliberately suppresses no error so the failure stays visible.
+  past EOF. `nimble coverage` suppresses exactly two lcov categories, both
+  compiler artefacts with no source-level fix: `mismatch`, where lcov 2.x and
+  gcov disagree on the end line of Nim's generated destructors, and `range`,
+  that EOF + 1 attribution, which `--filter range` drops. Every other error
+  still fails the build.
 
 ## Scope
 
