@@ -129,7 +129,10 @@ suite "Beta functions — float64":
 
   test "regularized shape-sum boundary is explicit":
     let symmetric = regularizedIncompleteBeta(0.5, 100_000.0, 100_000.0)
-    check abs(symmetric - 0.5) < 2e-10
+    # The continued fraction reaches a different last digit on each libm: 2e-10
+    # holds on glibc and on macOS, and Windows lands at 3.17e-10. The bound
+    # says what the evaluation achieves, not what one platform happens to.
+    check abs(symmetric - 0.5) < 1e-9
     when not defined(release) and not defined(danger):
       expect PreConditionDefect:
         discard regularizedIncompleteBeta(0.5, 100_001.0, 100_000.0)
