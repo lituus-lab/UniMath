@@ -340,7 +340,9 @@ task pyDeps, "Install Python build deps (setuptools, Cython, pytest) if missing"
   # Ubuntu ships a setuptools that predates PEP 639 and cannot parse the SPDX
   # licence pyproject.toml declares. pip refuses to uninstall a distro- or
   # brew-managed package, so install over it rather than --upgrade it.
-  exec pyExe & " -m pip install --break-system-packages --quiet --ignore-installed \"setuptools>=77\""
+  # packaging comes with it: setuptools 77 reads packaging.licenses, which the
+  # distro's older copy does not have, and it shadows the vendored one.
+  exec pyExe & " -m pip install --break-system-packages --quiet --ignore-installed \"setuptools>=77\" \"packaging>=24.2\""
   done "pyDeps"
 
 # The extension links the vcc static lib on Windows, the shared lib elsewhere.
@@ -392,9 +394,14 @@ task coverage, "LCOV + HTML coverage report for the Nim sources (needs lcov)":
   exec "lcov --capture --directory " & cache & " --base-directory ." &
        " --include \"*/src/UniMath/*\" --output-file lcov.info --quiet --ignore-errors mismatch"
   # gcov can attribute a final generated expression to EOF + 1; `range` is
-  # genhtml's documented filter for precisely that compiler artifact, and
-  # lcov 2.x wants the matching category allowance before it applies it.
-  exec "genhtml lcov.info --filter range --ignore-errors range" &
+  # genhtml's filter for that compiler artefact, and it wants the matching
+  # category allowance before applying it. lcov 2.0 -- the one ubuntu-latest
+  # installs -- rejects `range` as a category outright, and does not make the
+  # check that needs it; 2.5 does both. Measured on each, not assumed.
+  let genhtmlRange =
+    if gorgeEx("genhtml --version").output.contains("LCOV version 2.0"): ""
+    else: " --filter range --ignore-errors range"
+  exec "genhtml lcov.info" & genhtmlRange &
        " --output-directory coverage --legend --quiet"
   exec "lcov --summary lcov.info"
   done "coverage"
