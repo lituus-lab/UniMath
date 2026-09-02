@@ -131,9 +131,13 @@ proc confinements(): seq[(string, string)] =
 
 proc mayImport*(path, module: string, rules: seq[(string, string)]): bool =
   ## False when `module` is a confined package and `path` is not its keeper.
+  ## Separators are normalised first: vgraph.cfg names the keeper with forward
+  ## slashes, walkDirRec yields backslashes on Windows, and comparing the two
+  ## raw accused the keeper itself of the import it is there to hold.
+  let here = path.replace('\\', '/')
   for rule in rules:
     if module == rule[0] or module.startsWith(rule[0] & "/"):
-      if path != rule[1]:
+      if here != rule[1].replace('\\', '/'):
         return false
   true
 
@@ -177,4 +181,5 @@ proc main() =
   echo &"vgraph: {checked} modules respect {order.join(\" < \")}; " &
        &"{engines} engine deps declared"
 
-main()
+when isMainModule:
+  main()
