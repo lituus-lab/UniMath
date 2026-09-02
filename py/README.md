@@ -13,7 +13,7 @@ constants, and conversions between numeric types.
 ## Install
 
 ```bash
-pip install UniMath-lituus
+pip install lituus-unimath
 ```
 
 Prebuilt wheels include the native UniMath library for Linux, macOS, and

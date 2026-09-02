@@ -177,10 +177,10 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/UniMath-lituus/
+      url: https://pypi.org/project/lituus-unimath/
     permissions:
       # Trusted publishing (OIDC): no API token stored here. Requires a
-      # one-time manual step on pypi.org -- add lituus-lab/UniMath-lituus,
+      # one-time manual step on pypi.org -- add lituus-lab/lituus-unimath,
       # workflow release.yml, environment pypi as a trusted publisher for the
       # UniMath-lituus project.
       id-token: write

@@ -7,7 +7,7 @@ requires = ["setuptools>=77", "wheel", "Cython>=3.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "UniMath-lituus"
+name = "lituus-unimath"
 version = "1.1.0"
 description = "Multi-precision integers, fixed-point, big floats, rationals, intervals, and mathematical functions"
 readme = "README.md"
