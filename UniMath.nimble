@@ -257,18 +257,18 @@ const
 # --panics:off (the Nim default, pinned here): c_api returns sentinels by
 # catching Defect sites, which --panics:on would turn into process aborts.
 task clib, "C shared library":
-  exec "nim c --app:lib --noMain --mm:arc --panics:off -d:release -o:" & sharedLib & macArgs &
+  exec "nim c --app:lib -d:noAutoInit --noMain --mm:arc --panics:off -d:release -o:" & sharedLib & macArgs &
        " src/UniMath/c_api.nim"
   done "clib"
 
 task clibStatic, "C static library":
-  exec "nim c --app:staticlib -d:staticNoAutoInit --noMain --mm:arc --panics:off -d:release -o:" & staticLib &
+  exec "nim c --app:staticlib -d:noAutoInit --noMain --mm:arc --panics:off -d:release -o:" & staticLib &
        " src/UniMath/c_api.nim"
   done "clibStatic"
 
 task clibMsvc, "C static library, MSVC ABI (Windows Python extension)":
   # CPython on Windows is MSVC-built and cannot link MinGW output.
-  exec "nim c --cc:vcc --app:staticlib -d:staticNoAutoInit --noMain --mm:arc --panics:off -d:release" &
+  exec "nim c --cc:vcc --app:staticlib -d:noAutoInit --noMain --mm:arc --panics:off -d:release" &
        " -o:UniMath.lib src/UniMath/c_api.nim"
   done "clibMsvc"
 
