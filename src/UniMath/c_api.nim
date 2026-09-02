@@ -190,10 +190,6 @@ proc cxrOf(h: pointer): Complex[Rational[BigInt]] {.inline.} =
 proc unrefCxRat(h: pointer) {.inline.} =
   if h != nil: GC_unref(cast[AbiComplexRational](h))
 
-# Internal init-once flag. Declared OUTSIDE the `{.push exportc, cdecl, dynlib.}`
-# block so it is NOT exported as an undocumented C symbol (a writable `bool`
-# would let a C host bypass `unimath_init()` and trip a handle-NULL cascade).
-var gInited: bool
 
 # `sqrt` witness for `erfTaylor`, declared OUTSIDE the `{.push cdecl.}` block so
 # its calling convention is the default `nimcall` that `erfTaylor`'s parameter
@@ -265,10 +261,14 @@ proc unimath_init(): cint =
   ## `GC_unref`, and those counts are non-atomic in this build, so sharing one
   ## handle across threads corrupts them and either leaks or frees early.
   ## Stated in `include/UniMath.h` alongside the init requirement.
+  ##
+  ## The work is `ensureRuntime`, which every entry point calls. It used to be
+  ## followed by a direct NimMain, so under -d:staticNoAutoInit the module
+  ## initializers ran twice, rebuilding every global while the first set was
+  ## still live -- and the flag meant to prevent it was itself a Nim global,
+  ## which that second run reset. Reproduced in UniColor: the second
+  ## `uc_palette_make` of a process died inside Nim's allocator.
   ensureRuntime()
-  if not gInited:
-    NimMain()
-    gInited = true
   cint(1)
 
 proc unimath_cleanup() =
