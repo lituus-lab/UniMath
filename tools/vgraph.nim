@@ -119,10 +119,29 @@ iterator requiredPackages(path: string): string =
       if name.len > 0:
         yield name
 
+proc confinements(): seq[(string, string)] =
+  ## Entries under `[confined]`, each `Package = path`: only that path may
+  ## import the package or anything under it. A repo whose architecture
+  ## confines a dependency to one adapter says so here, in data, so this tool
+  ## stays the same file in every Uni* repo.
+  for entry in section("confined"):
+    let parts = entry.split('=')
+    if parts.len == 2:
+      result.add (parts[0].strip, parts[1].strip)
+
+proc mayImport*(path, module: string, rules: seq[(string, string)]): bool =
+  ## False when `module` is a confined package and `path` is not its keeper.
+  for rule in rules:
+    if module == rule[0] or module.startsWith(rule[0] & "/"):
+      if path != rule[1]:
+        return false
+  true
+
 proc main() =
   if not fileExists(Cfg):
     quit(&"vgraph: {Cfg} not found", 1)
   let order = section("layers")
+  let confined = confinements()
 
   var violations: seq[string]
 
@@ -133,6 +152,8 @@ proc main() =
     if own < 0: continue
     inc checked
     for module in importedModules(path):
+      if not mayImport(path, module, confined):
+        violations.add &"{path}: imports {module}, confined elsewhere"
       let other = layerOfModule(module, order)
       if other > own:
         violations.add &"{path}: imports {module} ({order[other]}) from {order[own]}"
