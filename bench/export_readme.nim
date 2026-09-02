@@ -50,7 +50,8 @@ proc main() =
   const fragments = [
     ("BigInt / Fixed arithmetic", "bench/.md_arithmetic.md"),
     ("Transcendentals", "bench/.md_transcendentals.md"),
-    ("Precision parity: BigFloat (256-bit) vs float64 `math`", "bench/.md_parity.md"),
+    ("Precision parity: BigFloat (256-bit) vs float64 `math`",
+        "bench/.md_parity.md"),
   ]
   var body = ""
   for (title, path) in fragments:
