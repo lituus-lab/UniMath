@@ -145,7 +145,27 @@ proc mayImport*(path, module: string, rules: seq[(string, string)]): bool =
         return false
   true
 
+proc checkParser() =
+  ## The import parser, checked against itself before it judges anything.
+  ## `checkVGraph` runs in every Uni* repo, so this travels with the tool
+  ## rather than needing a test file wired into each manifest -- and the case
+  ## it guards, a grouped import followed by more items, is one no repo writes
+  ## today, which is exactly why nothing else would catch a regression.
+  const cases = {
+    "std/[os, strutils]": "std/os,std/strutils,",
+    "std/[os], a, b": "std/os,a,b,",
+    "std/[os, strutils], c_api/private, other":
+      "std/os,std/strutils,c_api/private,other,",
+    "std/[os], x/[y, z], w": "std/os,x/y,x/z,w,",
+    "a, b, c": "a,b,c,",
+  }
+  for (input, want) in cases:
+    let got = expandGrouped(input)
+    if got != want:
+      quit(&"vgraph: parser regression on `{input}`: got `{got}`, want `{want}`", 1)
+
 proc main() =
+  checkParser()
   if not fileExists(Cfg):
     quit(&"vgraph: {Cfg} not found", 1)
   let order = section("layers")
