@@ -149,6 +149,9 @@ func requiredIn(lines: openArray[string]): seq[string] =
   for raw in lines:
     let body = withoutComment(raw).strip
     if pending.len > 0:
+      # A comment-only line leaves nothing: appending it would drop the comma
+      # the continuation is recognised by.
+      if body.len == 0: continue
       pending.add " " & body
     elif body.startsWith("requires"):
       pending = body
@@ -225,6 +228,8 @@ proc checkParser() =
     (@["requires \"a\",", "         \"UniUndeclared\""],
      @["a", "UniUndeclared"]),
     (@["requires \"a\", # note", "         \"b\""], @["a", "b"]),
+    (@["requires \"a\",", "  # a note on its own line", "  \"UniUndeclared\""],
+     @["a", "UniUndeclared"]),
     (@["requires \"a\"", "requires \"b\""], @["a", "b"]),
   ]
   for (lines, want) in manifestCases:
