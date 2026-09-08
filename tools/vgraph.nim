@@ -73,9 +73,7 @@ proc expandGrouped(body: string): string =
     of ']':
       if cur.strip.len > 0:
         result &= prefix & cur.strip & ","
-      # The prefix belongs to the group that just closed. Keeping it turned the
-      # next item on the same line into std/c_api/private, which layerOfModule
-      # reads as external and skips.
+      # Reset the prefix: it belongs to the group that just closed.
       prefix = ""
       depth = 0
       cur = ""
@@ -111,17 +109,28 @@ proc packageName(spec: string): string =
     result = result.split(sep)[0]
   result = result.split({'/', '\\'})[^1]
 
-iterator requiredPackages(path: string): string =
-  ## Package name of every `requires` line.
-  for raw in readFile(path).splitLines:
-    let line = raw.strip
-    if not line.startsWith("requires"): continue
-    let a = line.find('"')
-    let b = line.find('"', a + 1)
-    if a >= 0 and b > a:
-      let name = packageName(line[a + 1 ..< b])
+func requiredOn(line: string): seq[string] =
+  ## Package names a single `requires` line declares. Nimble accepts several
+  ## per directive, comma separated inside one string and as several strings
+  ## on one line; reading the first alone would let the rest past the
+  ## [engines] allowlist.
+  if not line.strip.startsWith("requires"): return
+  let trimmed = line.strip
+  var index = trimmed.find('"')
+  while index >= 0:
+    let stop = trimmed.find('"', index + 1)
+    if stop <= index: break
+    for spec in trimmed[index + 1 ..< stop].split(','):
+      let name = packageName(spec.strip)
       if name.len > 0:
-        yield name
+        result.add name
+    index = trimmed.find('"', stop + 1)
+
+iterator requiredPackages(path: string): string =
+  ## Package name of every requirement in the manifest.
+  for raw in readFile(path).splitLines:
+    for name in requiredOn(raw):
+      yield name
 
 proc confinements(): seq[(string, string)] =
   ## Entries under `[confined]`, each `Package = path`: only that path may
@@ -146,11 +155,9 @@ proc mayImport*(path, module: string, rules: seq[(string, string)]): bool =
   true
 
 proc checkParser() =
-  ## The import parser, checked against itself before it judges anything.
-  ## `checkVGraph` runs in every Uni* repo, so this travels with the tool
-  ## rather than needing a test file wired into each manifest -- and the case
-  ## it guards, a grouped import followed by more items, is one no repo writes
-  ## today, which is exactly why nothing else would catch a regression.
+  ## Check the parsers against known inputs before judging any repository.
+  ## They travel with the tool rather than a test file each manifest would
+  ## wire in.
   const cases = {
     "std/[os, strutils]": "std/os,std/strutils,",
     "std/[os], a, b": "std/os,a,b,",
@@ -163,6 +170,18 @@ proc checkParser() =
     let got = expandGrouped(input)
     if got != want:
       quit(&"vgraph: parser regression on `{input}`: got `{got}`, want `{want}`", 1)
+
+  # Several requirements per directive, which nimble accepts and the allowlist
+  # must see.
+  const requireCases = {
+    """requires "nim >= 2.0.0"""": @["nim"],
+    """requires "nim >= 2.0.0, UniUndeclared"""": @["nim", "UniUndeclared"],
+    """requires "a", "b"""": @["a", "b"],
+  }
+  for (line, want) in requireCases:
+    let got = requiredOn(line)
+    if got != want:
+      quit(&"vgraph: requires regression on `{line}`: got `{got}`, want `{want}`", 1)
 
 proc main() =
   checkParser()
@@ -179,10 +198,8 @@ proc main() =
     let own = layerOf(path, order)
     if own >= 0:
       inc checked
-    # Confinement holds for every module under src, layered or not: the
-    # umbrella and version.nim sit under no layer, and skipping them let them
-    # import a confined package unchallenged. Only the layer order needs a
-    # layer to compare against.
+    # Confinement applies to every module under src, layered or not; only the
+    # layer-order comparison needs a layer.
     for module in importedModules(path):
       if not mayImport(path, module, confined):
         violations.add &"{path}: imports {module}, confined elsewhere"
