@@ -73,6 +73,10 @@ proc expandGrouped(body: string): string =
     of ']':
       if cur.strip.len > 0:
         result &= prefix & cur.strip & ","
+      # The prefix belongs to the group that just closed. Keeping it turned the
+      # next item on the same line into std/c_api/private, which layerOfModule
+      # reads as external and skips.
+      prefix = ""
       depth = 0
       cur = ""
     of ',':
@@ -153,14 +157,19 @@ proc main() =
   for path in walkDirRec("src"):
     if not path.endsWith(".nim"): continue
     let own = layerOf(path, order)
-    if own < 0: continue
-    inc checked
+    if own >= 0:
+      inc checked
+    # Confinement holds for every module under src, layered or not: the
+    # umbrella and version.nim sit under no layer, and skipping them let them
+    # import a confined package unchallenged. Only the layer order needs a
+    # layer to compare against.
     for module in importedModules(path):
       if not mayImport(path, module, confined):
         violations.add &"{path}: imports {module}, confined elsewhere"
-      let other = layerOfModule(module, order)
-      if other > own:
-        violations.add &"{path}: imports {module} ({order[other]}) from {order[own]}"
+      if own >= 0:
+        let other = layerOfModule(module, order)
+        if other > own:
+          violations.add &"{path}: imports {module} ({order[other]}) from {order[own]}"
 
   # Only packages listed under [engines] may appear in `requires` (ADR-0001).
   let allowed = section("engines")
