@@ -113,18 +113,32 @@ func requiredOn(line: string): seq[string] =
   ## Package names a single `requires` line declares. Nimble accepts several
   ## per directive, comma separated inside one string and as several strings
   ## on one line; reading the first alone would let the rest past the
-  ## [engines] allowlist.
-  if not line.strip.startsWith("requires"): return
+  ## [engines] allowlist. A trailing comment is not read, while the `#` of a
+  ## quoted branch specification is.
   let trimmed = line.strip
-  var index = trimmed.find('"')
+  if not trimmed.startsWith("requires"): return
+  # The directive, not a name starting with it: requiresExtra is not one.
+  if trimmed.len > 8 and trimmed[8] in IdentChars: return
+  var body = trimmed
+  block cut:
+    var inString = false
+    for at, ch in trimmed:
+      case ch
+      of '"': inString = not inString
+      of '#':
+        if not inString:
+          body = trimmed[0 ..< at]
+          break cut
+      else: discard
+  var index = body.find('"')
   while index >= 0:
-    let stop = trimmed.find('"', index + 1)
+    let stop = body.find('"', index + 1)
     if stop <= index: break
-    for spec in trimmed[index + 1 ..< stop].split(','):
+    for spec in body[index + 1 ..< stop].split(','):
       let name = packageName(spec.strip)
       if name.len > 0:
         result.add name
-    index = trimmed.find('"', stop + 1)
+    index = body.find('"', stop + 1)
 
 iterator requiredPackages(path: string): string =
   ## Package name of every requirement in the manifest.
@@ -177,6 +191,10 @@ proc checkParser() =
     """requires "nim >= 2.0.0"""": @["nim"],
     """requires "nim >= 2.0.0, UniUndeclared"""": @["nim", "UniUndeclared"],
     """requires "a", "b"""": @["a", "b"],
+    """requires "UniVector" # "UniPlot"""": @["UniVector"],
+    """requiresExtra "UniVector"""": newSeq[string](),
+    """requires "https://github.com/lbartoletti/NimContracts#main"""":
+    @["NimContracts"],
   }
   for (line, want) in requireCases:
     let got = requiredOn(line)
