@@ -155,7 +155,7 @@ proc checkParser() =
     "std/[os, strutils]": "std/os,std/strutils,",
     "std/[os], a, b": "std/os,a,b,",
     "std/[os, strutils], c_api/private, other":
-      "std/os,std/strutils,c_api/private,other,",
+    "std/os,std/strutils,c_api/private,other,",
     "std/[os], x/[y, z], w": "std/os,x/y,x/z,w,",
     "a, b, c": "a,b,c,",
   }
