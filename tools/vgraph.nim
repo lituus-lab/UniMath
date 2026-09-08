@@ -109,6 +109,18 @@ proc packageName(spec: string): string =
     result = result.split(sep)[0]
   result = result.split({'/', '\\'})[^1]
 
+func withoutComment(line: string): string =
+  ## The line up to a `#` outside a string. The `#` of a quoted branch
+  ## specification stays.
+  var inString = false
+  for at, ch in line:
+    case ch
+    of '"': inString = not inString
+    of '#':
+      if not inString: return line[0 ..< at]
+    else: discard
+  line
+
 func requiredOn(line: string): seq[string] =
   ## Package names a single `requires` line declares. Nimble accepts several
   ## per directive, comma separated inside one string and as several strings
@@ -119,17 +131,7 @@ func requiredOn(line: string): seq[string] =
   if not trimmed.startsWith("requires"): return
   # The directive, not a name starting with it: requiresExtra is not one.
   if trimmed.len > 8 and trimmed[8] in IdentChars: return
-  var body = trimmed
-  block cut:
-    var inString = false
-    for at, ch in trimmed:
-      case ch
-      of '"': inString = not inString
-      of '#':
-        if not inString:
-          body = trimmed[0 ..< at]
-          break cut
-      else: discard
+  let body = withoutComment(trimmed)
   var index = body.find('"')
   while index >= 0:
     let stop = body.find('"', index + 1)
@@ -140,11 +142,28 @@ func requiredOn(line: string): seq[string] =
         result.add name
     index = body.find('"', stop + 1)
 
+func requiredIn(lines: openArray[string]): seq[string] =
+  ## Package names a manifest declares. A directive continued after a comma is
+  ## joined before it is read, since Nim allows the argument list to span lines.
+  var pending = ""
+  for raw in lines:
+    let body = withoutComment(raw).strip
+    if pending.len > 0:
+      pending.add " " & body
+    elif body.startsWith("requires"):
+      pending = body
+    else:
+      continue
+    if pending.endsWith(","): continue
+    result.add requiredOn(pending)
+    pending = ""
+  if pending.len > 0:
+    result.add requiredOn(pending)
+
 iterator requiredPackages(path: string): string =
   ## Package name of every requirement in the manifest.
-  for raw in readFile(path).splitLines:
-    for name in requiredOn(raw):
-      yield name
+  for name in requiredIn(readFile(path).splitLines):
+    yield name
 
 proc confinements(): seq[(string, string)] =
   ## Entries under `[confined]`, each `Package = path`: only that path may
@@ -200,6 +219,18 @@ proc checkParser() =
     let got = requiredOn(line)
     if got != want:
       quit(&"vgraph: requires regression on `{line}`: got `{got}`, want `{want}`", 1)
+
+  # A directive whose argument list spans lines, which Nim allows after a comma.
+  const manifestCases = [
+    (@["requires \"a\",", "         \"UniUndeclared\""],
+     @["a", "UniUndeclared"]),
+    (@["requires \"a\", # note", "         \"b\""], @["a", "b"]),
+    (@["requires \"a\"", "requires \"b\""], @["a", "b"]),
+  ]
+  for (lines, want) in manifestCases:
+    let got = requiredIn(lines)
+    if got != want:
+      quit(&"vgraph: manifest regression on `{lines}`: got `{got}`, want `{want}`", 1)
 
 proc main() =
   checkParser()
