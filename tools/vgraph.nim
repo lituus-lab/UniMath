@@ -5,7 +5,7 @@
 ## (ADR-0001).
 ## Line-based scan of import/from/include, which covers the forms Nim sources
 ## actually use; a macro-built import would slip past it.
-import std/[os, strformat, strutils]
+import std/[json, os, osproc, streams, strformat, strutils]
 
 const Cfg = "vgraph.cfg"
 
@@ -109,64 +109,41 @@ proc packageName(spec: string): string =
     result = result.split(sep)[0]
   result = result.split({'/', '\\'})[^1]
 
-func withoutComment(line: string): string =
-  ## The line up to a `#` outside a string. The `#` of a quoted branch
-  ## specification stays.
-  var inString = false
-  for at, ch in line:
-    case ch
-    of '"': inString = not inString
-    of '#':
-      if not inString: return line[0 ..< at]
-    else: discard
-  line
-
-func requiredOn(line: string): seq[string] =
-  ## Package names a single `requires` line declares. Nimble accepts several
-  ## per directive, comma separated inside one string and as several strings
-  ## on one line; reading the first alone would let the rest past the
-  ## [engines] allowlist. A trailing comment is not read, while the `#` of a
-  ## quoted branch specification is.
-  let trimmed = line.strip
-  if not trimmed.startsWith("requires"): return
-  # The directive, not a name starting with it: requiresExtra is not one.
-  if trimmed.len > 8 and trimmed[8] in IdentChars: return
-  let body = withoutComment(trimmed)
-  var index = body.find('"')
-  while index >= 0:
-    let stop = body.find('"', index + 1)
-    if stop <= index: break
-    for spec in body[index + 1 ..< stop].split(','):
-      let name = packageName(spec.strip)
-      if name.len > 0:
-        result.add name
-    index = body.find('"', stop + 1)
-
-func requiredIn(lines: openArray[string]): seq[string] =
-  ## Package names a manifest declares. A directive continued after a comma is
-  ## joined before it is read, since Nim allows the argument list to span lines.
-  var pending = ""
-  for raw in lines:
-    let body = withoutComment(raw).strip
-    if pending.len > 0:
-      # A comment-only line leaves nothing: appending it would drop the comma
-      # the continuation is recognised by.
-      if body.len == 0: continue
-      pending.add " " & body
-    elif body.startsWith("requires"):
-      pending = body
-    else:
-      continue
-    if pending.endsWith(","): continue
-    result.add requiredOn(pending)
-    pending = ""
-  if pending.len > 0:
-    result.add requiredOn(pending)
-
 iterator requiredPackages(path: string): string =
-  ## Package name of every requirement in the manifest.
-  for name in requiredIn(readFile(path).splitLines):
-    yield name
+  ## Package name of every requirement, as nimble itself reports them.
+  ##
+  ## `nimble dump --json` hands back `requires` already parsed by Nim, so none
+  ## of this reads the manifest as text. The parser that did was rewritten
+  ## thirteen times over comment forms, identifier equality, line continuations
+  ## and string literals -- each a way Nim spells something a hand-rolled
+  ## scanner had to learn. `path` is the manifest, kept for the error message.
+  # Streams kept apart: merging them would let a diagnostic brace pass for the
+  # start of the object. The exit code is not consulted because it does not
+  # answer -- measured, `nimble dump --json` returns 0 on a manifest it cannot
+  # resolve and writes a stack trace to stdout where the object should be. What
+  # the output is, not what the code says, is the only usable verdict.
+  let process = startProcess("nimble", args = ["dump", "--json"],
+                             options = {poUsePath})
+  let dumped = process.outputStream.readAll()
+  let diagnostics = process.errorStream.readAll()
+  discard process.waitForExit()
+  process.close()
+  let body = dumped.strip
+  if not body.startsWith("{"):
+    quit(&"vgraph: `nimble dump --json` did not describe {path}:\n" &
+         body & diagnostics, 1)
+  var parsed: JsonNode
+  try:
+    parsed = parseJson(body)
+  except JsonParsingError:
+    quit(&"vgraph: `nimble dump --json` was unreadable for {path}:\n" &
+         body & diagnostics, 1)
+  if "requires" notin parsed:
+    quit(&"vgraph: `nimble dump --json` listed no requires for {path}", 1)
+  for entry in parsed["requires"]:
+    let name = packageName(entry{"name"}.getStr)
+    if name.len > 0:
+      yield name
 
 proc confinements(): seq[(string, string)] =
   ## Entries under `[confined]`, each `Package = path`: only that path may
@@ -191,9 +168,9 @@ proc mayImport*(path, module: string, rules: seq[(string, string)]): bool =
   true
 
 proc checkParser() =
-  ## Check the parsers against known inputs before judging any repository.
-  ## They travel with the tool rather than a test file each manifest would
-  ## wire in.
+  ## Check the text handling against known inputs before judging any
+  ## repository. It travels with the tool rather than a test file each manifest
+  ## would wire in.
   const cases = {
     "std/[os, strutils]": "std/os,std/strutils,",
     "std/[os], a, b": "std/os,a,b,",
@@ -205,37 +182,20 @@ proc checkParser() =
   for (input, want) in cases:
     let got = expandGrouped(input)
     if got != want:
-      quit(&"vgraph: parser regression on `{input}`: got `{got}`, want `{want}`", 1)
+      quit(&"vgraph: import parser regression on `{input}`: got `{got}`, " &
+           &"want `{want}`", 1)
 
-  # Several requirements per directive, which nimble accepts and the allowlist
-  # must see.
-  const requireCases = {
-    """requires "nim >= 2.0.0"""": @["nim"],
-    """requires "nim >= 2.0.0, UniUndeclared"""": @["nim", "UniUndeclared"],
-    """requires "a", "b"""": @["a", "b"],
-    """requires "UniVector" # "UniPlot"""": @["UniVector"],
-    """requiresExtra "UniVector"""": newSeq[string](),
-    """requires "https://github.com/lbartoletti/NimContracts#main"""":
-    @["NimContracts"],
+  # What nimble reports for a requirement, reduced to the package name.
+  const names = {
+    "nim": "nim",
+    "https://github.com/lbartoletti/NimContracts": "NimContracts",
+    "https://github.com/lituus-lab/UniColor": "UniColor",
   }
-  for (line, want) in requireCases:
-    let got = requiredOn(line)
+  for (input, want) in names:
+    let got = packageName(input)
     if got != want:
-      quit(&"vgraph: requires regression on `{line}`: got `{got}`, want `{want}`", 1)
-
-  # A directive whose argument list spans lines, which Nim allows after a comma.
-  const manifestCases = [
-    (@["requires \"a\",", "         \"UniUndeclared\""],
-     @["a", "UniUndeclared"]),
-    (@["requires \"a\", # note", "         \"b\""], @["a", "b"]),
-    (@["requires \"a\",", "  # a note on its own line", "  \"UniUndeclared\""],
-     @["a", "UniUndeclared"]),
-    (@["requires \"a\"", "requires \"b\""], @["a", "b"]),
-  ]
-  for (lines, want) in manifestCases:
-    let got = requiredIn(lines)
-    if got != want:
-      quit(&"vgraph: manifest regression on `{lines}`: got `{got}`, want `{want}`", 1)
+      quit(&"vgraph: package name regression on `{input}`: got `{got}`, " &
+           &"want `{want}`", 1)
 
 proc main() =
   checkParser()
