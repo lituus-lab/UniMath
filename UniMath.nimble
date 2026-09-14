@@ -388,7 +388,28 @@ task coverage, "LCOV + HTML coverage report for the Nim sources (needs lcov)":
   for t in unitTests:
     exec "./build/cov/" & t[6 .. ^5]
   exec "lcov --capture --directory " & cache & " --base-directory ." &
-       " --include \"*/src/UniMath/*\" --output-file lcov.info --quiet --ignore-errors mismatch"
+       " --include \"*/src/UniMath/*\" --output-file build/nim.info --quiet" &
+       " --ignore-errors mismatch"
+  # The C ABI answers to no Nim test: `ctest` reaches it through a C consumer
+  # linking the static library, so its lines were absent from the report rather
+  # than shown as uncovered -- 1411 of them, the surface that must clamp instead
+  # of raising. Built -d:release like the shipped archive, because that is where
+  # the contracts are compiled away and the clamps are what remains.
+  let capiCache = "build/capicov"
+  rmDir capiCache
+  exec "nim c --app:staticlib -d:noAutoInit --noMain --mm:arc --panics:off" &
+       " -d:release --debugger:native --passC:--coverage --passL:--coverage" &
+       " --nimcache:" & capiCache & " -o:build/libUniMath_cov.a src/UniMath/c_api.nim"
+  exec "cc -Iinclude -O2 -Wall -Wextra -std=c11 --coverage" &
+       " -o build/test_capi_cov tests/c/test_unimath.c build/libUniMath_cov.a"
+  exec "./build/test_capi_cov"
+  exec "lcov --capture --directory " & capiCache & " --base-directory ." &
+       " --include \"*/src/UniMath/*\" --output-file build/capi.info --quiet" &
+       " --ignore-errors mismatch,unsupported"
+  # One report, both harnesses: a line the Nim suite misses and the C consumer
+  # reaches counts as covered, which is the truth about the library.
+  exec "lcov -a build/nim.info -a build/capi.info --output-file lcov.info" &
+       " --quiet --ignore-errors mismatch,unsupported"
   # gcov can attribute a final generated expression to EOF + 1, and that one
   # artefact answers to two names: lcov 2.0, the version ubuntu-latest installs,
   # calls it `unmapped` and rejects `range` as a category outright, while 2.5
