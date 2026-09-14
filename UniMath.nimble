@@ -101,58 +101,46 @@ task docs, "API reference + book into pages/ — what CI publishes":
        "pages/api/nimdoc.out.css"
   done "docs"
 
+# The suite `test`, `testRelease` and `coverage` all run. Held once: the
+# coverage task used to name a single file of its own, and reported the
+# 82% that one file reached as though it were the library's.
+const unitTests = [
+  "tests/test_primitives.nim",
+  "tests/test_native_float.nim",
+  "tests/test_arithmetic.nim",
+  "tests/test_fixed.nim",
+  "tests/test_float.nim",
+  "tests/test_rational.nim",
+  "tests/test_interval.nim",
+  "tests/test_complex.nim",
+  "tests/test_eft.nim",
+  "tests/test_roots.nim",
+  "tests/test_exponential.nim",
+  "tests/test_trigonometry.nim",
+  "tests/test_hyperbolic.nim",
+  "tests/test_special.nim",
+  "tests/test_constants.nim",
+  "tests/test_reduction.nim",
+  "tests/test_float_math.nim",
+  "tests/test_float_math_precision.nim",
+  "tests/test_rational_math.nim",
+  "tests/test_complex_math.nim",
+  "tests/test_math_router.nim",
+  "tests/test_conversions.nim",
+  "tests/test_version.nim",
+  "tests/test_properties.nim",
+]
+
 task test, "Nim tests (debug, contracts active)":
-  exec "nim c -r --path:src -o:build/test_primitives tests/test_primitives.nim"
-  exec "nim c -r --path:src -o:build/test_native_float tests/test_native_float.nim"
-  exec "nim c -r --path:src -o:build/test_arithmetic tests/test_arithmetic.nim"
-  exec "nim c -r --path:src -o:build/test_fixed tests/test_fixed.nim"
-  exec "nim c -r --path:src -o:build/test_float tests/test_float.nim"
-  exec "nim c -r --path:src -o:build/test_rational tests/test_rational.nim"
-  exec "nim c -r --path:src -o:build/test_interval tests/test_interval.nim"
-  exec "nim c -r --path:src -o:build/test_complex tests/test_complex.nim"
-  exec "nim c -r --path:src -o:build/test_eft tests/test_eft.nim"
-  exec "nim c -r --path:src -o:build/test_roots tests/test_roots.nim"
-  exec "nim c -r --path:src -o:build/test_exponential tests/test_exponential.nim"
-  exec "nim c -r --path:src -o:build/test_trigonometry tests/test_trigonometry.nim"
-  exec "nim c -r --path:src -o:build/test_hyperbolic tests/test_hyperbolic.nim"
-  exec "nim c -r --path:src -o:build/test_special tests/test_special.nim"
-  exec "nim c -r --path:src -o:build/test_constants tests/test_constants.nim"
-  exec "nim c -r --path:src -o:build/test_reduction tests/test_reduction.nim"
-  exec "nim c -r --path:src -o:build/test_float_math tests/test_float_math.nim"
-  exec "nim c -r --path:src -o:build/test_float_math_precision tests/test_float_math_precision.nim"
-  exec "nim c -r --path:src -o:build/test_rational_math tests/test_rational_math.nim"
-  exec "nim c -r --path:src -o:build/test_complex_math tests/test_complex_math.nim"
-  exec "nim c -r --path:src -o:build/test_math_router tests/test_math_router.nim"
-  exec "nim c -r --path:src -o:build/test_conversions tests/test_conversions.nim"
-  exec "nim c -r --path:src -o:build/test_version tests/test_version.nim"
-  exec "nim c -r --path:src -o:build/test_properties tests/test_properties.nim"
+  for t in unitTests:
+    let name = t[6 .. ^5]
+    exec "nim c -r --path:src -o:build/" & name & " " & t
   done "test"
 
 task testRelease, "Nim tests (release, contracts compiled away)":
-  exec "nim c -r -d:release --path:src -o:build/test_primitives_rel tests/test_primitives.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_native_float_rel tests/test_native_float.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_arithmetic_rel tests/test_arithmetic.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_fixed_rel tests/test_fixed.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_float_rel tests/test_float.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_rational_rel tests/test_rational.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_interval_rel tests/test_interval.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_complex_rel tests/test_complex.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_eft_rel tests/test_eft.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_roots_rel tests/test_roots.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_exponential_rel tests/test_exponential.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_trigonometry_rel tests/test_trigonometry.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_hyperbolic_rel tests/test_hyperbolic.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_special_rel tests/test_special.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_constants_rel tests/test_constants.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_reduction_rel tests/test_reduction.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_float_math_rel tests/test_float_math.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_float_math_precision_rel tests/test_float_math_precision.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_rational_math_rel tests/test_rational_math.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_complex_math_rel tests/test_complex_math.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_math_router_rel tests/test_math_router.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_conversions_rel tests/test_conversions.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_version_rel tests/test_version.nim"
-  exec "nim c -r -d:release --path:src -o:build/test_properties_rel tests/test_properties.nim"
+  for t in unitTests:
+    let name = t[6 .. ^5]
+    exec "nim c -r -d:release --path:src -o:build/" & name & "_rel " & t
   done "testRelease"
 
 # The 128-bit paths are selected automatically on gcc/clang with a 64-bit
@@ -387,10 +375,18 @@ task coverage, "LCOV + HTML coverage report for the Nim sources (needs lcov)":
   let cache = "build/covcache"
   rmDir cache
   rmDir "coverage"
-  exec "nim c --path:src --nimcache:" & cache &
-       " --debugger:native --passC:--coverage --passL:--coverage" &
-       " -o:build/test_coverage tests/test_arithmetic.nim"
-  exec "./build/test_coverage"
+  # Every unit test, each with its own nimcache: one shared cache would let a
+  # later compilation overwrite the .gcno of an earlier one, and the modules
+  # only that earlier test reaches would vanish from the report rather than
+  # show as uncovered.
+  var index = 0
+  for t in unitTests:
+    exec "nim c --path:src --nimcache:" & cache & "/" & $index &
+         " --debugger:native --passC:--coverage --passL:--coverage" &
+         " -o:build/cov/" & t[6 .. ^5] & " " & t
+    inc index
+  for t in unitTests:
+    exec "./build/cov/" & t[6 .. ^5]
   exec "lcov --capture --directory " & cache & " --base-directory ." &
        " --include \"*/src/UniMath/*\" --output-file lcov.info --quiet --ignore-errors mismatch"
   # gcov can attribute a final generated expression to EOF + 1, and that one
