@@ -28,9 +28,9 @@ pip install lituus-unimath
 ```
 
 CI installs the wheel the release actually publishes and executes this
-notebook against it, so a change that breaks the API breaks the build — but
-only cell *execution* is checked, not that a printed value still matches
-what's committed here."""),
+notebook against it, then compares the fresh outputs with the ones committed
+here, so a value that has gone stale fails the build as surely as a call that
+no longer exists."""),
     ("md", "## The API"),
     ("code", """import unimath
 
