@@ -18,6 +18,10 @@ static void check_str(const char *name, const char *got, const char *want) {
   else printf("ok   %s = \"%s\"\n", name, got);
 }
 
+static void check_null(const char *name, const void *got) {
+  if (got != NULL) { printf("FAIL %s: want NULL\n", name); failures++; }
+}
+
 static void check_int(const char *name, long long got, long long want) {
   if (got != want) { printf("FAIL %s: got %lld want %lld\n", name, got, want); failures++; }
   else printf("ok   %s = %lld\n", name, got);
@@ -1308,6 +1312,37 @@ int main(void) {
               unimath_complex_fixed_mul(one, one, -1).re, 0);
     check_int("cx_fixed_norm2 rejects a bad frac_bits",
               unimath_complex_fixed_norm2(one, -1), 0);
+  }
+
+  {
+    /* A nil handle must come back as NULL, never as a fault: these entry
+     * points are reached from C, where there is no exception to catch. Each
+     * one guards for it and none was exercised -- coverage of c_api.nim was
+     * not measured at all until the coverage task learned to build the
+     * archive instrumented and run this consumer against it. */
+    check_null("bigfloat_sin_terms(NULL)", unimath_bigfloat_sin_terms(NULL, 8));
+    check_null("bigfloat_cos_terms(NULL)", unimath_bigfloat_cos_terms(NULL, 8));
+    check_null("bigfloat_tan(NULL)", unimath_bigfloat_tan(NULL));
+    check_null("bigfloat_tan_terms(NULL)", unimath_bigfloat_tan_terms(NULL, 8));
+    check_null("bigfloat_exp_terms(NULL)", unimath_bigfloat_exp_terms(NULL, 8));
+    check_null("bigfloat_ln_terms(NULL)", unimath_bigfloat_ln_terms(NULL, 8));
+    check_null("bigfloat_arctan2_terms(NULL)", unimath_bigfloat_arctan2_terms(NULL, NULL, 8));
+    check_null("bigfloat_pow_terms(NULL)", unimath_bigfloat_pow_terms(NULL, NULL, 8));
+    check_null("complex_bigfloat_sub(NULL)", unimath_complex_bigfloat_sub(NULL, NULL));
+    check_null("complex_bigfloat_conj(NULL)", unimath_complex_bigfloat_conj(NULL));
+    check_null("complex_bigfloat_inv(NULL)", unimath_complex_bigfloat_inv(NULL));
+    check_null("complex_bigfloat_arg(NULL)", unimath_complex_bigfloat_arg(NULL));
+    check_null("complex_bigfloat_sqrt(NULL)", unimath_complex_bigfloat_sqrt(NULL));
+    check_null("complex_bigfloat_sin(NULL)", unimath_complex_bigfloat_sin(NULL));
+    check_null("complex_bigfloat_cos(NULL)", unimath_complex_bigfloat_cos(NULL));
+    check_null("complex_bigfloat_pow_int(NULL)", unimath_complex_bigfloat_pow_int(NULL, 2));
+    check_null("complex_bigfloat_pow(NULL)", unimath_complex_bigfloat_pow(NULL, NULL));
+    check_null("complex_rational_from_rational(NULL)", unimath_complex_rational_from_rational(NULL, NULL));
+    check_null("complex_rational_add(NULL)", unimath_complex_rational_add(NULL, NULL));
+    check_null("complex_rational_sub(NULL)", unimath_complex_rational_sub(NULL, NULL));
+    check_null("complex_rational_inv(NULL)", unimath_complex_rational_inv(NULL));
+    check_null("complex_rational_abs(NULL)", unimath_complex_rational_abs(NULL));
+    check_null("complex_rational_sqrt(NULL)", unimath_complex_rational_sqrt(NULL));
   }
 
   unimath_cleanup();
