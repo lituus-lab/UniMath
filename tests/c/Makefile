@@ -14,7 +14,10 @@
 # for `-C` before reading this file, so a relative path needs no builtin.
 CC     ?= cc
 ROOT   := ../..
-CFLAGS := -I$(ROOT)/include -O2 -Wall -Wextra -std=c11
+# EXTRA_CFLAGS is a hook, not a knob: `nimble coverage` passes --coverage
+# through it. Replacing CFLAGS from the command line would drop the include
+# path -- and in sibling repos the -D their test needs.
+CFLAGS := -I$(ROOT)/include -O2 -Wall -Wextra -std=c11 $(EXTRA_CFLAGS)
 LIB    := $(ROOT)/libUniMath.a
 BIN    ?= test_unimath
 RUN    ?= ./$(BIN)
