@@ -407,7 +407,12 @@ task coverage, "LCOV + HTML coverage report for the Nim sources (needs lcov)":
   # is the whole point. It builds and runs in one go (`all: run`).
   exec makeExe & " -C tests/c BIN=test_capi_cov" &
        " LIB=../../build/libUniMath_cov.a EXTRA_CFLAGS=--coverage"
-  exec "lcov --capture --directory " & capiCache & " --base-directory ." &
+  # --no-function-coverage: the function records of the two captures disagree on
+  # where Nim's generated destructors start, and genhtml rejects the merged file
+  # for it. Not emitting them beats suppressing the complaint; the line rate,
+  # which the threshold reads, is untouched.
+  exec "lcov --capture --no-function-coverage --directory " & capiCache &
+       " --base-directory ." &
        " --include \"*/src/UniMath/*\" --output-file build/capi.info --quiet" &
        " --ignore-errors mismatch,unsupported"
   # One report, both harnesses: a line the Nim suite misses and the C consumer
