@@ -400,11 +400,14 @@ task coverage, "LCOV + HTML coverage report for the Nim sources (needs lcov)":
   exec "nim c --app:staticlib -d:noAutoInit --noMain --mm:arc --panics:off" &
        " -d:release --debugger:native --passC:--coverage --passL:--coverage" &
        " --nimcache:" & capiCache & " -o:build/libUniMath_cov.a src/UniMath/c_api.nim"
-  # -lm as tests/c/Makefile passes it: macOS folds libm into libSystem and links
-  # without it, Linux does not and fails on log/atan2 from complex_math.
-  exec "cc -Iinclude -O2 -Wall -Wextra -std=c11 --coverage" &
-       " -o build/test_capi_cov tests/c/test_unimath.c build/libUniMath_cov.a -lm"
-  exec "./build/test_capi_cov"
+  # Through tests/c's own Makefile, not a hand-written cc line: the Makefile
+  # holds the per-platform library set -- macOS frameworks here, -lm on glibc --
+  # and a second copy of that logic would drift. Overriding LIB, BIN and CFLAGS
+  # on the command line beats the file's `:=`, and LDLIBS is left alone, which
+  # is the whole point. It builds and runs in one go (`all: run`).
+  exec makeExe & " -C tests/c BIN=test_capi_cov" &
+       " LIB=../../build/libUniMath_cov.a" &
+       " CFLAGS=\"-I../../include -O2 -Wall -Wextra -std=c11 --coverage\""
   exec "lcov --capture --directory " & capiCache & " --base-directory ." &
        " --include \"*/src/UniMath/*\" --output-file build/capi.info --quiet" &
        " --ignore-errors mismatch,unsupported"
