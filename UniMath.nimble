@@ -406,8 +406,7 @@ task coverage, "LCOV + HTML coverage report for the Nim sources (needs lcov)":
   # on the command line beats the file's `:=`, and LDLIBS is left alone, which
   # is the whole point. It builds and runs in one go (`all: run`).
   exec makeExe & " -C tests/c BIN=test_capi_cov" &
-       " LIB=../../build/libUniMath_cov.a" &
-       " CFLAGS=\"-I../../include -O2 -Wall -Wextra -std=c11 --coverage\""
+       " LIB=../../build/libUniMath_cov.a EXTRA_CFLAGS=--coverage"
   exec "lcov --capture --directory " & capiCache & " --base-directory ." &
        " --include \"*/src/UniMath/*\" --output-file build/capi.info --quiet" &
        " --ignore-errors mismatch,unsupported"
