@@ -45,6 +45,11 @@ py/_nimsrc/
 
 # c test/example binaries
 tests/c/test_unimath
+# the coverage build of the same consumer, and the gcov pair make leaves
+# beside it
+tests/c/test_capi_cov
+tests/c/*.gcda
+tests/c/*.gcno
 examples/c/demo
 
 # bench binaries (built by `nimble benchSpeed` / `make -C bench mpfrops`;
